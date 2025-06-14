@@ -28,7 +28,7 @@ export default function PaymentModalWithCoupons({
   menuItems,
 }: EnhancedPaymentModalProps) {
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [amountReceived, setAmountReceived] = useState(0);
+  const [amountReceived, setAmountReceived] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
@@ -57,6 +57,8 @@ export default function PaymentModalWithCoupons({
       loadCustomers();
     }
   }, [restaurant?.id]);
+
+
 
   const loadCustomers = async () => {
     if (!restaurant?.id) return;
@@ -185,9 +187,10 @@ export default function PaymentModalWithCoupons({
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
   const handlePayment = () => {
+    const amountReceivedNum = parseFloat(amountReceived) || finalTotal;
     const paymentData = {
       method: paymentMethod,
-      amountReceived: paymentMethod === 'cash' ? amountReceived : finalTotal,
+      amountReceived: paymentMethod === 'cash' ? amountReceivedNum : finalTotal,
       appliedCoupon,
       manualDiscount: manualDiscount.value > 0 ? manualDiscount : null,
       customerId: selectedCustomerId || null,
@@ -541,7 +544,12 @@ export default function PaymentModalWithCoupons({
                 {['cash', 'upi', 'bank'].map((method) => (
                   <button
                     key={method}
-                    onClick={() => setPaymentMethod(method)}
+                    onClick={() => {
+                      setPaymentMethod(method);
+                      if (method === 'cash' && amountReceived === '') {
+                        setAmountReceived(finalTotal.toString());
+                      }
+                    }}
                     className={`p-3 border rounded-lg text-center capitalize ${
                       paymentMethod === method
                         ? 'border-blue-500 bg-blue-50 text-blue-700'
@@ -563,15 +571,15 @@ export default function PaymentModalWithCoupons({
                 <input
                   type="number"
                   value={amountReceived}
-                  onChange={(e) => setAmountReceived(Number(e.target.value))}
+                  onChange={(e) => setAmountReceived(e.target.value)}
                   min={finalTotal}
                   step="0.01"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={finalTotal.toString()}
                 />
-                {amountReceived > finalTotal && (
+                {parseFloat(amountReceived) > finalTotal && (
                   <div className="mt-2 text-sm text-gray-600">
-                    Change: {formatCurrency(amountReceived - finalTotal)}
+                    Change: {formatCurrency(parseFloat(amountReceived) - finalTotal)}
                   </div>
                 )}
               </div>
@@ -596,7 +604,7 @@ export default function PaymentModalWithCoupons({
               </button>
               <button
                 onClick={handlePayment}
-                disabled={isProcessing || (paymentMethod === 'cash' && amountReceived < finalTotal)}
+                disabled={isProcessing || (paymentMethod === 'cash' && (parseFloat(amountReceived) || 0) < finalTotal)}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isProcessing ? 'Processing...' : `Pay ${formatCurrency(finalTotal)}`}
