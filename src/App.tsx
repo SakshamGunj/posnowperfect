@@ -31,6 +31,7 @@ import CouponDashboard from '@/pages/restaurant/CouponDashboard';
 import GamificationDashboard from '@/pages/restaurant/GamificationDashboard';
 import SpinWheelPage from '@/pages/public/SpinWheelPage';
 import UserDashboardPage from '@/pages/public/UserDashboardPage';
+import RestaurantDebug from '@/pages/debug/RestaurantDebug';
 import NotFoundPage from '@/pages/NotFoundPage';
 
 // Components
@@ -173,6 +174,9 @@ export default function App() {
                     
                     {/* Spin Wheel Route */}
                     <Route path="spin-wheel" element={<SpinWheelPage />} />
+                    
+                    {/* Debug Route */}
+                    <Route path="debug" element={<RestaurantDebug />} />
                     
                     {/* Protected restaurant routes with shared layout */}
                     <Route path="/*" element={
