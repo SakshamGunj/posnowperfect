@@ -76,7 +76,7 @@ export function RestaurantProvider({ children }: RestaurantProviderProps) {
       if (!location.pathname.startsWith(`/${slug}/login`) && location.pathname !== `/${slug}/spin-wheel`) {
         navigate(`/${slug}`);
       }
-    }
+        }
       } else {
         setError(result.error || 'Restaurant not found');
         setRestaurant(null);

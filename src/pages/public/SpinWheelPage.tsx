@@ -13,7 +13,7 @@ export default function SpinWheelPage() {
   
   const [wheelConfig, setWheelConfig] = useState<SpinWheelConfig | null>(null);
   const [restaurantName, setRestaurantName] = useState<string>('');
-  const [restaurantId, setRestaurantId] = useState<string>('');
+  const [_restaurantId, setRestaurantId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
