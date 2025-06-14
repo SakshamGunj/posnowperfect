@@ -1,0 +1,620 @@
+// Core Types for Multi-Tenant POS System
+
+export type BusinessType = 'restaurant' | 'cafe' | 'bar';
+
+export interface Restaurant {
+  id: string;
+  name: string;
+  slug: string; // URL-friendly identifier
+  businessType: BusinessType;
+  ownerId: string;
+  isActive: boolean;
+  settings: RestaurantSettings;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string; // Admin who created this restaurant
+}
+
+export interface RestaurantSettings {
+  address?: string;
+  phone?: string;
+  email?: string;
+  taxRate: number;
+  currency: string;
+  timezone: string;
+  
+  // Business registration details for bills/receipts
+  businessInfo: {
+    gstin?: string; // GST Identification Number (India)
+    fssaiNumber?: string; // Food Safety and Standards Authority of India License
+    businessAddress?: string; // Full business address for bills
+    city?: string;
+    state?: string;
+    pincode?: string;
+    country?: string;
+    website?: string;
+  };
+  
+  theme: {
+    primaryColor: string;
+    secondaryColor: string;
+    logo?: string;
+  };
+  features: {
+    tableManagement: boolean;
+    inventoryTracking: boolean;
+    kitchenDisplay: boolean;
+    customerManagement: boolean;
+    reporting: boolean;
+  };
+}
+
+export type UserRole = 'super_admin' | 'owner' | 'manager' | 'staff';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  restaurantId?: string; // null for super_admin, set for restaurant users
+  pin?: string; // 4-digit PIN for quick login
+  permissions: Permission[];
+  isActive: boolean;
+  lastLoginAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy?: string; // Admin who created this user
+}
+
+// Admin-specific types
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: 'super_admin';
+  isActive: boolean;
+  lastLoginAt?: Date;
+  createdAt: Date;
+}
+
+export interface CreateRestaurantRequest {
+  name: string;
+  businessType: BusinessType;
+  ownerName: string;
+  ownerEmail: string;
+  address?: string;
+  phone?: string;
+  settings?: Partial<RestaurantSettings>;
+}
+
+export interface RestaurantCredentials {
+  restaurantUrl: string;
+  ownerEmail: string;
+  ownerPassword: string;
+  ownerPin: string;
+  loginInstructions: string;
+}
+
+export interface Permission {
+  id: string;
+  name: string;
+  description: string;
+  category: 'orders' | 'kitchen' | 'tables' | 'inventory' | 'reports' | 'settings';
+}
+
+export type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning' | 'out_of_service';
+
+export interface TableArea {
+  id: string;
+  restaurantId: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Table {
+  id: string;
+  restaurantId: string;
+  number: string;
+  area: string; // Links to TableArea.name
+  areaId: string; // Links to TableArea.id
+  capacity: number;
+  status: TableStatus;
+  currentOrderId?: string;
+  reservedAt?: Date;
+  reservedFor?: string;
+  description?: string; // Optional table description
+  isActive: boolean;
+  createdBy?: string; // User who created this table
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type OrderStatus = 'draft' | 'placed' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+export type OrderType = 'dine_in' | 'takeaway' | 'delivery';
+
+export interface Order {
+  id: string;
+  restaurantId: string;
+  orderNumber: string;
+  tableId?: string;
+  customerId?: string;
+  type: OrderType;
+  status: OrderStatus;
+  items: OrderItem[];
+  subtotal: number;
+  tax: number;
+  discount: number;
+  total: number;
+  paymentStatus: 'pending' | 'paid' | 'partial';
+  notes?: string;
+  staffId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SelectedVariant {
+  variantId: string;
+  variantName: string;
+  optionId: string;
+  optionName: string;
+  priceModifier: number;
+  pricingType?: 'additive' | 'standalone';
+}
+
+export interface OrderItem {
+  id: string;
+  menuItemId: string;
+  name: string;
+  price: number; // Base price
+  quantity: number;
+  customizations?: string[];
+  variants?: SelectedVariant[]; // Selected variants
+  notes?: string;
+  total: number; // Final price including variant modifiers
+}
+
+export interface MenuItem {
+  id: string;
+  restaurantId: string;
+  name: string;
+  description?: string;
+  price: number;
+  category: string;
+  categoryId: string;
+  categoryName: string;
+  image?: string;
+  isAvailable: boolean;
+  ingredients?: string[];
+  allergens?: string[];
+  nutritionInfo?: NutritionInfo;
+  customizations?: CustomizationOption[];
+  variants?: MenuItemVariant[]; // New variant system
+  inventory?: InventoryItem;
+  preparationTime?: number;
+  spiceLevel?: 'none' | 'mild' | 'medium' | 'hot' | 'very_hot';
+  isVeg?: boolean; // Alternative name used in seedDataService
+  isVegetarian?: boolean;
+  isVegan?: boolean;
+  isGlutenFree?: boolean;
+  tags?: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NutritionInfo {
+  calories?: number;
+  protein?: number;
+  carbohydrates?: number;
+  fat?: number;
+  fiber?: number;
+  sodium?: number;
+}
+
+export interface CustomizationOption {
+  id: string;
+  name: string;
+  options: string[];
+  required: boolean;
+  maxSelections?: number;
+}
+
+export interface MenuItemVariantOption {
+  id: string;
+  name: string;
+  priceModifier: number; // Price difference from base price (can be negative)
+  isDefault?: boolean;
+  pricingType?: 'additive' | 'standalone'; // Whether to add to base price or replace it
+}
+
+export interface MenuItemVariant {
+  id: string;
+  name: string; // e.g., "Size", "Spice Level", "Toppings"
+  type: 'single' | 'multiple'; // single choice or multiple selection
+  required: boolean;
+  options: MenuItemVariantOption[];
+  maxSelections?: number; // Only for 'multiple' type
+}
+
+export interface Category {
+  id: string;
+  restaurantId: string;
+  name: string;
+  description?: string;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Customer {
+  id: string;
+  restaurantId: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  orderHistory: string[]; // Order IDs
+  totalSpent: number;
+  visitCount: number;
+  lastVisit?: Date;
+  preferences?: string[];
+  // Points system fields
+  loyaltyPoints?: number; // Total loyalty points accumulated
+  currentThresholdId?: string; // Current loyalty level
+  pointsHistory?: PointsTransaction[]; // History of points earned/spent
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type PaymentMethod = 'cash' | 'upi' | 'bank';
+
+export interface Discount {
+  type: 'amount' | 'percentage';
+  value: number;
+  reason?: string;
+}
+
+export interface Payment {
+  id: string;
+  restaurantId: string;
+  orderId: string;
+  method: PaymentMethod;
+  amount: number;
+  tip?: number;
+  reference?: string;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  processedAt?: Date;
+  createdAt: Date;
+}
+
+// Theme configuration based on business type
+export interface ThemeConfig {
+  businessType: BusinessType;
+  colors: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    background: string;
+    surface: string;
+    text: string;
+  };
+  gradients: {
+    primary: string;
+    secondary: string;
+  };
+}
+
+// API Response types
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+// Form types
+export interface CreateRestaurantForm {
+  name: string;
+  businessType: BusinessType;
+  ownerName: string;
+  ownerEmail: string;
+  ownerPassword: string;
+  address?: string;
+  phone?: string;
+}
+
+export interface LoginForm {
+  email: string;
+  password: string;
+  rememberMe?: boolean;
+}
+
+export interface PinLoginForm {
+  pin: string;
+  restaurantSlug: string;
+}
+
+// Utility types
+export type LoadingState = 'idle' | 'loading' | 'success' | 'error';
+
+export interface PaginationOptions {
+  page: number;
+  limit: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+}
+
+export interface FilterOptions {
+  [key: string]: any;
+}
+
+// Context types
+export interface RestaurantContextType {
+  restaurant: Restaurant | null;
+  loading: boolean;
+  error: string | null;
+  switchRestaurant: (slug: string) => Promise<void>;
+  updateRestaurant: (updates: Partial<Restaurant>) => Promise<void>;
+  refreshRestaurant: () => Promise<void>;
+}
+
+export interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  error: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  loginWithPin: (pin: string, restaurantSlug: string) => Promise<void>;
+  logout: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => Promise<void>;
+}
+
+// Admin types
+export interface AdminLoginResult {
+  success: boolean;
+  error?: string;
+  user?: {
+    uid: string;
+    email: string;
+    role: string;
+  };
+}
+
+export interface AdminRestaurant {
+  id: string;
+  name: string;
+  slug: string;
+  businessType: BusinessType;
+  status: 'active' | 'inactive' | 'deleted';
+  ownerId: string;
+  ownerName: string;
+  createdAt: Date;
+  lastActivity: Date;
+  settings: RestaurantSettings;
+  stats: {
+    totalOrders: number;
+    totalRevenue: number;
+    activeUsers: number;
+  };
+}
+
+export interface AdminDashboardStats {
+  totalRestaurants: number;
+  activeRestaurants: number;
+  inactiveRestaurants: number;
+  businessTypes: {
+    restaurants: number;
+    cafes: number;
+    bars: number;
+  };
+  totalRevenue: number;
+  totalOrders: number;
+}
+
+// Inventory Management Types
+export type InventoryUnit = 'pieces' | 'ml' | 'liters' | 'grams' | 'kg' | 'cups' | 'portions' | 'bottles' | 'cans' | 'custom';
+
+export interface InventoryItem {
+  id: string;
+  menuItemId: string;
+  restaurantId: string;
+  currentQuantity: number;
+  unit: InventoryUnit;
+  customUnit?: string; // For custom unit types
+  minimumThreshold: number; // Alert when below this level
+  consumptionPerOrder: number; // How much inventory is used per order
+  maxCapacity?: number; // Maximum storage capacity
+  costPerUnit?: number; // Cost price per unit
+  supplier?: string;
+  lastRestockedAt?: Date;
+  lastRestockedQuantity?: number;
+  isTracked: boolean; // Whether to track inventory for this item
+  autoDeduct: boolean; // Whether to automatically deduct on orders
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type InventoryTransactionType = 'restock' | 'order_deduction' | 'manual_adjustment' | 'waste' | 'return';
+
+export interface InventoryTransaction {
+  id: string;
+  inventoryItemId: string;
+  menuItemId: string;
+  restaurantId: string;
+  type: InventoryTransactionType;
+  quantityChanged: number; // Positive for additions, negative for deductions
+  previousQuantity: number;
+  newQuantity: number;
+  reason?: string;
+  notes?: string;
+  orderId?: string; // If related to an order
+  staffId: string;
+  createdAt: Date;
+}
+
+export interface InventoryAlert {
+  id: string;
+  inventoryItemId: string;
+  menuItemId: string;
+  restaurantId: string;
+  type: 'low_stock' | 'out_of_stock' | 'overstocked';
+  message: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  isRead: boolean;
+  createdAt: Date;
+}
+
+// Re-export coupon types
+export * from './coupon';
+
+// Gamification Types
+export interface SpinWheelSegment {
+  id: string;
+  label: string;
+  value: string; // Reward description
+  color: string; // Hex color for the segment
+  probability: number; // Weight for this segment (1-100)
+  rewardType: 'discount_percentage' | 'discount_fixed' | 'free_item' | 'points' | 'custom';
+  rewardValue?: number; // For discount percentages or fixed amounts
+  menuItemId?: string; // For free item rewards
+  customMessage?: string; // For custom rewards
+}
+
+export interface PointsThreshold {
+  id: string;
+  name: string;
+  pointsRequired: number;
+  benefits: string[];
+  color: string;
+  badgeIcon: string; // Emoji or icon for the threshold level
+  description: string;
+}
+
+export interface PointsConfig {
+  enabled: boolean;
+  pointsPerSpin: number;
+  thresholds: PointsThreshold[];
+  resetPeriod: 'never' | 'monthly' | 'yearly'; // When to reset customer points
+}
+
+export interface SpinWheelConfig {
+  id: string;
+  restaurantId: string;
+  name: string;
+  isActive: boolean;
+  segments: SpinWheelSegment[];
+  maxSpinsPerCustomer: number; // Daily limit
+  requiresContactInfo: boolean; // Collect phone/email before spin
+  termsAndConditions: string;
+  pointsConfig?: PointsConfig; // Points and threshold configuration
+  createdAt: Date;
+  updatedAt: Date;
+  shareableLink: string;
+  totalSpins: number;
+  totalRedemptions: number;
+}
+
+export interface CustomerSpin {
+  id: string;
+  restaurantId: string;
+  spinWheelId: string;
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  resultSegmentId: string;
+  resultMessage: string;
+  couponCode?: string;
+  pointsEarned?: number; // Points earned from this spin
+  isRedeemed: boolean;
+  redeemedAt?: Date;
+  spinDate: Date;
+  ipAddress?: string;
+}
+
+export interface SpinWheelStats {
+  totalSpins: number;
+  totalRedemptions: number;
+  redemptionRate: number;
+  popularSegments: { segmentId: string; count: number; label: string }[];
+  dailySpins: { date: string; count: number }[];
+  customerEngagement: number;
+}
+
+// Add new user authentication types
+export interface GamificationUser {
+  id: string;
+  restaurantId: string;
+  name: string;
+  phone: string;
+  email?: string;
+  passwordHash: string;
+  isVerified: boolean;
+  phoneVerified: boolean;
+  emailVerified: boolean;
+  createdAt: Date;
+  lastLoginAt?: Date;
+  totalSpins: number;
+  totalWins: number;
+  isBlocked: boolean;
+  verificationCode?: string;
+  verificationCodeExpiry?: Date;
+  deviceFingerprint?: string;
+  ipAddress?: string;
+}
+
+export interface LoginCredentials {
+  phoneOrEmail: string;
+  password: string;
+  deviceFingerprint?: string;
+}
+
+export interface RegisterData {
+  name: string;
+  phone: string;
+  email?: string;
+  password: string;
+  confirmPassword: string;
+  deviceFingerprint?: string;
+}
+
+export interface VerificationRequest {
+  userId: string;
+  restaurantId: string;
+  code: string;
+  type: 'phone' | 'email';
+}
+
+export interface AuthResponse {
+  success: boolean;
+  user?: GamificationUser;
+  token?: string;
+  message?: string;
+  requiresVerification?: boolean;
+}
+
+export interface PointsTransaction {
+  id: string;
+  customerId: string;
+  restaurantId: string;
+  type: 'earned' | 'spent' | 'expired' | 'bonus';
+  points: number;
+  source: 'spin_wheel' | 'purchase' | 'bonus' | 'manual';
+  sourceId?: string; // Reference to spin ID, order ID, etc.
+  description: string;
+  createdAt: Date;
+}
+
+export interface CustomerLoyaltyInfo {
+  currentPoints: number;
+  currentThreshold: PointsThreshold | null;
+  nextThreshold: PointsThreshold | null;
+  progressToNext: number; // Percentage to next level (0-100)
+  pointsToNext: number; // Points needed to reach next threshold
+  totalSpins: number;
+  totalPointsEarned: number;
+  memberSince: Date;
+} 

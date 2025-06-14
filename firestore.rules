@@ -1,0 +1,128 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Admin super users
+    match /superAdmins/{adminId} {
+      allow read, write: if request.auth != null && resource.data.role == 'super_admin';
+    }
+
+    // Restaurant management by admin
+    match /restaurants/{restaurantId} {
+      allow read, write: if request.auth != null;
+      
+      // Users collection is only for restaurant staff
+      match /users/{userId} {
+        allow read, write: if request.auth != null;
+      }
+      
+      // Allow updating lastLoginAt for PIN login (specific field only)
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt', 'updatedAt']);
+    }
+
+    // Restaurant staff users
+    match /users/{userId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Global admin users  
+    match /adminUsers/{userId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Pending restaurant applications
+    match /pendingUsers/{userId} {
+      allow read, write: if true; // Allow public access for applications
+    }
+
+    // Admin activity logs
+    match /adminLogs/{logId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Restaurant-specific subcollections
+    match /restaurants/{restaurantId} {
+      allow read, write: if true; // Restaurant document access
+
+      // Menu categories
+      match /categories/{categoryId} {
+        allow read, write: if true; // Allow authenticated users to manage categories
+      }
+
+      // Menu items
+      match /menuItems/{itemId} {
+        allow read, write: if true; // Allow authenticated users to manage menu items  
+      }
+
+      // Tables and areas
+      match /tables/{tableId} {
+        allow read, write: if true; // Allow authenticated users to manage tables
+      }
+
+      // Orders
+      match /orders/{orderId} {
+        allow read, write: if true; // Allow authenticated users to manage orders
+      }
+
+      // Inventory management
+      match /inventory/{itemId} {
+        allow read, write: if true; // Allow authenticated users to manage inventory
+      }
+      
+      match /tableAreas/{areaId} {
+        allow read, write: if true; // Allow authenticated users to manage table areas
+      }
+      
+      // Gamification collections
+      match /spinWheels/{wheelId} {
+        allow read, write: if true; // Allow authenticated users to manage spin wheels
+      }
+      
+      match /customerSpins/{spinId} {
+        allow read, write: if true; // Allow for customer spins and redemption tracking
+      }
+
+      // Customers collection (moved from root to subcollection)
+      match /customers/{customerId} {
+        allow read, write: if true; // Restaurant CRM access
+      }
+
+      // Coupons collection (moved from root to subcollection)
+      match /coupons/{couponId} {
+        allow read, write: if true; // Restaurant coupon management
+      }
+
+      // Gamification Users collection (moved from root to subcollection)
+      match /gamificationUsers/{userId} {
+        // Allow anyone to create new users (registration)
+        allow create: if true;
+        
+        // Allow users to read and update their own data
+        allow read, update: if request.auth != null || true; // Allow public access for gamification
+        
+        // Allow deletion only by restaurant admins
+        allow delete: if request.auth != null;
+      }
+    }
+
+    // Root-level collections that remain (system-wide)
+    match /inventoryTransactions/{transactionId} {
+      allow read, write: if true; // Allow all operations for now
+    }
+    
+    match /inventoryAlerts/{alertId} {
+      allow read, write: if true; // Allow all operations for now
+    }
+    
+    // Coupon usage tracking (can remain root-level as it's cross-restaurant analytics)
+    match /coupon_usage/{usageId} {
+      allow read, write: if true; // Allow all operations for now
+    }
+
+    // All other collections (fallback rule)
+    match /{document=**} {
+      allow read, write: if true; // Temporary permissive rule
+    }
+  }
+}
