@@ -2212,7 +2212,7 @@ function generateKOTContent(order: Order, restaurant: any, table: Table): string
         .kot-container {
           width: 100%;
           padding: 15px 5px;
-          min-height: 100vh;
+          min-height: auto;
         }
         .header { 
           text-align: center; 
@@ -2407,7 +2407,7 @@ function generateCombinedBillContent(orders: Order[], restaurant: any, table: Ta
           width: 100%;
           padding: 15px 5px;
           background: #fff;
-          min-height: 100vh;
+          min-height: auto;
         }
         
         .header {

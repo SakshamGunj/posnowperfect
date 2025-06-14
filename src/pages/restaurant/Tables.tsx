@@ -60,7 +60,7 @@ export default function Tables() {
           .kot-container {
             width: 100%;
             padding: 15px 5px;
-            min-height: 100vh;
+            min-height: auto;
           }
           .header { 
             text-align: center; 
@@ -1154,7 +1154,7 @@ export default function Tables() {
                 .kot-container {
                   width: 100%;
                   padding: 15px 5px;
-                  min-height: 100vh;
+                  min-height: auto;
                 }
                 .header { 
                   text-align: center; 
