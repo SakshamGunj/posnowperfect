@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -1388,15 +1388,46 @@ export default function TakeOrder() {
     }
   }, [allOrders, showPaymentModal, setPaymentValue]);
 
-  // Filter menu items
-  const filteredItems = menuItems.filter(item => {
-    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-    const matchesSearch = searchTerm === '' || 
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description?.toLowerCase().includes(searchTerm.toLowerCase());
+  // Filter menu items with real-time search (optimized with useMemo)
+  const filteredItems = useMemo(() => {
+    const filtered = menuItems.filter(item => {
+      const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+      
+      if (searchTerm === '') {
+        return matchesCategory;
+      }
+      
+      // Real-time search logic - simple and fast
+      const searchTermLower = searchTerm.toLowerCase().trim();
+      const itemNameLower = item.name.toLowerCase();
+      const itemDescLower = item.description?.toLowerCase() || '';
+      
+      // Primary matches - direct substring search (most common use case)
+      const nameMatch = itemNameLower.includes(searchTermLower);
+      const descMatch = itemDescLower.includes(searchTermLower);
+      
+      // Secondary matches - word starts with search term (for "cae" -> "Caesar")
+      const nameWordsMatch = itemNameLower.split(' ').some(word => word.startsWith(searchTermLower));
+      const descWordsMatch = itemDescLower.split(' ').some(word => word.startsWith(searchTermLower));
+      
+      // Tertiary matches - any word contains search term
+      const nameContainsMatch = itemNameLower.split(' ').some(word => word.includes(searchTermLower));
+      const descContainsMatch = itemDescLower.split(' ').some(word => word.includes(searchTermLower));
+      
+      const matchesSearch = nameMatch || descMatch || nameWordsMatch || descWordsMatch || nameContainsMatch || descContainsMatch;
+      
+      return matchesCategory && matchesSearch;
+    });
     
-    return matchesCategory && matchesSearch;
-  });
+    // Debug search results (remove in production)
+    if (searchTerm && filtered.length > 0) {
+      console.log(`🔍 Found ${filtered.length} items for "${searchTerm}"`);
+    }
+    
+    return filtered;
+  }, [menuItems, selectedCategory, searchTerm]);
+
+
 
   const cartTotal = cartItems.reduce((total, item) => total + item.total, 0);
 
@@ -1623,13 +1654,34 @@ export default function TakeOrder() {
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
                     <p className="text-gray-600">Loading menu...</p>
                   </div>
+                ) : filteredItems.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Search className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No items found</h3>
+                    <p className="text-gray-600 mb-4">
+                      {searchTerm ? `No menu items match "${searchTerm}"` : `No items in "${selectedCategory}" category`}
+                    </p>
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm('')}
+                        className="btn btn-secondary"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 pb-6">
-                    {filteredItems.map(item => {
+                  <div 
+                    key={`desktop-grid-${searchTerm}-${filteredItems.length}`}
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 pb-6"
+                  >
+                    {filteredItems.map((item, index) => {
                       const cartItem = cartItems.find(ci => ci.menuItemId === item.id);
                       return (
                         <MenuItemCard
-                          key={item.id}
+                          key={`desktop-${item.id}-${index}-${item.name.replace(/\s+/g, '-').toLowerCase()}`}
                           item={item}
                           onAddToCart={addToCart}
                           cartQuantity={cartItem?.quantity || 0}
@@ -1658,9 +1710,9 @@ export default function TakeOrder() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {cartItems.map(item => (
+                      {cartItems.map((item, index) => (
                         <OrderItemCard
-                          key={item.menuItemId}
+                          key={`${item.menuItemId}-${index}-${item.variants?.map(v => `${v.variantName}-${v.optionName}`).join('-') || 'no-variants'}`}
                           item={item}
                           onUpdateQuantity={updateCartItemQuantity}
                           onRemove={removeFromCart}
@@ -1789,13 +1841,34 @@ export default function TakeOrder() {
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
                     <p className="text-gray-600">Loading menu...</p>
                   </div>
+                ) : filteredItems.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Search className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No items found</h3>
+                    <p className="text-gray-600 mb-4">
+                      {searchTerm ? `No menu items match "${searchTerm}"` : `No items in "${selectedCategory}" category`}
+                    </p>
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm('')}
+                        className="btn btn-secondary"
+                      >
+                        Clear search
+                      </button>
+                    )}
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {filteredItems.map(item => {
+                  <div 
+                    key={`mobile-grid-${searchTerm}-${filteredItems.length}`}
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                  >
+                    {filteredItems.map((item, index) => {
                       const cartItem = cartItems.find(ci => ci.menuItemId === item.id);
                       return (
                         <MenuItemCard
-                          key={item.id}
+                          key={`mobile-${item.id}-${index}-${item.name.replace(/\s+/g, '-').toLowerCase()}`}
                           item={item}
                           onAddToCart={addToCart}
                           cartQuantity={cartItem?.quantity || 0}
@@ -1836,9 +1909,9 @@ export default function TakeOrder() {
                           </div>
                         ) : (
                           <div className="space-y-3">
-                            {cartItems.map(item => (
+                            {cartItems.map((item, index) => (
                               <OrderItemCard
-                                key={item.menuItemId}
+                                key={`mobile-${item.menuItemId}-${index}-${item.variants?.map(v => `${v.variantName}-${v.optionName}`).join('-') || 'no-variants'}`}
                                 item={item}
                                 onUpdateQuantity={updateCartItemQuantity}
                                 onRemove={removeFromCart}
@@ -2149,7 +2222,7 @@ function OrderItemCard({ item, onUpdateQuantity, onRemove }: OrderItemCardProps)
         {item.variants && item.variants.length > 0 && (
           <div className="text-xs text-gray-500 mt-1">
             {item.variants.map((variant, index) => (
-              <span key={index}>
+              <span key={`${variant.variantName}-${variant.optionName}-${index}`}>
                 {variant.variantName}: {variant.optionName}
                 {index < item.variants!.length - 1 && ', '}
               </span>

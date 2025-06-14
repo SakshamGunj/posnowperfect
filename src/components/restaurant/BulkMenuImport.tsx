@@ -376,7 +376,7 @@ export default function BulkMenuImport({ isOpen, onClose, onSuccess, restaurantI
         isVegan: row.isVegan === true || String(row.isVegan) === 'true',
         isGlutenFree: row.isGlutenFree === true || String(row.isGlutenFree) === 'true',
         tags: row.tags ? row.tags.split(',').map(t => t.trim()) : [],
-        variants: variants.length > 0 ? variants : undefined,
+        variants: variants.length > 0 ? variants : [],
         createdAt: new Date(),
         updatedAt: new Date()
       };
