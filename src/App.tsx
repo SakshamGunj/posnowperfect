@@ -29,6 +29,13 @@ import Settings from '@/pages/restaurant/Settings';
 import Customers from '@/pages/restaurant/Customers';
 import CouponDashboard from '@/pages/restaurant/CouponDashboard';
 import GamificationDashboard from '@/pages/restaurant/GamificationDashboard';
+import Credits from '@/pages/restaurant/Credits';
+import EmployeePage from '@/pages/restaurant/EmployeePage';
+import MarketplacePage from '@/pages/restaurant/MarketplacePage';
+import KitchenDisplay from '@/pages/restaurant/KitchenDisplay';
+import CustomerMenuPortal from '@/pages/restaurant/CustomerMenuPortal';
+import CustomerOrderingPage from '@/pages/public/CustomerOrderingPage';
+import CustomerOrderStatus from '@/pages/public/CustomerOrderStatus';
 import SpinWheelPage from '@/pages/public/SpinWheelPage';
 import UserDashboardPage from '@/pages/public/UserDashboardPage';
 import RestaurantDebug from '@/pages/debug/RestaurantDebug';
@@ -175,6 +182,15 @@ export default function App() {
                     {/* Spin Wheel Route */}
                     <Route path="spin-wheel" element={<SpinWheelPage />} />
                     
+                    {/* Customer Ordering Portal Route (Public) */}
+                    <Route path="menu-portal" element={<CustomerOrderingPage />} />
+                    
+                    {/* Customer Order Status Route (Public) */}
+                    <Route path="order-status" element={<CustomerOrderStatus />} />
+                    
+                    {/* Customer Dashboard Route (Public) */}
+                    <Route path="customer-dashboard" element={<UserDashboardPage />} />
+                    
                     {/* Debug Route */}
                     <Route path="debug" element={<RestaurantDebug />} />
                     
@@ -194,6 +210,11 @@ export default function App() {
                       <Route path="customers" element={<Customers />} />
                       <Route path="coupons" element={<CouponDashboard />} />
                       <Route path="gamification" element={<GamificationDashboard />} />
+                      <Route path="credits" element={<Credits />} />
+                      <Route path="employees" element={<EmployeePage />} />
+                      <Route path="marketplace" element={<MarketplacePage />} />
+                      <Route path="kitchen" element={<KitchenDisplay />} />
+                      <Route path="customer-portal" element={<CustomerMenuPortal />} />
                       <Route path="order/:tableId" element={<TakeOrder />} />
                     </Route>
                     

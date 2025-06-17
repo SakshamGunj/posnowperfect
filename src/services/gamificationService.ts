@@ -15,6 +15,46 @@ import { db } from '@/lib/firebase';
 import { SpinWheelConfig, SpinWheelSegment, CustomerSpin, SpinWheelStats, ApiResponse } from '@/types';
 
 export class GamificationService {
+  // Get the base URL for shareable links - configurable via environment or default to relative
+  private static getBaseUrl(): string {
+    // Try to get from environment variables first
+    try {
+      // Check Vite environment variables
+      if ((import.meta as any)?.env?.VITE_APP_BASE_URL) {
+        return (import.meta as any).env.VITE_APP_BASE_URL;
+      }
+      
+      // Check process environment variables
+      if (typeof process !== 'undefined' && process.env?.REACT_APP_BASE_URL) {
+        return process.env.REACT_APP_BASE_URL;
+      }
+    } catch (e) {
+      // Environment variables not available
+    }
+    
+    // Default: use current origin, but remove specific subdomains that might be wrong
+    if (typeof window !== 'undefined' && window.location) {
+      const origin = window.location.origin;
+      
+      // If we're on a subdomain that looks like an admin panel, use the parent domain
+      if (origin.includes('pos.') || origin.includes('admin.')) {
+        // Extract the parent domain (e.g., pos.tenversemedia.tech -> tenversemedia.tech)
+        const hostname = window.location.hostname;
+        const parts = hostname.split('.');
+        if (parts.length > 2) {
+          // Reconstruct without the first subdomain
+          const parentDomain = parts.slice(1).join('.');
+          return `${window.location.protocol}//${parentDomain}`;
+        }
+      }
+      
+      return origin;
+    }
+    
+    // Final fallback: return empty string for relative URLs
+    return '';
+  }
+
   // Spin Wheel Configuration Management
   static async createSpinWheel(restaurantId: string, config: Omit<SpinWheelConfig, 'id' | 'createdAt' | 'updatedAt' | 'shareableLink' | 'totalSpins' | 'totalRedemptions'>): Promise<ApiResponse<SpinWheelConfig>> {
     try {
@@ -22,7 +62,10 @@ export class GamificationService {
       // Get restaurant slug for the shareable link
       const restaurantDoc = await getDoc(doc(db, 'restaurants', restaurantId));
       const restaurantSlug = restaurantDoc.exists() ? restaurantDoc.data().slug : restaurantId;
-      const shareableLink = `${window.location.origin}/${restaurantSlug}/spin-wheel`;
+      
+      // Generate shareable link with proper domain handling
+      const baseUrl = this.getBaseUrl();
+      const shareableLink = baseUrl ? `${baseUrl}/${restaurantSlug}/spin-wheel` : `/${restaurantSlug}/spin-wheel`;
       
       const spinWheelData: Omit<SpinWheelConfig, 'id'> = {
         ...config,
@@ -154,6 +197,52 @@ export class GamificationService {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to update spin wheel'
+      };
+    }
+  }
+
+  // Utility function to fix shareable links for existing spin wheels
+  static async fixSpinWheelShareableLinks(restaurantId: string): Promise<ApiResponse<number>> {
+    try {
+      const wheelsResult = await this.getSpinWheelsForRestaurant(restaurantId);
+      if (!wheelsResult.success || !wheelsResult.data) {
+        return { success: false, error: 'Failed to load spin wheels' };
+      }
+
+      const restaurantDoc = await getDoc(doc(db, 'restaurants', restaurantId));
+      const restaurantSlug = restaurantDoc.exists() ? restaurantDoc.data().slug : restaurantId;
+      
+      const baseUrl = this.getBaseUrl();
+      const correctShareableLink = baseUrl ? `${baseUrl}/${restaurantSlug}/spin-wheel` : `/${restaurantSlug}/spin-wheel`;
+      
+      let fixedCount = 0;
+      
+      for (const wheel of wheelsResult.data) {
+        // Check if the link needs fixing (contains wrong domain)
+        if (wheel.shareableLink !== correctShareableLink && 
+            (wheel.shareableLink.includes('pos.') || wheel.shareableLink.includes('admin.') || wheel.shareableLink.includes('tenversemedia'))) {
+          
+          const wheelDocRef = doc(db, `restaurants/${restaurantId}/spinWheels`, wheel.id);
+          await updateDoc(wheelDocRef, {
+            shareableLink: correctShareableLink,
+            updatedAt: Timestamp.fromDate(new Date())
+          });
+          
+          fixedCount++;
+          console.log(`Fixed shareable link for wheel: ${wheel.name}`);
+        }
+      }
+
+      return {
+        success: true,
+        data: fixedCount,
+        message: `Fixed ${fixedCount} spin wheel links`
+      };
+    } catch (error) {
+      console.error('Error fixing spin wheel links:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fix spin wheel links'
       };
     }
   }
@@ -409,19 +498,28 @@ export class GamificationService {
     }
   }
 
-  // Simple method to count today's spins without complex queries
-  static async getCustomerSpinsCountToday(restaurantId: string, customerPhone: string): Promise<ApiResponse<number>> {
+  // Simple method to count today's spins for a specific spin wheel
+  static async getCustomerSpinsCountToday(restaurantId: string, customerPhone: string, spinWheelId?: string): Promise<ApiResponse<number>> {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       
-      // Use the simplest possible query - just filter by phone
-      const q = query(
+      // Build query with phone filter and optional spinWheelId filter
+      let q = query(
         collection(db, `restaurants/${restaurantId}/customerSpins`),
         where('customerPhone', '==', customerPhone)
       );
+      
+      // If spinWheelId is provided, filter by it to get spin count for specific wheel only
+      if (spinWheelId) {
+        q = query(
+          collection(db, `restaurants/${restaurantId}/customerSpins`),
+          where('customerPhone', '==', customerPhone),
+          where('spinWheelId', '==', spinWheelId)
+        );
+      }
 
       const querySnapshot = await getDocs(q);
       

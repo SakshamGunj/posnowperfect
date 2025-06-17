@@ -1338,13 +1338,13 @@ export default function Tables() {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Table Management</h1>
-              <div className="flex items-center space-x-4 text-sm text-gray-600 mt-2">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Table Management</h1>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mt-2">
                 <span>{stats.total} total tables</span>
                 <span className="text-green-600">{stats.available} available</span>
                 <span className="text-red-600">{stats.occupied} occupied</span>
@@ -1356,7 +1356,8 @@ export default function Tables() {
               </div>
             </div>
             
-            <div className="flex items-center space-x-3">
+            {/* Desktop Action Buttons */}
+            <div className="hidden lg:flex items-center space-x-3">
               <button
                 onClick={async () => {
                   await loadTables(true);
@@ -1409,30 +1410,87 @@ export default function Tables() {
                 Add Table
               </button>
             </div>
+
+            {/* Mobile Action Buttons */}
+            <div className="lg:hidden">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={async () => {
+                    await loadTables(true);
+                  }}
+                  disabled={isSyncing}
+                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Sync with server and fix areas"
+                >
+                  <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
+                </button>
+                
+                <button
+                  onClick={async () => {
+                    if (restaurant) {
+                      await TableStatusService.autoFixWithNotification(restaurant.id);
+                      // Refresh tables after fixing
+                      setTimeout(() => {
+                        loadTables(true);
+                      }, 1000);
+                    }
+                  }}
+                  className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                  title="Fix table statuses (occupied tables without orders)"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
+                
+                <button
+                  onClick={() => navigate('settings')}
+                  className="btn btn-secondary text-sm px-3 py-2"
+                  title="Manage table areas and settings"
+                >
+                  <Settings className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Settings</span>
+                </button>
+                
+                <button
+                  onClick={() => setShowCreateAreaModal(true)}
+                  className="btn btn-secondary text-sm px-3 py-2"
+                >
+                  <MapPin className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Add Area</span>
+                </button>
+                
+                <button
+                  onClick={() => setShowCreateTableModal(true)}
+                  className="btn btn-theme-primary text-sm px-3 py-2"
+                >
+                  <Plus className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Add Table</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          <div className="card p-4 text-center">
-            <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-            <div className="text-sm text-gray-600">Total Tables</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-8">
+          <div className="card p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-gray-900">{stats.total}</div>
+            <div className="text-xs sm:text-sm text-gray-600">Total Tables</div>
           </div>
-          <div className="card p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.available}</div>
-            <div className="text-sm text-gray-600">Available</div>
+          <div className="card p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-green-600">{stats.available}</div>
+            <div className="text-xs sm:text-sm text-gray-600">Available</div>
           </div>
-          <div className="card p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">{stats.occupied}</div>
-            <div className="text-sm text-gray-600">Occupied</div>
+          <div className="card p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-red-600">{stats.occupied}</div>
+            <div className="text-xs sm:text-sm text-gray-600">Occupied</div>
           </div>
-          <div className="card p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">{stats.reserved}</div>
-            <div className="text-sm text-gray-600">Reserved</div>
+          <div className="card p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-yellow-600">{stats.reserved}</div>
+            <div className="text-xs sm:text-sm text-gray-600">Reserved</div>
           </div>
-          <div className="card p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.cleaning}</div>
-            <div className="text-sm text-gray-600">Cleaning</div>
+          <div className="card p-3 sm:p-4 text-center col-span-2 sm:col-span-1">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">{stats.cleaning}</div>
+            <div className="text-xs sm:text-sm text-gray-600">Cleaning</div>
           </div>
         </div>
 
@@ -1517,7 +1575,7 @@ export default function Tables() {
                     {area} ({areaTables.length})
                   </h2>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
                     {areaTables.map(table => (
                       <TableCard
                         key={table.id}
@@ -1843,9 +1901,9 @@ function TableCard({ table, onUpdateStatus, onEdit, onDelete }: TableCardProps) 
       }`}
       onClick={canTakeOrder ? handleTableClick : undefined}
     >
-      <div className="p-4">
+      <div className="p-3 sm:p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-gray-900">Table {table.number}</h3>
+          <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Table {table.number}</h3>
           <div className="relative">
             <button
               onClick={(e) => {
@@ -1858,7 +1916,7 @@ function TableCard({ table, onUpdateStatus, onEdit, onDelete }: TableCardProps) 
             </button>
             
             {showMenu && (
-              <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[160px]">
+              <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[140px] sm:min-w-[160px]">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1944,15 +2002,15 @@ function TableCard({ table, onUpdateStatus, onEdit, onDelete }: TableCardProps) 
         </div>
         
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between text-xs sm:text-sm">
             <span className="text-gray-600">Status:</span>
             <div className="flex items-center space-x-1">
               {getStatusIcon(table.status)}
-              <span className="capitalize text-gray-700">{table.status.replace('_', ' ')}</span>
+              <span className="capitalize text-gray-700 text-xs sm:text-sm">{table.status.replace('_', ' ')}</span>
             </div>
           </div>
           
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between text-xs sm:text-sm">
             <span className="text-gray-600">Capacity:</span>
             <div className="flex items-center space-x-1">
               <Users className="w-3 h-3 text-gray-500" />
@@ -1960,9 +2018,9 @@ function TableCard({ table, onUpdateStatus, onEdit, onDelete }: TableCardProps) 
             </div>
           </div>
           
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between text-xs sm:text-sm">
             <span className="text-gray-600">Area:</span>
-            <span className="text-gray-700">{table.area}</span>
+            <span className="text-gray-700 truncate ml-2">{table.area}</span>
           </div>
           
           {canTakeOrder && (

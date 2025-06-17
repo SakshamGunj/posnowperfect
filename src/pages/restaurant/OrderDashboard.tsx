@@ -25,6 +25,7 @@ import { OrderService } from '@/services/orderService';
 import { MenuService } from '@/services/menuService';
 import { TableService } from '@/services/tableService';
 import { SalesReportService } from '@/services/salesReportService';
+import { RevenueService } from '@/services/revenueService';
 
 import { Order, MenuItem, Table, OrderStatus } from '@/types';
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
@@ -43,9 +44,12 @@ interface FilterForm {
 interface OrderStats {
   totalOrders: number;
   totalRevenue: number;
+  actualRevenue: number;
+  pendingCredits: number;
   avgOrderValue: number;
   todayOrders: number;
   todayRevenue: number;
+  todayActualRevenue: number;
   popularItems: { menuItemId: string; name: string; quantity: number; revenue: number }[];
   tableStats: { tableId: string; tableNumber: string; orderCount: number; revenue: number }[];
 }
@@ -948,9 +952,12 @@ export default function OrderDashboard() {
   const [stats, setStats] = useState<OrderStats>({
     totalOrders: 0,
     totalRevenue: 0,
+    actualRevenue: 0,
+    pendingCredits: 0,
     avgOrderValue: 0,
     todayOrders: 0,
     todayRevenue: 0,
+    todayActualRevenue: 0,
     popularItems: [],
     tableStats: [],
   });
@@ -1020,7 +1027,8 @@ export default function OrderDashboard() {
     }
   };
 
-  const calculateStats = useCallback((orderList: Order[]) => {
+  const calculateStats = useCallback(async (orderList: Order[]) => {
+    if (!restaurant) return;
     const today = new Date();
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     
@@ -1030,6 +1038,10 @@ export default function OrderDashboard() {
 
     const totalRevenue = orderList.reduce((sum, order) => sum + order.total, 0);
     const todayRevenue = todayOrders.reduce((sum, order) => sum + order.total, 0);
+
+    // Calculate actual revenue accounting for credits
+    const allRevenueData = await RevenueService.calculateOrdersRevenue(orderList, restaurant.id);
+    const todayRevenueData = await RevenueService.calculateOrdersRevenue(todayOrders, restaurant.id);
 
     // Calculate popular items
     const itemMap = new Map<string, { name: string; quantity: number; revenue: number }>();
@@ -1089,15 +1101,18 @@ export default function OrderDashboard() {
     setStats({
       totalOrders: orderList.length,
       totalRevenue,
+      actualRevenue: allRevenueData.actualRevenue,
+      pendingCredits: allRevenueData.pendingCreditAmount,
       avgOrderValue: orderList.length > 0 ? totalRevenue / orderList.length : 0,
       todayOrders: todayOrders.length,
       todayRevenue,
+      todayActualRevenue: todayRevenueData.actualRevenue,
       popularItems,
       tableStats,
     });
   }, [tables]);
 
-  const applyFilters = useCallback(() => {
+  const applyFilters = useCallback(async () => {
     let filtered = [...orders];
 
     // Date range filter
@@ -1208,7 +1223,7 @@ export default function OrderDashboard() {
     }
 
     setFilteredOrders(filtered);
-    calculateStats(filtered);
+    await calculateStats(filtered);
     setCurrentPage(1);
   }, [orders, dateRange, startDate, endDate, tableId, status, orderType, menuItemId, searchTerm, calculateStats]);
 
@@ -1513,7 +1528,15 @@ export default function OrderDashboard() {
         peakHours: customHourlyBreakdown.slice().sort((a, b) => b.orderCount - a.orderCount).map(h => ({
           ...h,
           isWeekend: false
-        }))
+        })),
+        creditAnalytics: {
+          totalCreditAmount: 0,
+          pendingCreditAmount: 0,
+          paidCreditAmount: 0,
+          ordersWithCredits: 0,
+          creditTransactions: [],
+          revenueCollectionRate: 100
+        }
       };
 
       console.log('📊 Custom analytics created:', customAnalytics);
@@ -1691,8 +1714,11 @@ export default function OrderDashboard() {
           <div className="card p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.totalRevenue)}</p>
+                <p className="text-sm font-medium text-gray-600">Actual Revenue</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.actualRevenue)}</p>
+                <p className="text-xs text-gray-500">
+                  Total: {formatCurrency(stats.totalRevenue)} | Credits: {formatCurrency(stats.pendingCredits)}
+                </p>
               </div>
               <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
                 <DollarSign className="w-6 h-6 text-green-600" />
@@ -1727,8 +1753,11 @@ export default function OrderDashboard() {
           <div className="card p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Today's Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.todayRevenue)}</p>
+                <p className="text-sm font-medium text-gray-600">Today's Actual Revenue</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.todayActualRevenue)}</p>
+                <p className="text-xs text-gray-500">
+                  Total: {formatCurrency(stats.todayRevenue)}
+                </p>
               </div>
               <div className="w-12 h-12 bg-yellow-50 rounded-lg flex items-center justify-center">
                 <DollarSign className="w-6 h-6 text-yellow-600" />

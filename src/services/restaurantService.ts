@@ -87,9 +87,9 @@ export class RestaurantService {
       const baseSlug = generateSlug(formData.name);
       const slug = await this.generateUniqueSlug(baseSlug);
       
-      // Generate secure credentials
-      const ownerPassword = generateSecurePassword();
-      const ownerPin = generatePin();
+      // Use provided credentials from admin
+      const ownerPassword = formData.ownerPassword;
+      const ownerPin = formData.ownerPin;
       
       // Create restaurant ID and user ID (we'll create the Firebase user later)
       const restaurantId = generateId();

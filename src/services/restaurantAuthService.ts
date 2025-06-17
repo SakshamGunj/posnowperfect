@@ -18,7 +18,8 @@ import {
   writeBatch 
 } from 'firebase/firestore';
 import { auth, db, handleFirebaseError } from '@/lib/firebase';
-import { User } from '@/types';
+import { User, Employee } from '@/types';
+import { EmployeeService } from './employeeService';
 
 export interface RestaurantLoginResult {
   success: boolean;
@@ -56,9 +57,48 @@ export class RestaurantAuthService {
         return await this.handleFirstTimeSignup(email, password, restaurantSlug, pendingUsersSnapshot.docs[0]);
       }
 
-      console.log('🔍 No pending user found, attempting regular login');
+      console.log('🔍 No pending user found, checking for employee login...');
       
-      // Regular login flow
+      // Check if this is an employee login
+      const restaurantQuery = query(
+        collection(db, 'restaurants'),
+        where('slug', '==', restaurantSlug)
+      );
+      
+      const restaurantSnapshot = await getDocs(restaurantQuery);
+      if (!restaurantSnapshot.empty) {
+        const restaurantDoc = restaurantSnapshot.docs[0];
+        const restaurantId = restaurantDoc.id;
+        
+        console.log('🔍 Attempting employee login for restaurant:', restaurantId);
+        const employeeResult = await EmployeeService.loginEmployee(email, password, restaurantId);
+        
+        if (employeeResult.success && employeeResult.data) {
+          console.log('✅ Employee login successful:', employeeResult.data.name);
+          
+          // Convert employee to user format for compatibility
+          const employeeAsUser: User = {
+            id: employeeResult.data.id,
+            email: employeeResult.data.email,
+            name: employeeResult.data.name,
+            role: employeeResult.data.role as any, // 'manager' | 'staff' -> UserRole
+            restaurantId: employeeResult.data.restaurantId,
+            pin: employeeResult.data.pin,
+            permissions: [], // Employee permissions are handled differently
+            isActive: employeeResult.data.isActive,
+            lastLoginAt: employeeResult.data.lastLoginAt,
+            createdAt: employeeResult.data.createdAt,
+            updatedAt: employeeResult.data.updatedAt,
+            createdBy: employeeResult.data.createdBy
+          };
+          
+          return { success: true, user: employeeAsUser };
+        }
+      }
+      
+      console.log('🔍 Employee login failed, attempting owner login');
+      
+      // Regular owner login flow
       try {
         // Authenticate with Firebase
         console.log('🔐 Attempting Firebase Auth login...');
@@ -178,8 +218,20 @@ export class RestaurantAuthService {
       });
       
       // Verify password matches the temporary password
-      if (password !== pendingUserData.tempPassword) {
-        console.log('❌ Password mismatch');
+      const providedPassword = password.trim();
+      const expectedPassword = pendingUserData.tempPassword?.trim();
+      
+      console.log('🔍 Password comparison:', {
+        providedLength: providedPassword.length,
+        expectedLength: expectedPassword?.length,
+        match: providedPassword === expectedPassword
+      });
+      
+      if (providedPassword !== expectedPassword) {
+        console.log('❌ Password mismatch:', {
+          provided: providedPassword.substring(0, 3) + '***',
+          expected: expectedPassword?.substring(0, 3) + '***'
+        });
         return { success: false, error: 'Invalid password. Please use the password provided by your admin.' };
       }
 
@@ -348,10 +400,53 @@ export class RestaurantAuthService {
     try {
       console.log('🔐 Starting PIN login:', { pin: pin.substring(0, 2) + '**', restaurantSlug });
       
-      // Find user by PIN and restaurant
+      // First, get the restaurant ID from slug
+      const restaurantQuery = query(
+        collection(db, 'restaurants'),
+        where('slug', '==', restaurantSlug)
+      );
+      
+      const restaurantSnapshot = await getDocs(restaurantQuery);
+      if (restaurantSnapshot.empty) {
+        return { success: false, error: 'Restaurant not found' };
+      }
+      
+      const restaurantDoc = restaurantSnapshot.docs[0];
+      const restaurantId = restaurantDoc.id;
+      
+      // Check for employee login first
+      console.log('🔍 Attempting employee PIN login...');
+      const employeeResult = await EmployeeService.loginEmployeeWithPin(pin.trim(), restaurantId);
+      
+      if (employeeResult.success && employeeResult.data) {
+        console.log('✅ Employee PIN login successful:', employeeResult.data.name);
+        
+        // Convert employee to user format for compatibility
+        const employeeAsUser: User = {
+          id: employeeResult.data.id,
+          email: employeeResult.data.email,
+          name: employeeResult.data.name,
+          role: employeeResult.data.role as any, // 'manager' | 'staff' -> UserRole
+          restaurantId: employeeResult.data.restaurantId,
+          pin: employeeResult.data.pin,
+          permissions: [], // Employee permissions are handled differently
+          isActive: employeeResult.data.isActive,
+          lastLoginAt: employeeResult.data.lastLoginAt,
+          createdAt: employeeResult.data.createdAt,
+          updatedAt: employeeResult.data.updatedAt,
+          createdBy: employeeResult.data.createdBy
+        };
+        
+        return { success: true, user: employeeAsUser };
+      }
+      
+      console.log('🔍 Employee PIN login failed, attempting owner PIN login');
+      
+      // Find owner by PIN and restaurant
+      const cleanPin = pin.trim();
       const usersQuery = query(
         collection(db, 'users'),
-        where('pin', '==', pin)
+        where('pin', '==', cleanPin)
       );
 
       console.log('🔍 Searching for users with PIN...');

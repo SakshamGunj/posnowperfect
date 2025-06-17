@@ -438,6 +438,42 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              {/* Login Credentials */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2">Login Credentials</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Owner Password</label>
+                    <input
+                      {...register('ownerPassword', { 
+                        required: 'Password is required',
+                        minLength: { value: 6, message: 'Password must be at least 6 characters' }
+                      })}
+                      type="password"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter secure password"
+                    />
+                    {errors.ownerPassword && <p className="text-red-500 text-sm mt-1">{errors.ownerPassword.message}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">4-Digit PIN</label>
+                    <input
+                      {...register('ownerPin', { 
+                        required: 'PIN is required',
+                        pattern: { value: /^\d{4}$/, message: 'PIN must be exactly 4 digits' }
+                      })}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-lg tracking-widest"
+                      placeholder="1234"
+                    />
+                    {errors.ownerPin && <p className="text-red-500 text-sm mt-1">{errors.ownerPin.message}</p>}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
                 <input

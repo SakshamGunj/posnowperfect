@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Tag, Gift, AlertCircle, User, Percent, DollarSign } from 'lucide-react';
+import { X, Tag, Gift, AlertCircle, User, Percent, DollarSign, CreditCard } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { CouponService } from '@/services/couponService';
 import { CustomerService } from '@/services/customerService';
@@ -34,6 +34,10 @@ export default function PaymentModalWithCoupons({
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [couponError, setCouponError] = useState('');
   
+  // Credit functionality states
+  const [creditCustomerName, setCreditCustomerName] = useState('');
+  const [creditCustomerPhone, setCreditCustomerPhone] = useState('');
+  
   // Customer selection
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -57,8 +61,6 @@ export default function PaymentModalWithCoupons({
       loadCustomers();
     }
   }, [restaurant?.id]);
-
-
 
   const loadCustomers = async () => {
     if (!restaurant?.id) return;
@@ -107,6 +109,17 @@ export default function PaymentModalWithCoupons({
   const subtotalWithTax = discountedSubtotal + discountedTax;
   const finalTotal = subtotalWithTax + tip;
   const totalSavings = totalDiscountAmount + freeItemsValue;
+
+  // Set default amount received to full amount if not set
+  useEffect(() => {
+    if (finalTotal && !amountReceived) {
+      setAmountReceived(finalTotal.toString());
+    }
+  }, [finalTotal]);
+
+  // Check if payment is credit (amount received is less than total)
+  const isCredit = parseFloat(amountReceived) < finalTotal && parseFloat(amountReceived) > 0;
+  const creditAmount = isCredit ? finalTotal - parseFloat(amountReceived) : 0;
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -190,7 +203,7 @@ export default function PaymentModalWithCoupons({
     const amountReceivedNum = parseFloat(amountReceived) || finalTotal;
     const paymentData = {
       method: paymentMethod,
-      amountReceived: paymentMethod === 'cash' ? amountReceivedNum : finalTotal,
+      amountReceived: amountReceivedNum,
       appliedCoupon,
       manualDiscount: manualDiscount.value > 0 ? manualDiscount : null,
       customerId: selectedCustomerId || null,
@@ -202,6 +215,11 @@ export default function PaymentModalWithCoupons({
       freeItems,
       couponDiscountAmount,
       manualDiscountAmount,
+      // Credit information
+      isCredit,
+      creditAmount,
+      creditCustomerName: isCredit ? creditCustomerName : null,
+      creditCustomerPhone: isCredit ? creditCustomerPhone : null,
     };
 
     onPayment(paymentData);
@@ -546,7 +564,7 @@ export default function PaymentModalWithCoupons({
                     key={method}
                     onClick={() => {
                       setPaymentMethod(method);
-                      if (method === 'cash' && amountReceived === '') {
+                      if (amountReceived === '') {
                         setAmountReceived(finalTotal.toString());
                       }
                     }}
@@ -562,8 +580,7 @@ export default function PaymentModalWithCoupons({
               </div>
             </div>
 
-            {/* Cash Payment Amount */}
-            {paymentMethod === 'cash' && (
+            {/* Amount Received - Show for all payment methods */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Amount Received
@@ -571,17 +588,66 @@ export default function PaymentModalWithCoupons({
                 <input
                   type="number"
                   value={amountReceived}
-                  onChange={(e) => setAmountReceived(e.target.value)}
-                  min={finalTotal}
+                onChange={(e) => setAmountReceived(e.target.value)}
+                min="0"
                   step="0.01"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder={finalTotal.toString()}
                 />
-                {parseFloat(amountReceived) > finalTotal && (
+              {parseFloat(amountReceived) > finalTotal && (
                   <div className="mt-2 text-sm text-gray-600">
-                    Change: {formatCurrency(parseFloat(amountReceived) - finalTotal)}
+                  Change: {formatCurrency(parseFloat(amountReceived) - finalTotal)}
+                </div>
+              )}
+              {isCredit && (
+                <div className="mt-2 text-sm text-orange-600 font-medium">
+                  Credit Amount: {formatCurrency(creditAmount)}
+                </div>
+              )}
+            </div>
+
+            {/* Credit Customer Details - Show when amount is less than total */}
+            {isCredit && (
+              <div className="border border-orange-200 rounded-lg p-4 bg-orange-50">
+                <h4 className="font-medium text-orange-900 mb-3 flex items-center">
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Credit Customer Details
+                </h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-orange-700 mb-1">
+                      Customer Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={creditCustomerName}
+                      onChange={(e) => setCreditCustomerName(e.target.value)}
+                      placeholder="Enter customer name"
+                      className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      required
+                    />
                   </div>
-                )}
+                  <div>
+                    <label className="block text-sm font-medium text-orange-700 mb-1">
+                      Phone Number (Optional)
+                    </label>
+                    <input
+                      type="tel"
+                      value={creditCustomerPhone}
+                      onChange={(e) => setCreditCustomerPhone(e.target.value)}
+                      placeholder="Enter phone number"
+                      className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+                  <div className="bg-orange-100 border border-orange-200 rounded p-3">
+                    <p className="text-sm text-orange-800">
+                      <strong>Credit Summary:</strong><br />
+                      Total Bill: {formatCurrency(finalTotal)}<br />
+                      Amount Received: {formatCurrency(parseFloat(amountReceived))}<br />
+                      Credit Amount: {formatCurrency(creditAmount)}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -604,10 +670,10 @@ export default function PaymentModalWithCoupons({
               </button>
               <button
                 onClick={handlePayment}
-                disabled={isProcessing || (paymentMethod === 'cash' && (parseFloat(amountReceived) || 0) < finalTotal)}
+                disabled={isProcessing || (isCredit && !creditCustomerName.trim())}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isProcessing ? 'Processing...' : `Pay ${formatCurrency(finalTotal)}`}
+                {isProcessing ? 'Processing...' : isCredit ? `Pay ${formatCurrency(parseFloat(amountReceived))} (Credit: ${formatCurrency(creditAmount)})` : `Pay ${formatCurrency(finalTotal)}`}
               </button>
             </div>
           </div>

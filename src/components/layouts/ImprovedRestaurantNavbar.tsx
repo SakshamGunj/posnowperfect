@@ -19,14 +19,19 @@ import {
   Grid3X3,
   ChevronDown,
   TrendingUp,
+  Receipt,
+  ShoppingCart,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useRestaurantAuth } from '@/contexts/RestaurantAuthContext';
+import { useEmployeePermissions, useUserRoleDisplay } from '@/hooks/useEmployeePermissions';
 
 export default function ImprovedRestaurantNavbar() {
   const { restaurant } = useRestaurant();
   const { user, logout } = useRestaurantAuth();
+  const { canAccess, isOwner } = useEmployeePermissions();
+  const userRoleDisplay = useUserRoleDisplay();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -55,56 +60,88 @@ export default function ImprovedRestaurantNavbar() {
     },
   ];
 
-  const quickMenuItems = [
+  const allQuickMenuItems = [
     {
       name: 'Menu Management',
       href: `/${restaurant.slug}/menu`,
       icon: ChefHat,
       description: 'Manage menu items & categories',
+      moduleId: 'menu',
     },
     {
       name: 'Inventory',
       href: `/${restaurant.slug}/inventory`,
       icon: Package,
       description: 'Track stock & inventory',
+      moduleId: 'inventory',
     },
     {
       name: 'Customers',
       href: `/${restaurant.slug}/customers`,
       icon: CreditCard,
       description: 'Manage customer database',
+      moduleId: 'customers',
+    },
+    {
+      name: 'Credits',
+      href: `/${restaurant.slug}/credits`,
+      icon: Receipt,
+      description: 'Manage customer credits & payments',
+      moduleId: 'credits',
     },
     {
       name: 'Coupons',
       href: `/${restaurant.slug}/coupons`,
       icon: Gift,
       description: 'Manage coupons & promotions',
+      moduleId: 'coupons',
     },
     {
       name: 'Gamification',
       href: `/${restaurant.slug}/gamification`,
       icon: Grid3X3,
       description: 'Spin wheel & customer games',
+      moduleId: 'gamification',
     },
     {
       name: 'Kitchen Display',
       href: `/${restaurant.slug}/kitchen`,
       icon: Store,
       description: 'View kitchen orders',
+      moduleId: 'kitchen',
     },
     {
       name: 'Analytics',
       href: `/${restaurant.slug}/analytics`,
       icon: TrendingUp,
       description: 'View performance analytics',
+      moduleId: 'reports',
+    },
+    {
+      name: 'Employee Management',
+      href: `/${restaurant.slug}/employees`,
+      icon: Users,
+      description: 'Manage staff & permissions',
+      moduleId: 'employees',
+    },
+    {
+      name: 'Marketplace',
+      href: `/${restaurant.slug}/marketplace`,
+      icon: ShoppingCart,
+      description: 'Order bulk supplies',
+      moduleId: 'marketplace',
     },
     {
       name: 'Settings',
       href: `/${restaurant.slug}/settings`,
       icon: Settings,
       description: 'Restaurant settings',
+      moduleId: 'settings',
     },
   ];
+
+  // Filter menu items based on permissions
+  const quickMenuItems = allQuickMenuItems.filter(item => canAccess(item.moduleId));
 
   const handleNavigation = (href: string) => {
     navigate(href);
@@ -249,7 +286,7 @@ export default function ImprovedRestaurantNavbar() {
               <div className="hidden md:flex items-center space-x-3 bg-gray-50 rounded-xl px-3 py-2">
                 <div className="text-right">
                   <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
-                  <p className="text-xs text-gray-500">{user?.role || 'Staff'}</p>
+                  <p className="text-xs text-gray-500">{userRoleDisplay}</p>
                 </div>
                 
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
@@ -395,7 +432,7 @@ export default function ImprovedRestaurantNavbar() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
-                    <p className="text-xs text-gray-500">{user?.role || 'Staff'}</p>
+                    <p className="text-xs text-gray-500">{userRoleDisplay}</p>
                   </div>
                 </div>
                 

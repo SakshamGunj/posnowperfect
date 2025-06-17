@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useRestaurantAuth } from '@/contexts/RestaurantAuthContext';
+import { useEmployeePermissions } from '@/hooks/useEmployeePermissions';
 import { 
   Store, 
   Users, 
@@ -17,27 +18,35 @@ import {
   Loader2,
   Database,
   Gift,
-  Grid3X3
+  Grid3X3,
+  Receipt,
+  ShoppingCart
 } from 'lucide-react';
 import { formatCurrency, getBusinessTypeDisplayName } from '@/lib/utils';
 import { OrderService } from '@/services/orderService';
 import { TableService } from '@/services/tableService';
 import { SeedDataService } from '@/services/seedDataService';
+import { RevenueService } from '@/services/revenueService';
 import toast from 'react-hot-toast';
 
 interface DashboardStats {
   totalOrdersToday: number;
   revenueToday: number;
+  actualRevenueToday: number;
+  creditAmountToday: number;
   activeTables: number;
   totalTables: number;
   ordersYesterday: number;
   revenueYesterday: number;
+  actualRevenueYesterday: number;
   growth: number;
+  actualGrowth: number;
 }
 
 export default function RestaurantDashboard() {
   const { restaurant } = useRestaurant();
   const { user } = useRestaurantAuth();
+  const { canAccess } = useEmployeePermissions();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSeeding, setIsSeeding] = useState(false);
@@ -82,7 +91,7 @@ export default function RestaurantDashboard() {
           return orderDateTime >= yesterdayStart && orderDateTime < yesterdayEnd;
         });
 
-        // Calculate revenue
+        // Calculate revenue (both total and actual)
         const revenueToday = todaysOrders.reduce((sum, order) => {
           return sum + (order.total || 0);
         }, 0);
@@ -91,22 +100,34 @@ export default function RestaurantDashboard() {
           return sum + (order.total || 0);
         }, 0);
 
+        // Calculate actual revenue accounting for credits
+        const todayRevenueData = await RevenueService.calculateOrdersRevenue(todaysOrders, restaurant.id);
+        const yesterdayRevenueData = await RevenueService.calculateOrdersRevenue(yesterdaysOrders, restaurant.id);
+
         // Count active tables (tables with active orders)
         const activeTables = tables.filter(table => table.status === 'occupied').length;
 
-        // Calculate growth percentage
+        // Calculate growth percentage (both total and actual)
         const growth = revenueYesterday > 0 
           ? ((revenueToday - revenueYesterday) / revenueYesterday) * 100
           : revenueToday > 0 ? 100 : 0;
 
+        const actualGrowth = yesterdayRevenueData.actualRevenue > 0 
+          ? ((todayRevenueData.actualRevenue - yesterdayRevenueData.actualRevenue) / yesterdayRevenueData.actualRevenue) * 100
+          : todayRevenueData.actualRevenue > 0 ? 100 : 0;
+
         setStats({
           totalOrdersToday: todaysOrders.length,
           revenueToday,
+          actualRevenueToday: todayRevenueData.actualRevenue,
+          creditAmountToday: todayRevenueData.pendingCreditAmount,
           activeTables,
           totalTables: tables.length,
           ordersYesterday: yesterdaysOrders.length,
           revenueYesterday,
-          growth
+          actualRevenueYesterday: yesterdayRevenueData.actualRevenue,
+          growth,
+          actualGrowth
         });
 
       } catch (error) {
@@ -156,6 +177,12 @@ export default function RestaurantDashboard() {
     return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
   };
 
+  const getActualRevenueChange = () => {
+    if (!stats || stats.actualRevenueYesterday === 0) return '+0%';
+    const change = ((stats.actualRevenueToday - stats.actualRevenueYesterday) / stats.actualRevenueYesterday) * 100;
+    return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
+  };
+
   const getTableOccupancy = () => {
     if (!stats || stats.totalTables === 0) return '0%';
     return `${Math.round((stats.activeTables / stats.totalTables) * 100)}%`;
@@ -172,13 +199,22 @@ export default function RestaurantDashboard() {
       isPositive: !loading && stats ? stats.totalOrdersToday >= stats.ordersYesterday : true,
     },
     {
-      title: 'Revenue Today',
-      value: loading ? '...' : formatCurrency(stats?.revenueToday || 0),
-      change: loading ? '...' : getRevenueChange(),
+      title: 'Actual Revenue Today',
+      value: loading ? '...' : formatCurrency(stats?.actualRevenueToday || 0),
+      change: loading ? '...' : getActualRevenueChange(),
       icon: DollarSign,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
-      isPositive: !loading && stats ? stats.revenueToday >= stats.revenueYesterday : true,
+      isPositive: !loading && stats ? stats.actualRevenueToday >= stats.actualRevenueYesterday : true,
+    },
+    {
+      title: 'Pending Credits',
+      value: loading ? '...' : formatCurrency(stats?.creditAmountToday || 0),
+      change: loading ? '...' : 'to collect',
+      icon: Receipt,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-50',
+      isPositive: false,
     },
     {
       title: 'Active Tables',
@@ -200,13 +236,14 @@ export default function RestaurantDashboard() {
     },
   ];
 
-  const quickActions = [
+  const allQuickActions = [
     {
       title: 'Manage Tables',
       description: 'View and manage tables',
       icon: Users,
       href: `/${restaurant.slug}/tables`,
       color: 'from-blue-500 to-blue-600',
+      moduleId: 'tables',
     },
     {
       title: 'Orders Dashboard',
@@ -214,6 +251,7 @@ export default function RestaurantDashboard() {
       icon: ShoppingBag,
       href: `/${restaurant.slug}/orders`,
       color: 'from-indigo-500 to-indigo-600',
+      moduleId: 'orders',
     },
     {
       title: 'Menu Management',
@@ -221,6 +259,7 @@ export default function RestaurantDashboard() {
       icon: ChefHat,
       href: `/${restaurant.slug}/menu`,
       color: 'from-orange-500 to-orange-600',
+      moduleId: 'menu',
     },
     {
       title: 'Inventory Management',
@@ -228,6 +267,7 @@ export default function RestaurantDashboard() {
       icon: Package,
       href: `/${restaurant.slug}/inventory`,
       color: 'from-green-500 to-green-600',
+      moduleId: 'inventory',
     },
     {
       title: 'Kitchen Display',
@@ -235,6 +275,7 @@ export default function RestaurantDashboard() {
       icon: Store,
       href: `/${restaurant.slug}/kitchen`,
       color: 'from-purple-500 to-purple-600',
+      moduleId: 'kitchen',
     },
     {
       title: 'Customer Management',
@@ -242,6 +283,15 @@ export default function RestaurantDashboard() {
       icon: Users,
       href: `/${restaurant.slug}/customers`,
       color: 'from-teal-500 to-teal-600',
+      moduleId: 'customers',
+    },
+    {
+      title: 'Credit Management',
+      description: 'Manage customer credits & payments',
+      icon: Receipt,
+      href: `/${restaurant.slug}/credits`,
+      color: 'from-red-500 to-red-600',
+      moduleId: 'credits',
     },
     {
       title: 'Coupon Dashboard',
@@ -249,6 +299,7 @@ export default function RestaurantDashboard() {
       icon: Gift,
       href: `/${restaurant.slug}/coupons`,
       color: 'from-pink-500 to-pink-600',
+      moduleId: 'coupons',
     },
     {
       title: 'Gamification Tools',
@@ -256,6 +307,23 @@ export default function RestaurantDashboard() {
       icon: Grid3X3,
       href: `/${restaurant.slug}/gamification`,
       color: 'from-indigo-500 to-purple-600',
+      moduleId: 'gamification',
+    },
+    {
+      title: 'Employee Management',
+      description: 'Manage staff & permissions',
+      icon: Users,
+      href: `/${restaurant.slug}/employees`,
+      color: 'from-blue-500 to-purple-600',
+      moduleId: 'employees',
+    },
+    {
+      title: 'Marketplace',
+      description: 'Order bulk supplies & wholesale',
+      icon: ShoppingCart,
+      href: `/${restaurant.slug}/marketplace`,
+      color: 'from-emerald-500 to-emerald-600',
+      moduleId: 'marketplace',
     },
     {
       title: 'Settings',
@@ -263,8 +331,12 @@ export default function RestaurantDashboard() {
       icon: Settings,
       href: `/${restaurant.slug}/settings`,
       color: 'from-gray-500 to-gray-600',
+      moduleId: 'settings',
     },
   ];
+
+  // Filter quick actions based on permissions
+  const quickActions = allQuickActions.filter(action => canAccess(action.moduleId));
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>

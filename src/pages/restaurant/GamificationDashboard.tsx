@@ -80,6 +80,30 @@ export default function GamificationDashboard() {
       
       if (result.success && result.data) {
         setSpinWheels(result.data);
+        
+        // Auto-fix any incorrect shareable links in the background
+        const hasIncorrectLinks = result.data.some(wheel => 
+          wheel.shareableLink.includes('pos.') || 
+          wheel.shareableLink.includes('admin.') || 
+          wheel.shareableLink.includes('tenversemedia')
+        );
+        
+        if (hasIncorrectLinks) {
+          console.log('Found spin wheels with incorrect domain links, fixing automatically...');
+          try {
+            const fixResult = await GamificationService.fixSpinWheelShareableLinks(restaurant.id);
+            if (fixResult.success && fixResult.data && fixResult.data > 0) {
+              // Reload the wheels to show fixed links
+              const updatedResult = await GamificationService.getSpinWheelsForRestaurant(restaurant.id);
+              if (updatedResult.success && updatedResult.data) {
+                setSpinWheels(updatedResult.data);
+              }
+              console.log(`Auto-fixed ${fixResult.data} spin wheel links`);
+            }
+          } catch (error) {
+            console.warn('Could not auto-fix spin wheel links:', error);
+          }
+        }
       } else {
         toast.error(result.error || 'Failed to load spin wheels');
       }
@@ -229,6 +253,23 @@ export default function GamificationDashboard() {
     toast.success('Link copied to clipboard!');
   };
 
+  const fixSpinWheelLinks = async () => {
+    if (!restaurant) return;
+
+    try {
+      const result = await GamificationService.fixSpinWheelShareableLinks(restaurant.id);
+      
+      if (result.success) {
+        toast.success(result.message || `Fixed ${result.data} spin wheel links`);
+        loadSpinWheels(); // Reload to show updated links
+      } else {
+        toast.error(result.error || 'Failed to fix spin wheel links');
+      }
+    } catch (error) {
+      toast.error('Failed to fix spin wheel links');
+    }
+  };
+
   const openEditModal = (wheel: SpinWheelConfig) => {
     setSelectedWheel(wheel);
     setEditingSegments([...wheel.segments]);
@@ -345,17 +386,28 @@ export default function GamificationDashboard() {
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                console.log('Create button clicked');
-                setCreateSegments(GamificationService.getDefaultSegments());
-                setShowCreateModal(true);
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create Spin Wheel</span>
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={fixSpinWheelLinks}
+                className="px-3 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors flex items-center space-x-2 text-sm"
+                title="Fix incorrect domain links in existing spin wheels"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Fix Links</span>
+              </button>
+              
+              <button
+                onClick={() => {
+                  console.log('Create button clicked');
+                  setCreateSegments(GamificationService.getDefaultSegments());
+                  setShowCreateModal(true);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Spin Wheel</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>

@@ -16,6 +16,7 @@ import {
   Trash2,
   Utensils,
   ArrowRightLeft,
+  MoreVertical,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -25,6 +26,7 @@ import { OrderService, CartManager, CartItem } from '@/services/orderService';
 import { TableService } from '@/services/tableService';
 import { CustomerService } from '@/services/customerService';
 import { CouponService } from '@/services/couponService';
+import { CreditService } from '@/services/creditService';
 import { MenuItem, Category, Table, Order, PaymentMethod, Discount, SelectedVariant } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 import VariantSelectionModal from '@/components/restaurant/VariantSelectionModal';
@@ -74,6 +76,7 @@ export default function TakeOrder() {
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
   const [showTableManagement, setShowTableManagement] = useState(false);
+  const [showMobileActionsMenu, setShowMobileActionsMenu] = useState(false);
   
   // Voice command loading states
   const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
@@ -101,6 +104,23 @@ export default function TakeOrder() {
       loading: false // Note: loading state not available in this component
     });
   }, [user]);
+
+  // Close mobile actions menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showMobileActionsMenu) {
+        const target = event.target as Element;
+        if (!target.closest('.mobile-actions-menu')) {
+          setShowMobileActionsMenu(false);
+        }
+      }
+    };
+
+    if (showMobileActionsMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showMobileActionsMenu]);
 
   // Load table, menu, and cart data
   const loadData = async () => {
@@ -539,7 +559,7 @@ export default function TakeOrder() {
 
 
   const handlePayment = async (data: any) => {
-    if (!restaurant || !tableId || allOrders.length === 0) return;
+    if (!restaurant || !tableId || !table || allOrders.length === 0) return;
 
     try {
       setIsProcessingPayment(true);
@@ -555,6 +575,31 @@ export default function TakeOrder() {
         }
       }
 
+      // Handle credit transaction if payment is partial
+      let creditTransactionId = null;
+      if (data.isCredit && data.creditCustomerName) {
+        const creditResult = await CreditService.createCreditTransaction({
+          restaurantId: restaurant.id,
+          customerId: data.customerId,
+          customerName: data.creditCustomerName,
+          customerPhone: data.creditCustomerPhone,
+          orderId: allOrders.map(o => o.id).join(','),
+          tableNumber: table.number,
+          totalAmount: data.finalTotal,
+          amountReceived: data.amountReceived,
+          paymentMethod: data.method,
+          notes: `Credit payment for Table ${table.number}`
+        });
+
+        if (creditResult.success) {
+          creditTransactionId = creditResult.creditId;
+          toast.success(`Credit transaction created for ${formatCurrency(data.creditAmount)}`);
+        } else {
+          toast.error('Failed to create credit transaction');
+          return;
+        }
+      }
+
       // Update all active orders status to completed
       const updatePromises = allOrders.map(async (order) => {
         const updateData: any = { 
@@ -564,6 +609,15 @@ export default function TakeOrder() {
           finalTotal: data.finalTotal,
           originalTotal: data.originalTotal
         };
+        
+        // Add credit information if applicable
+        if (data.isCredit) {
+          updateData.isCredit = true;
+          updateData.creditAmount = data.creditAmount;
+          updateData.creditCustomerName = data.creditCustomerName;
+          updateData.creditCustomerPhone = data.creditCustomerPhone;
+          updateData.creditTransactionId = creditTransactionId;
+        }
         
         // Add coupon information if applied
         if (data.appliedCoupon) {
@@ -604,9 +658,12 @@ export default function TakeOrder() {
         setOrderState('completed');
         setShowPaymentModal(false);
         
-        const successMessage = data.totalSavings > 0 
-          ? `Payment processed! Customer saved ${formatCurrency(data.totalSavings)} with coupon!`
-          : 'Payment processed successfully!';
+        let successMessage = 'Payment processed successfully!';
+        if (data.isCredit) {
+          successMessage = `Payment processed! Credit of ${formatCurrency(data.creditAmount)} recorded for ${data.creditCustomerName}`;
+        } else if (data.totalSavings > 0) {
+          successMessage = `Payment processed! Customer saved ${formatCurrency(data.totalSavings)} with coupon!`;
+        }
         
         toast.success(successMessage);
         
@@ -1391,7 +1448,7 @@ export default function TakeOrder() {
   // Filter menu items with real-time search (optimized with useMemo)
   const filteredItems = useMemo(() => {
     const filtered = menuItems.filter(item => {
-      const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
       
       if (searchTerm === '') {
         return matchesCategory;
@@ -1415,9 +1472,9 @@ export default function TakeOrder() {
       const descContainsMatch = itemDescLower.split(' ').some(word => word.includes(searchTermLower));
       
       const matchesSearch = nameMatch || descMatch || nameWordsMatch || descWordsMatch || nameContainsMatch || descContainsMatch;
-      
-      return matchesCategory && matchesSearch;
-    });
+    
+    return matchesCategory && matchesSearch;
+  });
     
     // Debug search results (remove in production)
     if (searchTerm && filtered.length > 0) {
@@ -1459,15 +1516,15 @@ export default function TakeOrder() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
                   Table {table.number} - {table.area}
                 </h1>
-                <div className="flex items-center space-x-4 text-sm text-gray-600">
-                  <span>Capacity: {table.capacity} guests</span>
-                  <span className="capitalize">Status: {table.status.replace('_', ' ')}</span>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-600">
+                  <span className="whitespace-nowrap">Capacity: {table.capacity} guests</span>
+                  <span className="capitalize whitespace-nowrap">Status: {table.status.replace('_', ' ')}</span>
                   {orderState === 'placed' && allOrders.length > 0 && (
-                    <span className="text-blue-600 font-medium">
+                    <span className="text-blue-600 font-medium whitespace-nowrap">
                       {allOrders.length} Active Order{allOrders.length > 1 ? 's' : ''}
                     </span>
                   )}
@@ -1516,12 +1573,63 @@ export default function TakeOrder() {
               {/* Mobile Action Button */}
               {orderState === 'placed' && allOrders.length > 0 && cartItems.length === 0 && (
                 <div className="sm:hidden">
+                  <div className="relative mobile-actions-menu">
                   <button
-                    onClick={() => setShowPaymentModal(true)}
-                    className="btn bg-green-600 text-white hover:bg-green-700 text-sm px-3 py-1.5"
+                      onClick={() => setShowMobileActionsMenu(!showMobileActionsMenu)}
+                      className="btn bg-blue-600 text-white hover:bg-blue-700 text-sm px-3 py-1.5 relative"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                    
+                    {/* Mobile Actions Dropdown */}
+                    {showMobileActionsMenu && (
+                      <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                        <button
+                          onClick={() => {
+                            handleAddMoreOrder();
+                            setShowMobileActionsMenu(false);
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          <Plus className="w-4 h-4 mr-3" />
+                          Add More Items
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            handlePrintKOT();
+                            setShowMobileActionsMenu(false);
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          <Printer className="w-4 h-4 mr-3" />
+                          Print KOT
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            setShowPaymentModal(true);
+                            setShowMobileActionsMenu(false);
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    <CreditCard className="w-4 h-4" />
+                          <CreditCard className="w-4 h-4 mr-3" />
+                          Payment
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            setShowTableManagement(true);
+                            setShowMobileActionsMenu(false);
+                          }}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          <ArrowRightLeft className="w-4 h-4 mr-3" />
+                          Manage Table
                   </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               
@@ -1986,21 +2094,21 @@ export default function TakeOrder() {
         )}
 
             {orderState === 'placed' && allOrders.length > 0 && (
-              <div className="max-w-4xl mx-auto">
+              <div className="max-w-4xl mx-auto px-4">
                 <div className="text-center mb-6">
                   <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Receipt className="w-8 h-8 text-blue-600" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Orders Placed!</h2>
-                  <p className="text-gray-600">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Orders Placed!</h2>
+                  <p className="text-gray-600 text-sm sm:text-base">
                     {allOrders.length} active order{allOrders.length > 1 ? 's' : ''} for Table {table.number}
                   </p>
                 </div>
 
-                <div className="grid gap-6">
+                <div className="grid gap-4 sm:gap-6">
                   {allOrders.map((order) => (
-                    <div key={order.id} className="card p-6">
-                      <div className="flex justify-between items-center mb-4">
+                    <div key={order.id} className="card p-4 sm:p-6">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
                         <h3 className="text-lg font-semibold text-gray-900">
                           Order #{order.orderNumber}
                         </h3>
@@ -2011,14 +2119,14 @@ export default function TakeOrder() {
                       
                       <div className="space-y-3 mb-4">
                         {order.items.map(item => (
-                          <div key={item.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                            <div>
+                          <div key={item.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-gray-50 rounded-lg gap-2">
+                            <div className="flex-1">
                               <h4 className="font-medium text-gray-900">{item.name}</h4>
                               <p className="text-sm text-gray-600">
                                 {item.quantity} × {formatCurrency(item.price)}
                               </p>
                             </div>
-                            <div className="font-medium text-gray-900">
+                            <div className="font-medium text-gray-900 sm:text-right">
                               {formatCurrency(item.total)}
                             </div>
                           </div>
@@ -2034,6 +2142,48 @@ export default function TakeOrder() {
                     </div>
                   ))}
                 </div>
+
+                {/* Mobile Action Bar - Fixed at bottom */}
+                <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={handleAddMoreOrder}
+                      className="flex-1 btn btn-theme-primary text-sm py-3"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add More
+                    </button>
+                    
+                    <button
+                      onClick={() => setShowPaymentModal(true)}
+                      className="flex-1 btn bg-green-600 text-white hover:bg-green-700 text-sm py-3"
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Payment
+                    </button>
+                  </div>
+                  
+                  <div className="flex space-x-2 mt-2">
+                    <button
+                      onClick={handlePrintKOT}
+                      className="flex-1 btn btn-secondary text-sm py-2"
+                    >
+                      <Printer className="w-4 h-4 mr-2" />
+                      Print KOT
+                    </button>
+                    
+                    <button
+                      onClick={() => setShowTableManagement(true)}
+                      className="flex-1 btn bg-blue-600 text-white hover:bg-blue-700 text-sm py-2"
+                    >
+                      <ArrowRightLeft className="w-4 h-4 mr-2" />
+                      Manage
+                    </button>
+                  </div>
+                </div>
+
+                {/* Add bottom padding to prevent content from being hidden behind fixed bar */}
+                <div className="sm:hidden h-32"></div>
               </div>
             )}
 
@@ -2275,76 +2425,91 @@ function generateKOTContent(order: Order, restaurant: any, table: Table): string
     <head>
       <title>KOT - ${order.orderNumber}</title>
       <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
           font-family: 'Courier New', monospace; 
-          margin: 0; 
-          padding: 0 10px; 
+          font-weight: bold;
+          font-size: 12px;
+          line-height: 1.1;
           width: 100%;
           background: #fff;
+          color: #000;
+          padding: 0 5px;
         }
         .kot-container {
           width: 100%;
-          padding: 15px 5px;
-          min-height: auto;
+          padding: 5px 0;
         }
         .header { 
           text-align: center; 
           border-bottom: 2px solid #000; 
-          padding-bottom: 10px; 
-          margin-bottom: 15px; 
+          padding-bottom: 3px; 
+          margin-bottom: 5px; 
         }
         .restaurant-name { 
-          font-size: 18px; 
+          font-size: 14px; 
           font-weight: bold; 
-          margin-bottom: 5px;
+          margin-bottom: 2px;
+        }
+        .kot-title {
+          font-size: 12px;
+          font-weight: bold;
         }
         .order-info { 
-          margin-bottom: 15px; 
-          line-height: 1.4;
+          margin-bottom: 5px; 
+          line-height: 1.1;
+        }
+        .order-info p {
+          margin: 1px 0;
+          font-weight: bold;
         }
         .items { 
           border-collapse: collapse; 
           width: 100%; 
-          margin: 15px 0;
+          margin: 5px 0;
         }
         .items th, .items td { 
           border: 1px solid #000; 
-          padding: 8px; 
+          padding: 3px 4px; 
           text-align: left; 
-          font-size: 13px;
+          font-size: 11px;
+          font-weight: bold;
+          line-height: 1.1;
         }
         .items th { 
-          background-color: #f0f0f0; 
+          background-color: #000; 
+          color: #fff;
           font-weight: bold;
         }
         .footer { 
-          margin-top: 20px; 
+          margin-top: 5px; 
           text-align: center; 
-          font-size: 12px; 
+          font-size: 10px; 
           border-top: 1px dashed #000;
-          padding-top: 15px;
+          padding-top: 3px;
+          font-weight: bold;
         }
         .order-notes {
-          margin-top: 15px; 
-          padding: 10px; 
+          margin-top: 5px; 
+          padding: 3px; 
           border: 1px solid #000;
-          background: #f9f9f9;
+          background: #f0f0f0;
+          font-weight: bold;
+          font-size: 11px;
+          line-height: 1.1;
         }
         @media print {
           body { 
             margin: 0; 
-            padding: 0 8px;
+            padding: 0 3px;
             width: 100%;
+            font-size: 11px;
           }
           .kot-container {
-            padding: 10px 0;
+            padding: 3px 0;
             width: 100%;
-            min-height: auto;
           }
           .no-print { display: none; }
-          .header, .order-info, .items, .order-notes, .footer {
-            page-break-inside: avoid;
-          }
         }
       </style>
     </head>
@@ -2352,7 +2517,7 @@ function generateKOTContent(order: Order, restaurant: any, table: Table): string
       <div class="kot-container">
       <div class="header">
         <div class="restaurant-name">${restaurant.name}</div>
-        <div>KITCHEN ORDER TICKET</div>
+          <div class="kot-title">KITCHEN ORDER TICKET</div>
       </div>
       
       <div class="order-info">
@@ -2390,7 +2555,7 @@ function generateKOTContent(order: Order, restaurant: any, table: Table): string
       
       <div class="footer">
         <p>*** KITCHEN COPY ***</p>
-        <p>Printed at: ${new Date().toLocaleString()}</p>
+          <p>Printed: ${new Date().toLocaleString()}</p>
         </div>
       </div>
     </body>
@@ -2467,269 +2632,266 @@ function generateCombinedBillContent(orders: Order[], restaurant: any, table: Ta
         
         body {
           font-family: 'Courier New', monospace;
-          font-size: 13px;
-          line-height: 1.3;
+          font-size: 11px;
+          font-weight: bold;
+          line-height: 1.1;
           width: 100%;
           margin: 0;
-          padding: 0 10px;
+          padding: 0 5px;
           background: #fff;
           color: #000;
         }
         
         .receipt {
           width: 100%;
-          padding: 15px 5px;
+          padding: 5px 0;
           background: #fff;
-          min-height: auto;
         }
         
         .header {
           text-align: center;
-          margin-bottom: 20px;
+          margin-bottom: 5px;
           border-bottom: 2px solid #000;
-          padding-bottom: 15px;
+          padding-bottom: 3px;
         }
         
         .restaurant-name {
-          font-size: 20px;
+          font-size: 14px;
           font-weight: bold;
-          letter-spacing: 1px;
-          margin-bottom: 8px;
+          letter-spacing: 0.5px;
+          margin-bottom: 2px;
           text-transform: uppercase;
         }
         
         .contact-info {
-          font-size: 11px;
-          line-height: 1.4;
-          color: #333;
-          margin-bottom: 5px;
+          font-size: 9px;
+          line-height: 1.1;
+          font-weight: bold;
+          margin-bottom: 2px;
         }
         
         .separator {
           text-align: center;
-          margin: 10px 0;
-          font-size: 14px;
-          letter-spacing: 2px;
+          margin: 3px 0;
+          font-size: 10px;
+          font-weight: bold;
+          letter-spacing: 1px;
         }
         
         .bill-header {
           text-align: center;
-          margin: 15px 0;
-          padding: 10px 0;
+          margin: 5px 0;
+          padding: 3px 0;
           border-top: 1px dashed #000;
           border-bottom: 1px dashed #000;
         }
         
         .bill-title {
-          font-size: 16px;
+          font-size: 12px;
           font-weight: bold;
-          margin-bottom: 8px;
-          letter-spacing: 1px;
+          margin-bottom: 2px;
+          letter-spacing: 0.5px;
         }
         
         .bill-info {
-          font-size: 12px;
-          line-height: 1.5;
+          font-size: 10px;
+          line-height: 1.1;
+          font-weight: bold;
         }
         
         .order-details {
-          margin: 15px 0;
-          padding: 10px 0;
+          margin: 5px 0;
+          padding: 3px 0;
           border-bottom: 1px dashed #000;
         }
         
         .section-title {
           font-weight: bold;
-          margin-bottom: 8px;
+          margin-bottom: 2px;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.3px;
+          font-size: 10px;
         }
         
         .order-line {
-          margin: 3px 0;
-          font-size: 11px;
-          color: #555;
+          margin: 1px 0;
+          font-size: 9px;
+          font-weight: bold;
         }
         
         .items-section {
-          margin: 15px 0;
+          margin: 5px 0;
         }
         
         .items-header {
           display: flex;
           justify-content: space-between;
           border-bottom: 1px solid #000;
-          padding-bottom: 5px;
-          margin-bottom: 10px;
+          padding-bottom: 2px;
+          margin-bottom: 3px;
           font-weight: bold;
-          font-size: 12px;
+          font-size: 10px;
         }
         
         .item-row {
           display: flex;
           justify-content: space-between;
-          margin: 8px 0;
-          padding: 3px 0;
+          margin: 2px 0;
+          padding: 1px 0;
         }
         
         .item-details {
           flex: 1;
-          padding-right: 10px;
+          padding-right: 5px;
         }
         
         .item-name {
           font-weight: bold;
-          margin-bottom: 2px;
+          margin-bottom: 1px;
+          font-size: 10px;
         }
         
         .item-qty-price {
-          font-size: 11px;
-          color: #666;
+          font-size: 9px;
+          font-weight: bold;
         }
         
         .item-total {
           font-weight: bold;
-          min-width: 60px;
+          min-width: 50px;
           text-align: right;
+          font-size: 10px;
         }
         
         .totals-section {
-          margin-top: 20px;
+          margin-top: 5px;
           border-top: 1px solid #000;
-          padding-top: 15px;
+          padding-top: 3px;
         }
         
         .total-row {
           display: flex;
           justify-content: space-between;
-          margin: 5px 0;
-          padding: 2px 0;
+          margin: 1px 0;
+          padding: 1px 0;
+          font-weight: bold;
+          font-size: 10px;
         }
         
         .total-row.subtotal {
-          border-bottom: 1px dotted #666;
-          padding-bottom: 8px;
-          margin-bottom: 8px;
+          border-bottom: 1px dotted #000;
+          padding-bottom: 2px;
+          margin-bottom: 2px;
         }
         
         .total-row.discount {
-          color: #d32f2f;
           font-weight: bold;
         }
         
         .total-row.savings {
-          color: #388e3c;
           font-weight: bold;
-          background: #f8f8f8;
-          padding: 5px;
-          margin: 5px -5px;
-          border-radius: 3px;
+          background: #f0f0f0;
+          padding: 2px;
+          margin: 1px -2px;
         }
         
         .total-row.final {
           border-top: 2px solid #000;
           border-bottom: 2px solid #000;
-          padding: 8px 0;
-          margin-top: 10px;
-          font-size: 16px;
+          padding: 3px 0;
+          margin-top: 3px;
+          font-size: 12px;
           font-weight: bold;
         }
         
         .coupon-section {
-          background: #e8f5e8;
-          margin: 10px -5px;
-          padding: 8px;
-          border-radius: 3px;
-          border: 1px dashed #4caf50;
+          background: #f0f0f0;
+          margin: 3px -2px;
+          padding: 3px;
+          border: 1px dashed #000;
         }
         
         .coupon-title {
-          color: #2e7d32;
           font-weight: bold;
-          margin-bottom: 3px;
+          margin-bottom: 1px;
+          font-size: 9px;
         }
         
         .coupon-code {
-          font-size: 11px;
-          color: #666;
-          font-style: italic;
+          font-size: 8px;
+          font-weight: bold;
         }
         
         .free-items {
-          color: #ff6f00;
           font-weight: bold;
-          font-size: 11px;
+          font-size: 8px;
         }
         
         .payment-section {
-          margin: 20px 0;
-          padding: 15px 0;
+          margin: 5px 0;
+          padding: 3px 0;
           border-top: 1px dashed #000;
           border-bottom: 1px dashed #000;
         }
         
         .payment-title {
           font-weight: bold;
-          margin-bottom: 8px;
+          margin-bottom: 2px;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.3px;
+          font-size: 10px;
         }
         
         .payment-details {
-          font-size: 12px;
-          line-height: 1.6;
+          font-size: 9px;
+          line-height: 1.1;
+          font-weight: bold;
         }
         
         .payment-method {
-          background: #f5f5f5;
-          padding: 5px;
-          border-radius: 3px;
+          background: #f0f0f0;
+          padding: 1px 2px;
           display: inline-block;
           font-weight: bold;
         }
         
         .footer {
           text-align: center;
-          margin-top: 20px;
-          padding-top: 15px;
+          margin-top: 5px;
+          padding-top: 3px;
           border-top: 2px solid #000;
         }
         
         .thank-you {
-          font-size: 14px;
+          font-size: 11px;
           font-weight: bold;
-          margin-bottom: 10px;
-          letter-spacing: 1px;
+          margin-bottom: 2px;
+          letter-spacing: 0.5px;
         }
         
         .footer-info {
-          font-size: 10px;
-          color: #666;
-          line-height: 1.4;
+          font-size: 8px;
+          font-weight: bold;
+          line-height: 1.1;
         }
         
         .timestamp {
           text-align: center;
-          margin-top: 15px;
-          font-size: 10px;
-          color: #888;
-          font-style: italic;
+          margin-top: 3px;
+          font-size: 8px;
+          font-weight: bold;
         }
         
         @media print {
           body {
-            padding: 0 8px;
-            font-size: 12px;
+            padding: 0 3px;
+            font-size: 10px;
             width: 100%;
             margin: 0;
           }
           .receipt {
-            padding: 10px 0;
+            padding: 3px 0;
             width: 100%;
-            min-height: auto;
-          }
-          .header, .bill-header, .items-section, .totals-section, .payment-section, .footer {
-            page-break-inside: avoid;
           }
         }
       </style>

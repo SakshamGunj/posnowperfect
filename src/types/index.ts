@@ -66,6 +66,56 @@ export interface User {
   createdBy?: string; // Admin who created this user
 }
 
+// Employee Management Types
+export interface Employee {
+  id: string;
+  restaurantId: string;
+  name: string;
+  email: string;
+  pin: string; // 4-digit PIN for quick login
+  role: 'manager' | 'staff';
+  permissions: EmployeePermission[];
+  isActive: boolean;
+  lastLoginAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string; // Owner who created this employee
+}
+
+export interface EmployeePermission {
+  module: string;
+  access: boolean;
+}
+
+export interface CreateEmployeeRequest {
+  name: string;
+  email: string;
+  password: string;
+  pin: string;
+  role: 'manager' | 'staff';
+  permissions: EmployeePermission[];
+}
+
+export interface UpdateEmployeeRequest {
+  name?: string;
+  email?: string;
+  password?: string;
+  pin?: string;
+  role?: 'manager' | 'staff';
+  permissions?: EmployeePermission[];
+  isActive?: boolean;
+}
+
+// Available modules for permission assignment
+export interface ModulePermission {
+  id: string;
+  name: string;
+  description: string;
+  category: 'core' | 'management' | 'reports' | 'settings';
+  icon: string;
+  defaultAccess: boolean; // Default access for new employees
+}
+
 // Admin-specific types
 export interface AdminUser {
   id: string;
@@ -82,6 +132,8 @@ export interface CreateRestaurantRequest {
   businessType: BusinessType;
   ownerName: string;
   ownerEmail: string;
+  ownerPassword: string;
+  ownerPin: string;
   address?: string;
   phone?: string;
   settings?: Partial<RestaurantSettings>;
@@ -617,4 +669,315 @@ export interface CustomerLoyaltyInfo {
   totalSpins: number;
   totalPointsEarned: number;
   memberSince: Date;
+}
+
+// Marketplace Module Types
+export type MarketplaceCategory = 'meat' | 'vegetables' | 'dairy' | 'grains' | 'spices' | 'equipment' | 'packaging' | 'cleaning' | 'beverages' | 'frozen';
+
+export type MarketplaceOrderStatus = 'draft' | 'submitted' | 'confirmed' | 'processing' | 'dispatched' | 'in_transit' | 'delivered' | 'cancelled' | 'refunded';
+
+export type PaymentStatus = 'pending' | 'paid' | 'partial' | 'failed' | 'refunded';
+
+export interface Supplier {
+  id: string;
+  name: string;
+  businessName: string;
+  email: string;
+  phone: string;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  };
+  logo?: string;
+  description: string;
+  categories: MarketplaceCategory[];
+  rating: number; // 0-5
+  totalReviews: number;
+  isVerified: boolean;
+  certifications: string[]; // Food safety, organic, etc.
+  minimumOrderAmount: number;
+  deliveryAreas: string[]; // Cities they deliver to
+  deliveryFee: number;
+  freeDeliveryThreshold: number;
+  businessLicense?: string;
+  taxId?: string;
+  bankDetails?: {
+    accountName: string;
+    accountNumber: string;
+    routingNumber: string;
+    bankName: string;
+  };
+  isActive: boolean;
+  joinedAt: Date;
+  lastActiveAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MarketplaceProduct {
+  id: string;
+  supplierId: string;
+  supplierName: string;
+  name: string;
+  description: string;
+  category: MarketplaceCategory;
+  subcategory?: string;
+  images: string[];
+  unit: string; // kg, lb, piece, box, case, etc.
+  minimumOrderQuantity: number;
+  maximumOrderQuantity?: number;
+  
+  // Pricing tiers for bulk orders
+  pricingTiers: PricingTier[];
+  
+  // Product specifications
+  specifications: {
+    origin?: string;
+    brand?: string;
+    weight?: string;
+    dimensions?: string;
+    shelfLife?: string;
+    storageRequirements?: string;
+    certifications?: string[];
+  };
+  
+  // Availability
+  isAvailable: boolean;
+  stockQuantity?: number;
+  seasonalAvailability?: {
+    startMonth: number; // 1-12
+    endMonth: number; // 1-12
+  };
+  
+  // Quality & compliance
+  qualityGrade?: string; // A, B, C or Premium, Standard, Economy
+  certifications: string[]; // Organic, Halal, Kosher, etc.
+  
+  tags: string[]; // fresh, local, imported, etc.
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PricingTier {
+  minQuantity: number;
+  maxQuantity?: number;
+  pricePerUnit: number;
+  discountPercentage?: number;
+}
+
+export interface MarketplaceCartItem {
+  productId: string;
+  product: MarketplaceProduct;
+  quantity: number;
+  selectedTier: PricingTier;
+  unitPrice: number;
+  totalPrice: number;
+  notes?: string;
+}
+
+export interface MarketplaceOrder {
+  id: string;
+  orderNumber: string;
+  restaurantId: string;
+  restaurantName: string;
+  supplierId: string;
+  supplierName: string;
+  
+  // Order details
+  items: MarketplaceOrderItem[];
+  subtotal: number;
+  tax: number;
+  deliveryFee: number;
+  discount: number;
+  total: number;
+  
+  // Order status
+  status: MarketplaceOrderStatus;
+  paymentStatus: PaymentStatus;
+  
+  // Delivery information
+  deliveryAddress: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  };
+  
+  // Scheduling
+  requestedDeliveryDate: Date;
+  estimatedDeliveryDate?: Date;
+  actualDeliveryDate?: Date;
+  deliveryTimeSlot?: string; // "9:00 AM - 12:00 PM"
+  
+  // Tracking
+  trackingNumber?: string;
+  trackingUrl?: string;
+  
+  // Communication
+  orderNotes?: string;
+  supplierNotes?: string;
+  deliveryInstructions?: string;
+  
+  // Payment
+  paymentMethod?: string;
+  paymentReference?: string;
+  paidAt?: Date;
+  
+  // Contract & invoicing
+  isContractOrder: boolean;
+  contractId?: string;
+  invoiceNumber?: string;
+  invoiceUrl?: string;
+  
+  // Metadata
+  placedBy: string; // User ID who placed the order
+  createdAt: Date;
+  updatedAt: Date;
+  
+  // Status history
+  statusHistory: OrderStatusHistory[];
+}
+
+export interface MarketplaceOrderItem {
+  id: string;
+  productId: string;
+  productName: string;
+  productImage?: string;
+  category: MarketplaceCategory;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  specifications?: Record<string, string>;
+  notes?: string;
+}
+
+export interface OrderStatusHistory {
+  status: MarketplaceOrderStatus;
+  timestamp: Date;
+  notes?: string;
+  updatedBy?: string; // Supplier or system
+  location?: string; // For tracking updates
+}
+
+export interface SupplierReview {
+  id: string;
+  supplierId: string;
+  restaurantId: string;
+  restaurantName: string;
+  orderId: string;
+  rating: number; // 1-5
+  title: string;
+  comment: string;
+  pros?: string[];
+  cons?: string[];
+  
+  // Review categories
+  qualityRating: number;
+  deliveryRating: number;
+  serviceRating: number;
+  valueRating: number;
+  
+  isVerified: boolean; // Only customers who actually ordered can review
+  isPublic: boolean;
+  supplierResponse?: {
+    message: string;
+    respondedAt: Date;
+    respondedBy: string;
+  };
+  
+  helpfulVotes: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MarketplaceContract {
+  id: string;
+  restaurantId: string;
+  supplierId: string;
+  name: string;
+  description: string;
+  
+  // Contract terms
+  startDate: Date;
+  endDate: Date;
+  autoRenew: boolean;
+  renewalPeriod?: number; // months
+  
+  // Pricing
+  products: ContractProduct[];
+  minimumMonthlyOrder?: number;
+  paymentTerms: string; // "Net 30", "COD", etc.
+  
+  // Delivery
+  deliveryFrequency: string; // "weekly", "bi-weekly", "monthly"
+  deliveryDays: number[]; // [1, 3, 5] for Mon, Wed, Fri
+  
+  status: 'draft' | 'pending' | 'active' | 'expired' | 'cancelled';
+  
+  // Legal
+  termsAndConditions: string;
+  cancellationPolicy: string;
+  
+  // Signatures
+  restaurantSignature?: {
+    signedBy: string;
+    signedAt: Date;
+    ipAddress: string;
+  };
+  supplierSignature?: {
+    signedBy: string;
+    signedAt: Date;
+    ipAddress: string;
+  };
+  
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ContractProduct {
+  productId: string;
+  productName: string;
+  contractPrice: number;
+  minimumQuantity?: number;
+  maximumQuantity?: number;
+}
+
+export interface MarketplaceNotification {
+  id: string;
+  userId: string;
+  type: 'order_confirmed' | 'order_dispatched' | 'order_delivered' | 'price_change' | 'new_product' | 'contract_expiring';
+  title: string;
+  message: string;
+  orderId?: string;
+  productId?: string;
+  supplierId?: string;
+  isRead: boolean;
+  actionUrl?: string;
+  createdAt: Date;
+}
+
+export interface MarketplaceAnalytics {
+  totalOrders: number;
+  totalSpent: number;
+  averageOrderValue: number;
+  topSuppliers: { supplierId: string; supplierName: string; totalSpent: number; orderCount: number; }[];
+  topCategories: { category: MarketplaceCategory; totalSpent: number; orderCount: number; }[];
+  monthlySpending: { month: string; amount: number; orderCount: number; }[];
+  deliveryPerformance: {
+    onTimeDeliveries: number;
+    totalDeliveries: number;
+    averageDeliveryDays: number;
+  };
+  costSavings: {
+    totalSavings: number;
+    savingsPercentage: number;
+    bulkDiscountSavings: number;
+    contractSavings: number;
+  };
 } 

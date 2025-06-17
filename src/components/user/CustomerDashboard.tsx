@@ -1,56 +1,38 @@
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { OrderService } from '@/services/orderService';
+import { GamificationIntegrationService } from '@/services/gamificationIntegrationService';
+import { formatCurrency, formatTime, formatDate } from '@/lib/utils';
+import { Order, Restaurant } from '@/types';
 import toast from 'react-hot-toast';
 import {
-  Ticket,
-  Phone,
-  Search,
-  CheckCircle,
-  Clock,
-  Gift,
-  Copy,
-  Calendar,
-  Trophy,
-  ExternalLink,
-  Sparkles,
   X,
+  Clock,
+  CheckCircle,
+  Package,
   Star,
-  Percent,
-  Plus,
-  ArrowRight,
-  Zap,
-  Coffee,
-  Utensils,
+  Gift,
+  ShoppingBag,
+  Heart,
+  Award,
+  RefreshCw,
   User,
   Smartphone,
   Eye,
-  Heart,
-  Receipt,
-  ShoppingBag,
-  Award,
-  TrendingUp,
-  Percent as PercentIcon,
-  Percent as PercentIcon2
+  Plus,
+  ArrowRight,
+  Crown,
+  Target,
+  Trophy,
+  Coffee,
+  Utensils,
+  Percent,
+  Phone,
+  Zap,
+  Ticket,
+  Coins,
+  Calendar,
+  TrendingUp
 } from 'lucide-react';
-
-import { CustomerSpin, Restaurant } from '@/types';
-import { GamificationService } from '@/services/gamificationService';
-import { RestaurantService } from '@/services/restaurantService';
-import { OrderService } from '@/services/orderService';
-import { CustomerService } from '@/services/customerService';
-import { LoyaltyPointsService } from '@/services/loyaltyPointsService';
-import { formatCurrency, formatTime, formatDate } from '@/lib/utils';
-import { Order } from '@/types';
-
-interface PhoneSearchForm {
-  phone: string;
-}
-
-interface RestaurantInfo {
-  id: string;
-  name: string;
-  slug: string;
-}
 
 interface CustomerDashboardProps {
   restaurant: Restaurant;
@@ -73,21 +55,26 @@ interface CustomerStats {
   }>;
   visitFrequency: string;
   lastVisit: Date | null;
+  // Gamification data
+  spinData: {
+    totalSpins: number;
+    totalCoupons: number;
+    redeemedCoupons: number;
+    totalDiscountEarned: number;
+    totalDiscountUsed: number;
+    availableCoupons: Array<any>;
+    spinHistory: Array<any>;
+  };
 }
 
-export default function CustomerDashboard({
+const CustomerDashboard = ({
   restaurant,
   phoneAuthUser,
   lastOrderId,
   onClose,
   onViewOrder,
   onNewOrder
-}: CustomerDashboardProps) {
-  const [spins, setSpins] = useState<CustomerSpin[]>([]);
-  const [restaurants, setRestaurants] = useState<RestaurantInfo[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [currentPhone, setCurrentPhone] = useState('');
+}: CustomerDashboardProps) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<CustomerStats>({
     totalOrders: 0,
@@ -96,133 +83,19 @@ export default function CustomerDashboard({
     loyaltyPoints: 0,
     favoriteItems: [],
     visitFrequency: 'New Customer',
-    lastVisit: null
+    lastVisit: null,
+    spinData: {
+      totalSpins: 0,
+      totalCoupons: 0,
+      redeemedCoupons: 0,
+      totalDiscountEarned: 0,
+      totalDiscountUsed: 0,
+      availableCoupons: [] as Array<any>,
+      spinHistory: [] as Array<any>
+    }
   });
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'orders' | 'rewards' | 'profile'>('overview');
-  const [showOrderDetails, setShowOrderDetails] = useState<string | null>(null);
-
-  const { register, handleSubmit, formState: { errors } } = useForm<PhoneSearchForm>();
-
-  // Check if user has a phone number in localStorage
-  useEffect(() => {
-    const storedPhone = localStorage.getItem('customerPhone');
-    if (storedPhone) {
-      setCurrentPhone(storedPhone);
-      handlePhoneSearch({ phone: storedPhone });
-    }
-  }, []);
-
-  const handlePhoneSearch = async (data: PhoneSearchForm) => {
-    setLoading(true);
-    setHasSearched(true);
-    setCurrentPhone(data.phone);
-    setSpins([]);
-    setRestaurants([]);
-
-    try {
-      // Get all restaurants (this is a simplified approach)
-      // In production, you might want to have a more efficient way to search across restaurants
-      const allRestaurantsResult = await RestaurantService.getAllActiveRestaurants();
-      
-      if (allRestaurantsResult.success && allRestaurantsResult.data) {
-        const restaurantSpins: CustomerSpin[] = [];
-        const restaurantInfos: RestaurantInfo[] = [];
-
-        // Search spins from each restaurant
-        for (const restaurant of allRestaurantsResult.data) {
-          try {
-            const spinsResult = await GamificationService.getCustomerSpinsFromRestaurant(
-              restaurant.id,
-              data.phone
-            );
-
-            if (spinsResult.success && spinsResult.data && spinsResult.data.length > 0) {
-              // Add restaurant info to each spin
-              const restaurantSpinsWithInfo = spinsResult.data.map(spin => ({
-                ...spin,
-                restaurantName: restaurant.name,
-                restaurantSlug: restaurant.slug
-              }));
-              
-              restaurantSpins.push(...restaurantSpinsWithInfo);
-              
-              if (!restaurantInfos.find(r => r.id === restaurant.id)) {
-                restaurantInfos.push({
-                  id: restaurant.id,
-                  name: restaurant.name,
-                  slug: restaurant.slug
-                });
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching spins from ${restaurant.name}:`, error);
-          }
-        }
-
-        // Sort by date (newest first)
-        restaurantSpins.sort((a, b) => new Date(b.spinDate).getTime() - new Date(a.spinDate).getTime());
-        
-        setSpins(restaurantSpins);
-        setRestaurants(restaurantInfos);
-
-        if (restaurantSpins.length === 0) {
-          toast.error('No spins found for this phone number');
-        } else {
-          toast.success(`Found ${restaurantSpins.length} spins from ${restaurantInfos.length} restaurants`);
-        }
-      }
-    } catch (error) {
-      console.error('Error searching spins:', error);
-      toast.error('Failed to search for spins. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const copyCouponCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    toast.success('Coupon code copied!');
-  };
-
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(new Date(date));
-  };
-
-  const getSpinStatusBadge = (spin: CustomerSpin) => {
-    if (spin.isRedeemed) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-          <CheckCircle className="w-3 h-3 mr-1" />
-          Redeemed
-        </span>
-      );
-    } else if (spin.couponCode) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-          <Ticket className="w-3 h-3 mr-1" />
-          Claimed
-        </span>
-      );
-    } else {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-          <Clock className="w-3 h-3 mr-1" />
-          Not Claimed
-        </span>
-      );
-    }
-  };
-
-  const claimedSpins = spins.filter(spin => spin.couponCode);
-  const totalSpins = spins.length;
-  const redeemedCount = spins.filter(spin => spin.isRedeemed).length;
 
   useEffect(() => {
     loadCustomerData();
@@ -278,16 +151,49 @@ export default function CustomerDashboard({
         else if (customerOrders.length >= 2) visitFrequency = 'Returning Customer';
 
         const lastVisit = customerOrders.length > 0 ? new Date(customerOrders[0].createdAt) : null;
+        const loyaltyPoints = Math.floor(totalSpent / 10); // Simple calculation: 1 point per ₹10 spent
 
-        // Try to get loyalty points (if service exists)
-        let loyaltyPoints = 0;
+        // Load gamification data
+        let spinData = {
+          totalSpins: 0,
+          totalCoupons: 0,
+          redeemedCoupons: 0,
+          totalDiscountEarned: 0,
+          totalDiscountUsed: 0,
+          availableCoupons: [],
+          spinHistory: []
+        };
+
         try {
-          const loyaltyResult = await LoyaltyPointsService.getCustomerPoints(restaurant.id, phoneAuthUser.phone);
-          if (loyaltyResult.success) {
-            loyaltyPoints = loyaltyResult.points || 0;
+          console.log('🎯 Loading gamification data for:', phoneAuthUser.phone, 'at restaurant:', restaurant.id);
+          const gamificationResult = await GamificationIntegrationService.getCustomerGamificationHistory(
+            restaurant.id,
+            phoneAuthUser.phone
+          );
+          
+          console.log('🎯 Gamification result:', gamificationResult);
+          
+          if (gamificationResult.success && gamificationResult.data) {
+            const { stats: gamificationStats, spins, coupons } = gamificationResult.data;
+            console.log('🎯 Gamification stats:', gamificationStats);
+            console.log('🎯 Spins:', spins);
+            console.log('🎯 Coupons:', coupons);
+            
+            spinData = {
+              totalSpins: gamificationStats.totalSpins || 0,
+              totalCoupons: gamificationStats.totalCoupons || 0,
+              redeemedCoupons: gamificationStats.redeemedCoupons || 0,
+              totalDiscountEarned: gamificationStats.totalDiscountEarned || 0,
+              totalDiscountUsed: gamificationStats.totalDiscountUsed || 0,
+              availableCoupons: coupons?.filter((c: any) => !c.isRedeemed) || [],
+              spinHistory: spins || []
+            };
+            console.log('🎯 Final spinData:', spinData);
+          } else {
+            console.log('❌ No gamification data found or request failed');
           }
         } catch (error) {
-          console.log('Loyalty points not available:', error);
+          console.error('Failed to load gamification data:', error);
         }
 
         setStats({
@@ -297,7 +203,8 @@ export default function CustomerDashboard({
           loyaltyPoints,
           favoriteItems,
           visitFrequency,
-          lastVisit
+          lastVisit,
+          spinData
         });
       }
     } catch (error) {
@@ -392,7 +299,7 @@ export default function CustomerDashboard({
               </div>
 
               {/* Quick Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-8">
                 <div className="bg-white/10 rounded-xl p-4 text-center">
                   <div className="text-2xl font-bold">{stats.totalOrders}</div>
                   <div className="text-sm text-blue-100">Total Orders</div>
@@ -406,8 +313,12 @@ export default function CustomerDashboard({
                   <div className="text-sm text-blue-100">Loyalty Points</div>
                 </div>
                 <div className="bg-white/10 rounded-xl p-4 text-center">
-                  <div className="text-2xl font-bold">{formatCurrency(stats.averageOrderValue)}</div>
-                  <div className="text-sm text-blue-100">Avg Order</div>
+                  <div className="text-2xl font-bold">{stats.spinData.totalSpins}</div>
+                  <div className="text-sm text-blue-100">Spin Rewards</div>
+                </div>
+                <div className="bg-white/10 rounded-xl p-4 text-center">
+                  <div className="text-2xl font-bold">{stats.spinData.availableCoupons.length}</div>
+                  <div className="text-sm text-blue-100">Active Coupons</div>
                 </div>
               </div>
             </div>
@@ -544,6 +455,166 @@ export default function CustomerDashboard({
                     </div>
                   )}
 
+                  {/* Spin Wheel Activity */}
+                  <div>
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-semibold text-gray-900">🎯 Spin Wheel Activity</h3>
+                      <button
+                        onClick={() => setActiveTab('rewards')}
+                        className="text-purple-600 hover:text-purple-700 font-medium flex items-center space-x-1"
+                      >
+                        <span>View All Rewards</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {(stats.spinData.totalSpins > 0 || stats.spinData.availableCoupons.length > 0) ? (
+                      <>
+                        {/* Spin Stats Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl p-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                                <Zap className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <div className="text-2xl font-bold text-blue-900">{stats.spinData.totalSpins}</div>
+                                <div className="text-sm text-blue-600">Total Spins</div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                                <Ticket className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <div className="text-2xl font-bold text-green-900">{stats.spinData.availableCoupons.length}</div>
+                                <div className="text-sm text-green-600">Active Coupons</div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                                <Coins className="w-5 h-5 text-white" />
+                              </div>
+                              <div>
+                                <div className="text-2xl font-bold text-purple-900">{formatCurrency(stats.spinData.totalDiscountEarned)}</div>
+                                <div className="text-sm text-purple-600">Total Savings</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Recent Spin History */}
+                        {stats.spinData.spinHistory.length > 0 && (
+                          <div className="bg-white border border-gray-200 rounded-xl p-6">
+                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Recent Spin History</h4>
+                            <div className="space-y-3">
+                              {stats.spinData.spinHistory.slice(0, 3).map((spin: any, index: number) => (
+                                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                                      <Zap className="w-4 h-4 text-white" />
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-gray-900">{spin.segment?.label || 'Spin Reward'}</div>
+                                      <div className="text-sm text-gray-500">
+                                        {spin.spinDate ? formatDate(spin.spinDate) : 'Recently'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="font-bold text-green-600">
+                                      {spin.segment?.rewardType === 'percentage' 
+                                        ? `${spin.segment.value}% OFF` 
+                                        : `₹${spin.segment?.value || 0} OFF`}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {spin.isRedeemed ? '✅ Used' : '🎟️ Available'}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            {stats.spinData.spinHistory.length > 3 && (
+                              <div className="text-center mt-4">
+                                <button
+                                  onClick={() => setActiveTab('rewards')}
+                                  className="text-purple-600 hover:text-purple-700 font-medium text-sm"
+                                >
+                                  View all {stats.spinData.spinHistory.length} spins →
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Available Coupons Preview */}
+                        {stats.spinData.availableCoupons.length > 0 && (
+                          <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-xl p-6">
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-lg font-semibold text-gray-900">🎟️ Your Active Coupons</h4>
+                              <button
+                                onClick={() => setActiveTab('rewards')}
+                                className="text-orange-600 hover:text-orange-700 font-medium text-sm"
+                              >
+                                View All →
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {stats.spinData.availableCoupons.slice(0, 2).map((coupon: any, index: number) => (
+                                <div key={index} className="bg-white rounded-lg p-4 border border-orange-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                                      {coupon.type === 'percentage' ? `${coupon.value}% OFF` : `₹${coupon.value} OFF`}
+                                    </span>
+                                    <Ticket className="w-4 h-4 text-orange-600" />
+                                  </div>
+                                  <h5 className="font-medium text-gray-900 mb-1">{coupon.description || coupon.title}</h5>
+                                  <p className="text-xs text-gray-600">
+                                    Code: <span className="font-mono font-bold text-orange-600">{coupon.code}</span>
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                            {stats.spinData.availableCoupons.length > 2 && (
+                              <div className="text-center mt-3">
+                                <span className="text-sm text-orange-600 font-medium">
+                                  +{stats.spinData.availableCoupons.length - 2} more coupons available
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-8 text-center">
+                        <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Zap className="w-8 h-8 text-white" />
+                        </div>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-2">No Spin Activity Yet</h4>
+                        <p className="text-gray-600 mb-4">
+                          You haven't used the spin wheel yet. Try the spin wheel game to earn exciting rewards and coupons!
+                        </p>
+                        <button
+                          onClick={() => {
+                            // Navigate to spin wheel - you can customize this URL
+                            window.open(`/${restaurant.slug || restaurant.id}/spin-wheel`, '_blank');
+                          }}
+                          className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all font-medium"
+                        >
+                          Try Spin Wheel Game 🎯
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+
+
                   {/* Quick Actions */}
                   <div>
                     <h3 className="text-xl font-semibold text-gray-900 mb-6">Quick Actions</h3>
@@ -668,12 +739,6 @@ export default function CustomerDashboard({
                                 <Eye className="w-4 h-4" />
                                 <span>Track Order</span>
                               </button>
-                              {order.status === 'completed' && (
-                                <button className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors font-medium flex items-center space-x-2">
-                                  <Receipt className="w-4 h-4" />
-                                  <span>Reorder</span>
-                                </button>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -687,6 +752,39 @@ export default function CustomerDashboard({
                 <div className="space-y-8">
                   <div>
                     <h3 className="text-2xl font-semibold text-gray-900 mb-6">Loyalty & Rewards</h3>
+                    
+                    {/* Spin Wheel Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                      <div className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-2xl p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-3xl font-bold">{stats.spinData.totalSpins}</div>
+                            <div className="text-blue-100 mt-1">Total Spins</div>
+                          </div>
+                          <Zap className="w-10 h-10 text-blue-200" />
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-3xl font-bold">{stats.spinData.availableCoupons.length}</div>
+                            <div className="text-green-100 mt-1">Available Coupons</div>
+                          </div>
+                          <Ticket className="w-10 h-10 text-green-200" />
+                        </div>
+                      </div>
+                      
+                      <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-3xl font-bold">{formatCurrency(stats.spinData.totalDiscountEarned)}</div>
+                            <div className="text-purple-100 mt-1">Total Savings</div>
+                          </div>
+                          <Coins className="w-10 h-10 text-purple-200" />
+                        </div>
+                      </div>
+                    </div>
                     
                     {/* Loyalty Points Card */}
                     <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl p-8 mb-8">
@@ -714,48 +812,60 @@ export default function CustomerDashboard({
                       </div>
                     </div>
 
-                    {/* Tier Benefits */}
-                    <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6">
-                      <div className="flex items-center space-x-4 mb-6">
-                        <div className={`w-12 h-12 bg-gradient-to-r ${customerTier.color} rounded-xl flex items-center justify-center`}>
-                          <customerTier.icon className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <h4 className="text-lg font-semibold text-gray-900">{customerTier.tier} Member Benefits</h4>
-                          <p className="text-gray-600">{customerTier.benefits}</p>
+                    {/* Available Coupons */}
+                    {stats.spinData.availableCoupons.length > 0 && (
+                      <div className="mb-8">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">🎟️ Your Spin Wheel Coupons</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {stats.spinData.availableCoupons.map((coupon: any, index: number) => (
+                            <div key={index} className="bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200 rounded-xl p-6 relative overflow-hidden">
+                              {/* Decorative pattern */}
+                              <div className="absolute top-0 right-0 w-20 h-20 bg-orange-200/20 rounded-full -translate-y-10 translate-x-10"></div>
+                              <div className="absolute bottom-0 left-0 w-16 h-16 bg-red-200/20 rounded-full translate-y-8 -translate-x-8"></div>
+                              
+                              <div className="relative">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+                                    {coupon.type === 'percentage' ? `${coupon.value}% OFF` : `₹${coupon.value} OFF`}
+                                  </span>
+                                  <Ticket className="w-6 h-6 text-orange-600" />
+                                </div>
+                                
+                                <h5 className="font-bold text-gray-900 mb-2">{coupon.description || coupon.title}</h5>
+                                <p className="text-sm text-gray-600 mb-4">
+                                  Code: <span className="font-mono font-bold text-orange-600">{coupon.code}</span>
+                                </p>
+                                
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs text-gray-500">
+                                    <Calendar className="w-3 h-3 inline mr-1" />
+                                    Expires: {coupon.expiryDate ? formatDate(coupon.expiryDate) : 'No expiry'}
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(coupon.code);
+                                      toast.success('Coupon code copied!');
+                                    }}
+                                    className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+                                  >
+                                    Copy Code
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-blue-50 rounded-xl p-4">
-                          <div className="flex items-center space-x-3">
-                            <Zap className="w-6 h-6 text-blue-600" />
-                            <div>
-                              <h5 className="font-medium text-gray-900">Points Multiplier</h5>
-                              <p className="text-sm text-gray-600">Earn 2x points on orders</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-green-50 rounded-xl p-4">
-                          <div className="flex items-center space-x-3">
-                            <Gift className="w-6 h-6 text-green-600" />
-                            <div>
-                              <h5 className="font-medium text-gray-900">Birthday Treat</h5>
-                              <p className="text-sm text-gray-600">Free dessert on your birthday</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Available Rewards */}
                     <div>
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Available Rewards</h4>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">💎 Loyalty Rewards</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-white border border-gray-200 rounded-xl p-6">
                           <div className="flex items-center justify-between mb-4">
                             <h5 className="font-medium text-gray-900">Free Coffee</h5>
-                            <Coffee className="w-6 h-6 text-brown-600" />
+                            <Coffee className="w-6 h-6 text-amber-600" />
                           </div>
                           <p className="text-sm text-gray-600 mb-4">Redeem for any coffee drink</p>
                           <div className="flex items-center justify-between">
@@ -772,7 +882,7 @@ export default function CustomerDashboard({
                         <div className="bg-white border border-gray-200 rounded-xl p-6">
                           <div className="flex items-center justify-between mb-4">
                             <h5 className="font-medium text-gray-900">10% Discount</h5>
-                            <PercentIcon className="w-6 h-6 text-green-600" />
+                            <Percent className="w-6 h-6 text-green-600" />
                           </div>
                           <p className="text-sm text-gray-600 mb-4">10% off your next order</p>
                           <div className="flex items-center justify-between">
@@ -787,6 +897,42 @@ export default function CustomerDashboard({
                         </div>
                       </div>
                     </div>
+
+                    {/* Spin History */}
+                    {stats.spinData.spinHistory.length > 0 && (
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">🎯 Recent Spin History</h4>
+                        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                          <div className="max-h-64 overflow-y-auto">
+                            {stats.spinData.spinHistory.slice(0, 5).map((spin: any, index: number) => (
+                              <div key={index} className="flex items-center justify-between p-4 border-b border-gray-100 last:border-b-0">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                                    <Zap className="w-5 h-5 text-white" />
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-gray-900">{spin.segment?.label || 'Spin Reward'}</div>
+                                    <div className="text-sm text-gray-500">
+                                      {spin.spinDate ? formatDate(spin.spinDate) : 'Recently'}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-bold text-green-600">
+                                    {spin.segment?.rewardType === 'percentage' 
+                                      ? `${spin.segment.value}% OFF` 
+                                      : `₹${spin.segment?.value || 0} OFF`}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {spin.isRedeemed ? '✅ Used' : '🎟️ Available'}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -828,31 +974,6 @@ export default function CustomerDashboard({
                         </div>
                       </div>
                     </div>
-
-                    {/* Preferences */}
-                    <div className="bg-white border border-gray-200 rounded-2xl p-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Preferences</h4>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                          <div className="flex items-center space-x-3">
-                            <Smartphone className="w-5 h-5 text-gray-600" />
-                            <span className="text-gray-900">SMS Notifications</span>
-                          </div>
-                          <div className="w-12 h-6 bg-blue-600 rounded-full relative">
-                            <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                          <div className="flex items-center space-x-3">
-                            <Gift className="w-5 h-5 text-gray-600" />
-                            <span className="text-gray-900">Promotional Offers</span>
-                          </div>
-                          <div className="w-12 h-6 bg-blue-600 rounded-full relative">
-                            <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
@@ -886,4 +1007,6 @@ export default function CustomerDashboard({
       </div>
     </div>
   );
-} 
+};
+
+export default CustomerDashboard; 

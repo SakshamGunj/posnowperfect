@@ -20,6 +20,10 @@ import {
   Gift,
   Award,
   CheckCircle,
+  Copy,
+  Clock,
+  TrendingUp,
+  Star,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -47,6 +51,7 @@ export default function Customers() {
   const [customerGamificationHistory, setCustomerGamificationHistory] = useState<any>(null);
   const [customerLoyaltyInfo, setCustomerLoyaltyInfo] = useState<any>(null);
   const [loadingGamification, setLoadingGamification] = useState(false);
+  const [selectedSpin, setSelectedSpin] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -217,18 +222,61 @@ export default function Customers() {
       setSelectedCustomer(customer);
       setShowOrdersModal(true);
       
-      // Load customer orders
-      if (customer.orderHistory.length > 0) {
+      // Load customer orders - Enhanced approach
+      console.log('🔍 Loading orders for customer:', customer.name, customer.phone);
+      
+      // Method 1: Try loading by orderHistory array (existing method)
+      let orders: Order[] = [];
+      if (customer.orderHistory && customer.orderHistory.length > 0) {
         const result = await OrderService.getOrdersByIds(customer.orderHistory, restaurant.id);
         if (result.success && result.data) {
-          setCustomerOrders(result.data);
-        } else {
-          console.error('Failed to load customer orders:', result.error);
-          setCustomerOrders([]);
+          orders = result.data;
+          console.log('📋 Loaded orders from orderHistory:', orders.length);
         }
-      } else {
-        setCustomerOrders([]);
       }
+      
+             // Method 2: Search for orders by phone number and customer details (comprehensive fallback)
+       if (orders.length === 0 && customer.phone) {
+         console.log('📞 Searching orders by phone number:', customer.phone);
+         const allOrdersResult = await OrderService.getOrdersForRestaurant(restaurant.id, 1000); // Get more orders
+         if (allOrdersResult.success && allOrdersResult.data) {
+           // Filter orders that match this customer
+           const customerOrders = allOrdersResult.data.filter(order => {
+             // Check if order notes contain customer phone or name
+             const notesMatch = order.notes?.includes(customer.phone || '') || 
+                               (customer.name && order.notes?.includes(customer.name)) ||
+                               order.notes?.includes('Customer Portal');
+             
+             // Check if customerId matches
+             const customerIdMatch = order.customerId === customer.id;
+             
+             return notesMatch || customerIdMatch;
+           });
+           
+           orders = customerOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+           console.log('🔍 Found orders by search:', orders.length);
+         }
+       }
+      
+             // Method 3: Final fallback - check recent orders for any mention of customer
+       if (orders.length === 0 && (customer.name || customer.email)) {
+         console.log('📧 Searching orders by name/email');
+         const allOrdersResult = await OrderService.getOrdersForRestaurant(restaurant.id, 500);
+         if (allOrdersResult.success && allOrdersResult.data) {
+           const customerOrders = allOrdersResult.data.filter(order => {
+             const searchTerms = [customer.name, customer.email, customer.phone].filter(Boolean);
+             return searchTerms.some(term => 
+               order.notes?.toLowerCase().includes(term?.toLowerCase() || '')
+             );
+           });
+           
+           orders = customerOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+           console.log('🎯 Found orders by name/email search:', orders.length);
+         }
+       }
+      
+      setCustomerOrders(orders);
+      console.log('✅ Final order count for customer:', orders.length);
 
       // Load customer gamification history and loyalty info
       if (customer.phone) {
@@ -813,11 +861,30 @@ export default function Customers() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {selectedCustomer.name || 'Customer'} - Order History
+                      {selectedCustomer.name || 'Customer'} - Complete Profile
                     </h3>
-                    <p className="text-sm text-gray-600">
-                      {selectedCustomer.visitCount} visits • {formatCurrency(selectedCustomer.totalSpent)} total spent
-                    </p>
+                    <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                      <div className="flex items-center space-x-1">
+                        <Users className="w-4 h-4" />
+                        <span>{selectedCustomer.visitCount} visits</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <DollarSign className="w-4 h-4" />
+                        <span>{formatCurrency(selectedCustomer.totalSpent)} spent</span>
+                      </div>
+                      {customerOrders.length > 0 && (
+                        <div className="flex items-center space-x-1">
+                          <TrendingUp className="w-4 h-4" />
+                          <span>{formatCurrency(customerOrders.reduce((sum, order) => sum + order.total, 0) / customerOrders.length)} avg order</span>
+                        </div>
+                      )}
+                      {customerGamificationHistory && (
+                        <div className="flex items-center space-x-1">
+                          <Gift className="w-4 h-4" />
+                          <span>{customerGamificationHistory.stats.totalSpins} spins</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <button
                     onClick={() => {
@@ -908,9 +975,9 @@ export default function Customers() {
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                         <div className="text-center p-3 bg-white rounded-lg">
                           <div className="text-2xl font-bold text-purple-600">
-                            {customerLoyaltyInfo.loyaltyInfo.totalSpins}
+                            {customerLoyaltyInfo.loyaltyInfo.totalSpins || 0}
                           </div>
-                          <div className="text-xs text-gray-600">Total Spins</div>
+                          <div className="text-xs text-gray-600">Gamification Spins</div>
                         </div>
                         <div className="text-center p-3 bg-white rounded-lg">
                           <div className="text-2xl font-bold text-blue-600">
@@ -966,55 +1033,143 @@ export default function Customers() {
                   ) : customerGamificationHistory ? (
                     <div className="space-y-4">
                       {/* Gamification Stats */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:bg-purple-100 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div>
                           <div className="text-2xl font-bold text-purple-600">
                             {customerGamificationHistory.stats.totalSpins}
                           </div>
-                          <div className="text-sm text-purple-600">Total Spins</div>
+                              <div className="text-sm text-purple-600 font-medium">Total Spins</div>
                         </div>
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div className="text-3xl">🎰</div>
+                          </div>
+                          <div className="text-xs text-purple-500 mt-1">
+                            {customerGamificationHistory.stats.totalSpins > 0 && customerGamificationHistory.stats.totalCoupons > 0 && (
+                              `${((customerGamificationHistory.stats.totalCoupons / customerGamificationHistory.stats.totalSpins) * 100).toFixed(1)}% win rate`
+                            )}
+                          </div>
+                        </div>
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 hover:bg-green-100 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div>
                           <div className="text-2xl font-bold text-green-600">
                             {customerGamificationHistory.stats.totalCoupons}
                           </div>
-                          <div className="text-sm text-green-600">Coupons Earned</div>
+                              <div className="text-sm text-green-600 font-medium">Coupons Earned</div>
                         </div>
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div className="text-3xl">🎟️</div>
+                          </div>
+                          <div className="text-xs text-green-500 mt-1">
+                            {customerGamificationHistory.stats.totalCoupons - customerGamificationHistory.stats.redeemedCoupons} unused
+                          </div>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:bg-blue-100 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div>
                           <div className="text-2xl font-bold text-blue-600">
                             {customerGamificationHistory.stats.redeemedCoupons}
                           </div>
-                          <div className="text-sm text-blue-600">Coupons Used</div>
+                              <div className="text-sm text-blue-600 font-medium">Coupons Used</div>
                         </div>
-                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                            <div className="text-3xl">✅</div>
+                          </div>
+                          <div className="text-xs text-blue-500 mt-1">
+                            {customerGamificationHistory.stats.totalCoupons > 0 && (
+                              `${((customerGamificationHistory.stats.redeemedCoupons / customerGamificationHistory.stats.totalCoupons) * 100).toFixed(1)}% redemption rate`
+                            )}
+                          </div>
+                        </div>
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 hover:bg-orange-100 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div>
                           <div className="text-2xl font-bold text-orange-600">
                             {formatCurrency(customerGamificationHistory.stats.totalDiscountEarned)}
                           </div>
-                          <div className="text-sm text-orange-600">Total Rewards</div>
+                              <div className="text-sm text-orange-600 font-medium">Total Rewards</div>
+                            </div>
+                            <div className="text-3xl">💰</div>
+                          </div>
+                          <div className="text-xs text-orange-500 mt-1">
+                            {formatCurrency(customerGamificationHistory.stats.totalDiscountUsed)} used
+                          </div>
                         </div>
                       </div>
+
+                      {/* Engagement Summary */}
+                      {customerGamificationHistory.stats.firstSpinDate && (
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 mb-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h6 className="font-medium text-gray-900 mb-1">Gamification Journey</h6>
+                              <div className="text-sm text-gray-600">
+                                <div>Started: {new Date(customerGamificationHistory.stats.firstSpinDate).toLocaleDateString()}</div>
+                                {customerGamificationHistory.stats.lastSpinDate && (
+                                  <div>Last Activity: {new Date(customerGamificationHistory.stats.lastSpinDate).toLocaleDateString()}</div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm text-gray-600">Engagement Level</div>
+                              <div className="font-bold text-lg">
+                                {customerGamificationHistory.stats.totalSpins >= 20 ? (
+                                  <span className="text-purple-600">🏆 VIP Player</span>
+                                ) : customerGamificationHistory.stats.totalSpins >= 10 ? (
+                                  <span className="text-blue-600">⭐ Regular Player</span>
+                                ) : customerGamificationHistory.stats.totalSpins >= 5 ? (
+                                  <span className="text-green-600">🎯 Active Player</span>
+                                ) : (
+                                  <span className="text-gray-600">🌱 New Player</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Recent Spins */}
                       {customerGamificationHistory.spins.length > 0 && (
                         <div>
-                          <h5 className="font-medium text-gray-900 mb-3">Recent Spins</h5>
-                          <div className="space-y-2 max-h-40 overflow-y-auto">
-                            {customerGamificationHistory.spins.slice(0, 5).map((spin: any, idx: number) => (
-                              <div key={spin.id || idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="font-medium text-gray-900">Spin Wheel History</h5>
+                            <span className="text-sm text-gray-500">
+                              {customerGamificationHistory.spins.length} total spins
+                            </span>
+                          </div>
+                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {customerGamificationHistory.spins.map((spin: any, idx: number) => (
+                              <button
+                                key={spin.id || idx} 
+                                onClick={() => setSelectedSpin(spin)}
+                                className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer border border-transparent hover:border-blue-300 group"
+                              >
                                 <div className="flex items-center space-x-3">
                                   <div className="text-2xl">
                                     {spin.resultMessage.includes('luck') ? '😔' : 
                                      spin.resultMessage.includes('%') ? '💯' : 
-                                     spin.resultMessage.includes('Free') ? '🎁' : '🎊'}
+                                     spin.resultMessage.includes('Free') ? '🎁' : 
+                                     spin.resultMessage.includes('discount') ? '🏷️' : '🎊'}
                                   </div>
-                                  <div>
-                                    <div className="font-medium text-gray-900">{spin.resultMessage}</div>
+                                  <div className="flex-1 text-left">
+                                    <div className="font-medium text-gray-900 group-hover:text-blue-700">{spin.resultMessage}</div>
                                     <div className="text-sm text-gray-500">
                                       {new Date(spin.spinDate).toLocaleDateString()} at {new Date(spin.spinDate).toLocaleTimeString()}
                                     </div>
+                                    {spin.pointsEarned > 0 && (
+                                      <div className="text-xs text-purple-600 font-medium">
+                                        +{spin.pointsEarned} loyalty points earned
+                                  </div>
+                                    )}
+                                    {spin.couponCode && (
+                                      <div className="text-xs text-blue-600 font-mono">
+                                        Coupon: {spin.couponCode}
+                                </div>
+                                    )}
                                   </div>
                                 </div>
-                                <div className="flex items-center space-x-2">
-                                  {spin.isClaimed && spin.couponCode && (
+                                <div className="flex flex-col items-end space-y-1">
+                                  <Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-500 mb-1" />
+                                  {spin.isClaimed && (
                                     <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
                                       Claimed
                                     </span>
@@ -1024,49 +1179,130 @@ export default function Customers() {
                                       Redeemed
                                     </span>
                                   )}
+                                  {!spin.isClaimed && !spin.resultMessage.includes('luck') && (
+                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                                      Pending
+                                    </span>
+                                  )}
                                 </div>
-                              </div>
+                              </button>
                             ))}
                           </div>
-                        </div>
-                      )}
-
-                      {/* Active Coupons */}
-                      {customerGamificationHistory.coupons.length > 0 && (
-                        <div>
-                          <h5 className="font-medium text-gray-900 mb-3">Gamification Coupons</h5>
-                          <div className="space-y-2 max-h-40 overflow-y-auto">
-                            {customerGamificationHistory.coupons.map((coupon: any, idx: number) => (
-                              <div key={coupon.id || idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                <div>
-                                  <div className="font-medium text-gray-900">{coupon.name}</div>
-                                  <div className="text-sm text-gray-500">
-                                    Code: <span className="font-mono font-bold">{coupon.code}</span> • 
-                                    Expires: {new Date(coupon.validity.endDate).toLocaleDateString()}
-                                  </div>
-                                </div>
-                                <span className={`px-2 py-1 text-xs rounded-full ${
-                                  coupon.usageCount > 0 
-                                    ? 'bg-red-100 text-red-800' 
-                                    : 'bg-green-100 text-green-800'
-                                }`}>
-                                  {coupon.usageCount > 0 ? 'Used' : 'Available'}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Activity Timeline */}
-                      {customerGamificationHistory.stats.firstSpinDate && (
-                        <div className="text-sm text-gray-600 p-3 bg-gray-50 rounded-lg">
-                          <div>First spin: {new Date(customerGamificationHistory.stats.firstSpinDate).toLocaleDateString()}</div>
-                          {customerGamificationHistory.stats.lastSpinDate && (
-                            <div>Last spin: {new Date(customerGamificationHistory.stats.lastSpinDate).toLocaleDateString()}</div>
+                          
+                          {/* Show All Spins Button */}
+                          {customerGamificationHistory.spins.length > 5 && (
+                            <div className="mt-3 text-center">
+                              <button 
+                                onClick={() => {
+                                  // Toggle showing all spins vs just first 5
+                                  const container = document.querySelector('.space-y-2.max-h-60');
+                                  if (container) {
+                                    container.classList.toggle('max-h-60');
+                                    container.classList.toggle('max-h-96');
+                                  }
+                                }}
+                                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                              >
+                                View All Spins ({customerGamificationHistory.spins.length})
+                              </button>
+                            </div>
                           )}
                         </div>
                       )}
+
+                      {/* Gamification Coupons */}
+                      {customerGamificationHistory.coupons.length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="font-medium text-gray-900">Gamification Coupons</h5>
+                            <span className="text-sm text-gray-500">
+                              {customerGamificationHistory.coupons.filter((c: any) => c.usageCount === 0).length} active
+                            </span>
+                                  </div>
+                          <div className="space-y-3 max-h-60 overflow-y-auto">
+                            {customerGamificationHistory.coupons.map((coupon: any, idx: number) => {
+                              const isExpired = new Date(coupon.validity.endDate) < new Date();
+                              const isUsed = coupon.usageCount > 0;
+                              const isActive = !isExpired && !isUsed;
+                              
+                              return (
+                                <div key={coupon.id || idx} className={`p-4 rounded-lg border-2 transition-all ${
+                                  isActive ? 'bg-green-50 border-green-200 hover:bg-green-100' :
+                                  isUsed ? 'bg-blue-50 border-blue-200' :
+                                  'bg-gray-50 border-gray-200'
+                                }`}>
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-2 mb-2">
+                                        <div className="text-lg">
+                                          {coupon.type === 'percentage' ? '💯' : 
+                                           coupon.type === 'fixed_amount' ? '💰' : 
+                                           coupon.type === 'free_item' ? '🎁' : '🎟️'}
+                                </div>
+                                        <div className="font-medium text-gray-900">{coupon.name}</div>
+                                        <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                                          isActive ? 'bg-green-100 text-green-800' :
+                                          isUsed ? 'bg-blue-100 text-blue-800' :
+                                          'bg-red-100 text-red-800'
+                                }`}>
+                                          {isUsed ? 'Used' : isExpired ? 'Expired' : 'Available'}
+                                </span>
+                              </div>
+                                      
+                                      <div className="space-y-1">
+                                        <div className="text-sm text-gray-600 flex items-center space-x-2">
+                                          <span className="font-mono font-bold bg-gray-100 px-2 py-1 rounded">
+                                            {coupon.code}
+                                          </span>
+                                          <button
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(coupon.code);
+                                              toast.success('Coupon code copied to clipboard!');
+                                            }}
+                                            className="text-blue-600 hover:text-blue-800 transition-colors"
+                                            title="Copy coupon code"
+                                          >
+                                            <Copy className="w-4 h-4" />
+                                          </button>
+                          </div>
+                                        
+                                        <div className="text-sm text-gray-500">
+                                          <div>
+                                            Value: <span className="font-medium">
+                                              {coupon.type === 'percentage' ? `${coupon.value}% off` :
+                                               coupon.type === 'fixed_amount' ? formatCurrency(coupon.value) :
+                                               coupon.description || 'Special offer'}
+                                            </span>
+                                          </div>
+                                          <div>
+                                            Expires: <span className={isExpired ? 'text-red-600 font-medium' : ''}>
+                                              {new Date(coupon.validity.endDate).toLocaleDateString()}
+                                            </span>
+                                          </div>
+                                          {coupon.metadata?.spinWheelName && (
+                                            <div className="text-xs text-purple-600">
+                                              From: {coupon.metadata.spinWheelName}
+                        </div>
+                      )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {isUsed && coupon.usedAt && (
+                                      <div className="text-right text-xs text-gray-500">
+                                        <div>Used on</div>
+                                        <div>{new Date(coupon.usedAt).toLocaleDateString()}</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+
                     </div>
                   ) : (
                     <div className="text-center py-8 bg-gray-50 rounded-lg">
@@ -1087,91 +1323,383 @@ export default function Customers() {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-medium text-gray-900 mb-4">
-                      Order History ({customerOrders.length} orders)
-                    </h4>
-                    
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {customerOrders.map((order) => (
-                        <div key={order.id} className="border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-3">
+                  <div className="space-y-6">
+                    {/* Order Analytics */}
+                    <div>
+                      <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                        <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
+                        Order Analytics ({customerOrders.length} orders)
+                      </h4>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
                             <div>
-                              <h5 className="font-medium text-gray-900">
-                                Order #{order.orderNumber}
-                              </h5>
-                              <p className="text-sm text-gray-500">
-                                {new Date(order.createdAt).toLocaleDateString()} at{' '}
-                                {new Date(order.createdAt).toLocaleTimeString()}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-lg font-medium text-gray-900">
-                                {formatCurrency(order.total)}
+                              <div className="text-2xl font-bold text-blue-600">
+                                {customerOrders.length}
                               </div>
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                order.status === 'completed' 
-                                  ? 'bg-green-100 text-green-800'
-                                  : order.status === 'cancelled'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {order.status}
-                              </span>
+                              <div className="text-sm text-blue-600 font-medium">Total Orders</div>
                             </div>
+                            <div className="text-2xl">📊</div>
                           </div>
-                          
-                          <div className="space-y-2">
-                            <div className="flex items-center text-sm text-gray-600">
-                              <span className="font-medium mr-2">Table:</span>
-                              {order.tableId || 'N/A'}
+                        </div>
+                        
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-2xl font-bold text-green-600">
+                                {formatCurrency(customerOrders.reduce((sum, order) => sum + order.total, 0))}
+                              </div>
+                              <div className="text-sm text-green-600 font-medium">Total Spent</div>
+                            </div>
+                            <div className="text-2xl">💰</div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-2xl font-bold text-purple-600">
+                                {formatCurrency(customerOrders.reduce((sum, order) => sum + order.total, 0) / customerOrders.length)}
+                              </div>
+                              <div className="text-sm text-purple-600 font-medium">Avg Order</div>
+                            </div>
+                            <div className="text-2xl">📈</div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-2xl font-bold text-orange-600">
+                                {customerOrders.filter(order => order.status === 'completed').length}
+                              </div>
+                              <div className="text-sm text-orange-600 font-medium">Completed</div>
+                            </div>
+                            <div className="text-2xl">✅</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Order History */}
+                    <div>
+                      <h5 className="font-medium text-gray-900 mb-3">Recent Orders</h5>
+                      <div className="space-y-4 max-h-96 overflow-y-auto">
+                        {customerOrders.map((order) => (
+                          <div key={order.id} className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
+                            {/* Order Header */}
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center space-x-3">
+                                <div className="text-2xl">
+                                  {order.status === 'completed' ? '✅' : 
+                                   order.status === 'cancelled' ? '❌' : 
+                                   order.status === 'preparing' ? '👨‍🍳' : 
+                                   order.status === 'ready' ? '🔔' : '⏳'}
+                                </div>
+                                <div>
+                                  <h6 className="font-semibold text-gray-900 text-lg">
+                                    Order #{order.orderNumber}
+                                  </h6>
+                                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                    <div className="flex items-center space-x-1">
+                                      <Calendar className="w-4 h-4" />
+                                      <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+                                    </div>
+                                    <div className="flex items-center space-x-1">
+                                      <Clock className="w-4 h-4" />
+                                      <span>{new Date(order.createdAt).toLocaleTimeString()}</span>
+                                    </div>
+                                    {order.tableId && (
+                                      <div className="flex items-center space-x-1">
+                                        <MapPin className="w-4 h-4" />
+                                        <span>Table {order.tableId}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="text-right">
+                                <div className="text-2xl font-bold text-gray-900">
+                                  {formatCurrency(order.total)}
+                                </div>
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                                  order.status === 'completed' 
+                                    ? 'bg-green-100 text-green-800'
+                                    : order.status === 'cancelled'
+                                    ? 'bg-red-100 text-red-800'
+                                    : order.status === 'preparing'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : order.status === 'ready'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                </span>
+                              </div>
                             </div>
                             
-                            <div className="border-t pt-2">
-                              <h6 className="text-sm font-medium text-gray-700 mb-1">Items:</h6>
-                              <div className="space-y-1">
+                            {/* Order Items */}
+                            <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                              <h6 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                                <ShoppingBag className="w-4 h-4 mr-2" />
+                                Items Ordered ({order.items.length})
+                              </h6>
+                              <div className="space-y-2">
                                 {order.items.map((item, idx) => (
-                                  <div key={idx} className="flex justify-between text-sm">
-                                    <span>{item.quantity}x {item.name}</span>
-                                    <span className="text-gray-600">{formatCurrency(item.total)}</span>
+                                  <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0">
+                                    <div className="flex-1">
+                                      <div className="font-medium text-gray-900">
+                                        {item.quantity}x {item.name}
+                                      </div>
+                                      {item.customizations && item.customizations.length > 0 && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          Customizations: {item.customizations.join(', ')}
+                                        </div>
+                                      )}
+                                      {item.notes && (
+                                        <div className="text-xs text-blue-600 mt-1">
+                                          Note: {item.notes}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="font-semibold text-gray-900">
+                                        {formatCurrency(item.total)}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {formatCurrency(item.price)} each
+                                      </div>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
                             </div>
                             
-                            <div className="border-t pt-2 space-y-1">
-                              <div className="flex justify-between text-sm">
-                                <span>Subtotal:</span>
-                                <span>{formatCurrency(order.subtotal)}</span>
-                              </div>
-                              <div className="flex justify-between text-sm">
-                                <span>Tax:</span>
-                                <span>{formatCurrency(order.tax)}</span>
-                              </div>
-                              {order.discount > 0 && (
-                                <div className="flex justify-between text-sm text-green-600">
-                                  <span>Discount:</span>
-                                  <span>-{formatCurrency(order.discount)}</span>
+                            {/* Order Summary */}
+                            <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4">
+                              <div className="space-y-2">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">Subtotal:</span>
+                                  <span className="font-medium">{formatCurrency(order.subtotal)}</span>
                                 </div>
-                              )}
-                              <div className="flex justify-between font-medium">
-                                <span>Total:</span>
-                                <span>{formatCurrency(order.total)}</span>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">Tax:</span>
+                                  <span className="font-medium">{formatCurrency(order.tax)}</span>
+                                </div>
+                                {order.discount > 0 && (
+                                  <div className="flex justify-between text-sm text-green-600">
+                                    <span>Discount Applied:</span>
+                                    <span className="font-medium">-{formatCurrency(order.discount)}</span>
+                                  </div>
+                                )}
+                                <div className="border-t border-gray-300 pt-2 mt-2">
+                                  <div className="flex justify-between text-lg font-bold">
+                                    <span className="text-gray-900">Total:</span>
+                                    <span className="text-blue-600">{formatCurrency(order.total)}</span>
+                                  </div>
+                                </div>
                               </div>
                             </div>
 
+                            {/* Order Notes */}
                             {order.notes && (
-                              <div className="border-t pt-2">
-                                <span className="text-sm font-medium text-gray-700">Notes:</span>
-                                <p className="text-sm text-gray-600 mt-1">{order.notes}</p>
+                              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <div className="flex items-start space-x-2">
+                                  <div className="text-yellow-600 mt-0.5">📝</div>
+                                  <div>
+                                    <span className="text-sm font-medium text-yellow-800">Order Notes:</span>
+                                    <p className="text-sm text-yellow-700 mt-1">{order.notes}</p>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Spin Details Modal */}
+      {selectedSpin && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity bg-black bg-opacity-50" onClick={() => setSelectedSpin(null)}></div>
+            
+            <div className="inline-block w-full max-w-2xl my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
+              {/* Header */}
+              <div className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="text-3xl">
+                      {selectedSpin.resultMessage.includes('luck') ? '😔' : 
+                       selectedSpin.resultMessage.includes('%') ? '💯' : 
+                       selectedSpin.resultMessage.includes('Free') ? '🎁' : 
+                       selectedSpin.resultMessage.includes('discount') ? '🏷️' : '🎊'}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold">Spin Details</h3>
+                      <p className="text-purple-100">{selectedSpin.resultMessage}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedSpin(null)}
+                    className="text-white hover:text-gray-200 transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {/* Basic Info */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Clock className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">Date & Time</span>
+                    </div>
+                    <div className="text-lg font-semibold text-gray-900">
+                      {new Date(selectedSpin.spinDate).toLocaleDateString()}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {new Date(selectedSpin.spinDate).toLocaleTimeString()}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Star className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700">Loyalty Points</span>
+                    </div>
+                    <div className="text-lg font-semibold text-purple-600">
+                      {selectedSpin.pointsEarned > 0 ? `+${selectedSpin.pointsEarned}` : '0'} points
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {selectedSpin.pointsEarned > 0 ? 'Earned from this spin' : 'No points earned'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Coupon Information */}
+                {selectedSpin.couponCode && (
+                  <div className="bg-gradient-to-br from-green-50 to-blue-50 border border-green-200 rounded-lg p-6 mb-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <Gift className="w-5 h-5 mr-2 text-green-600" />
+                      Coupon Details
+                    </h4>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Coupon Code</label>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <div className="flex-1 bg-white border border-gray-300 rounded-lg px-4 py-3 font-mono text-lg font-bold text-center">
+                            {selectedSpin.couponCode}
+                          </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(selectedSpin.couponCode);
+                              toast.success('Coupon code copied to clipboard!');
+                            }}
+                            className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                          >
+                            <Copy className="w-4 h-4" />
+                            <span>Copy</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Reward Value</label>
+                          <div className="mt-1 text-lg font-semibold text-green-600">
+                            {selectedSpin.resultMessage}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Status</label>
+                          <div className="mt-1">
+                            {selectedSpin.isRedeemed ? (
+                              <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full font-medium">
+                                ✅ Redeemed
+                              </span>
+                            ) : selectedSpin.isClaimed ? (
+                              <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full font-medium">
+                                🎯 Claimed
+                              </span>
+                            ) : selectedSpin.resultMessage.includes('luck') ? (
+                              <span className="px-3 py-1 bg-gray-100 text-gray-800 text-sm rounded-full font-medium">
+                                😔 No Prize
+                              </span>
+                            ) : (
+                              <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full font-medium">
+                                ⏳ Pending
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Redemption Status */}
+                <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Redemption Status</h4>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-700">Spin Completed</span>
+                      <span className="text-green-600 font-medium">✅ Yes</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-700">Reward Claimed</span>
+                      <span className={selectedSpin.isClaimed ? "text-green-600 font-medium" : "text-gray-500"}>
+                        {selectedSpin.isClaimed ? "✅ Yes" : "❌ No"}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-700">Coupon Used</span>
+                      <span className={selectedSpin.isRedeemed ? "text-green-600 font-medium" : "text-gray-500"}>
+                        {selectedSpin.isRedeemed ? "✅ Yes" : "❌ No"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-3">
+                  {selectedSpin.couponCode && !selectedSpin.isRedeemed && (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedSpin.couponCode);
+                        toast.success('Coupon code copied! Customer can use this now.');
+                      }}
+                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                    >
+                      <Copy className="w-4 h-4" />
+                      <span>Copy for Customer</span>
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={() => setSelectedSpin(null)}
+                    className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -33,6 +33,7 @@ interface ReportForm {
   includeTableAnalysis: boolean;
   includeCustomerAnalysis: boolean;
   includePaymentAnalysis: boolean;
+  includeCreditAnalysis: boolean;
   includeTimeAnalysis: boolean;
   includePeakHours: boolean;
   includeStaffPerformance: boolean;
@@ -63,6 +64,7 @@ export default function ReportGenerationModal({ isOpen, onClose }: ReportGenerat
       includeTableAnalysis: true,
       includeCustomerAnalysis: true,
       includePaymentAnalysis: true,
+      includeCreditAnalysis: true,
       includeTimeAnalysis: true,
       includePeakHours: true,
       includeStaffPerformance: true,
@@ -221,6 +223,7 @@ export default function ReportGenerationModal({ isOpen, onClose }: ReportGenerat
         includeTimeAnalysis: data.includeTimeAnalysis,
         includeTaxBreakdown: true,
         includeDiscountAnalysis: true,
+        includeCreditAnalysis: data.includeCreditAnalysis,
         reportTitle: data.reportTitle,
         additionalNotes: data.additionalNotes
       };
@@ -405,6 +408,15 @@ export default function ReportGenerationModal({ isOpen, onClose }: ReportGenerat
                     className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">Payment Method Breakdown</span>
+                </label>
+                
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    {...register('includeCreditAnalysis')}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Credit Analysis & Tracking</span>
                 </label>
               </div>
               

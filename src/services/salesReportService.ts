@@ -10,6 +10,8 @@ import {
 import { db } from '@/lib/firebase';
 import { Order, MenuItem, Table, Customer, ApiResponse } from '@/types';
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
+
+import { CreditService } from './creditService';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -132,6 +134,32 @@ export interface SalesAnalytics {
     frequency: number;
     totalRevenue: number;
   }[];
+  
+  // Credit analytics
+  creditAnalytics: {
+    totalCreditAmount: number;
+    pendingCreditAmount: number;
+    paidCreditAmount: number;
+    ordersWithCredits: number;
+    creditTransactions: {
+      customerName: string;
+      customerPhone?: string;
+      orderId: string;
+      tableNumber: string;
+      totalAmount: number;
+      amountReceived: number;
+      creditAmount: number;
+      remainingAmount: number;
+      status: 'pending' | 'partially_paid' | 'paid';
+      createdAt: Date;
+      paymentHistory: {
+        amount: number;
+        paymentMethod: string;
+        paidAt: Date;
+      }[];
+    }[];
+    revenueCollectionRate: number; // Percentage of revenue actually collected
+  };
 }
 
 export interface ReportConfiguration {
@@ -143,6 +171,7 @@ export interface ReportConfiguration {
   includeTimeAnalysis: boolean;
   includeTaxBreakdown: boolean;
   includeDiscountAnalysis: boolean;
+  includeCreditAnalysis?: boolean; // New flag for credit analysis
   includeOrderDetails?: boolean; // New flag for detailed order list
   companyLogo?: string;
   reportTitle?: string;
@@ -611,6 +640,72 @@ export class SalesReportService {
         averageOrderValue: data.totalRevenue / data.orderCount
       })).sort((a, b) => b.totalRevenue - a.totalRevenue);
 
+      // Calculate credit analytics
+      let creditAnalytics: SalesAnalytics['creditAnalytics'] = {
+        totalCreditAmount: 0,
+        pendingCreditAmount: 0,
+        paidCreditAmount: 0,
+        ordersWithCredits: 0,
+        creditTransactions: [],
+        revenueCollectionRate: 100
+      };
+
+      try {
+        const creditResult = await CreditService.getCreditTransactions(restaurantId);
+        if (creditResult.success && creditResult.data) {
+          const allCredits = creditResult.data;
+          
+          // Filter credits within the date range
+          const creditsInRange = allCredits.filter(credit => {
+            const creditDate = credit.createdAt instanceof Date ? credit.createdAt : credit.createdAt.toDate();
+            return creditDate >= startDate && creditDate <= endDate;
+          });
+
+          creditAnalytics = {
+            totalCreditAmount: creditsInRange.reduce((sum, credit) => sum + (credit.totalAmount - credit.amountReceived), 0),
+            pendingCreditAmount: creditsInRange.reduce((sum, credit) => {
+              const totalPaid = credit.amountReceived + (credit.paymentHistory || []).reduce((pSum, p) => pSum + p.amount, 0);
+              const remaining = credit.totalAmount - totalPaid;
+              return sum + (remaining > 0 ? remaining : 0);
+            }, 0),
+            paidCreditAmount: creditsInRange.reduce((sum, credit) => {
+              return sum + (credit.paymentHistory || []).reduce((pSum, p) => pSum + p.amount, 0);
+            }, 0),
+            ordersWithCredits: creditsInRange.length,
+            creditTransactions: creditsInRange.map(credit => {
+              const totalPaid = credit.amountReceived + (credit.paymentHistory || []).reduce((pSum, p) => pSum + p.amount, 0);
+              const remainingAmount = credit.totalAmount - totalPaid;
+              
+              return {
+                customerName: credit.customerName,
+                customerPhone: credit.customerPhone,
+                orderId: credit.orderId,
+                tableNumber: credit.tableNumber,
+                totalAmount: credit.totalAmount,
+                amountReceived: credit.amountReceived,
+                creditAmount: credit.totalAmount - credit.amountReceived,
+                remainingAmount: remainingAmount,
+                status: credit.status,
+                createdAt: credit.createdAt instanceof Date ? credit.createdAt : credit.createdAt.toDate(),
+                paymentHistory: (credit.paymentHistory || []).map(p => ({
+                  amount: p.amount,
+                  paymentMethod: p.paymentMethod,
+                  paidAt: p.paidAt instanceof Date ? p.paidAt : p.paidAt.toDate()
+                }))
+              };
+            }),
+            revenueCollectionRate: totalRevenue > 0 ? ((totalRevenue - creditsInRange.reduce((sum, credit) => {
+              const totalPaid = credit.amountReceived + (credit.paymentHistory || []).reduce((pSum, p) => pSum + p.amount, 0);
+              const remaining = credit.totalAmount - totalPaid;
+              return sum + (remaining > 0 ? remaining : 0);
+            }, 0)) / totalRevenue) * 100 : 100
+          };
+        }
+      } catch (error) {
+        console.error('Error calculating credit analytics:', error);
+        // Keep default empty creditAnalytics
+      }
+
       const analytics: SalesAnalytics = {
         totalRevenue,
         totalOrders,
@@ -633,7 +728,8 @@ export class SalesReportService {
           ...h,
           isWeekend: false // Would need actual date context to determine weekend
         })).sort((a, b) => b.orderCount - a.orderCount).slice(0, 5),
-        itemCombinations: [] // This would require more complex analysis
+        itemCombinations: [], // This would require more complex analysis
+        creditAnalytics
       };
 
       return {
@@ -663,7 +759,8 @@ export class SalesReportService {
       includeStaffAnalysis: true,
       includeTimeAnalysis: true,
       includeTaxBreakdown: true,
-      includeDiscountAnalysis: true
+      includeDiscountAnalysis: true,
+      includeCreditAnalysis: true
     }
   ): Promise<Blob> {
     try {
@@ -724,7 +821,11 @@ export class SalesReportService {
       ['Total Items Sold', analytics.totalItems.toString()],
       ['Unique Customers', analytics.totalCustomers.toString()],
       ['Revenue Growth', `${analytics.revenueGrowth.toFixed(1)}%`],
-      ['Order Growth', `${analytics.orderGrowth.toFixed(1)}%`]
+      ['Order Growth', `${analytics.orderGrowth.toFixed(1)}%`],
+      ...(analytics.creditAnalytics.ordersWithCredits > 0 ? [
+        ['Pending Credits', formatCurrency(analytics.creditAnalytics.pendingCreditAmount)],
+        ['Revenue Collection Rate', `${analytics.creditAnalytics.revenueCollectionRate.toFixed(1)}%`]
+      ] : [])
     ];
 
     doc.autoTable({
@@ -1008,6 +1109,124 @@ export class SalesReportService {
       });
 
       yPosition = (doc as any).lastAutoTable.finalY + 20;
+    }
+
+    // Credit Analysis
+    if (config.includeCreditAnalysis !== false && analytics.creditAnalytics.ordersWithCredits > 0) {
+      if (yPosition > 240) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(33, 37, 41);
+      doc.text('Credit Analysis', 20, yPosition);
+      yPosition += 12;
+
+      // Credit Summary
+      const creditSummaryData = [
+        ['Total Credit Amount', formatCurrency(analytics.creditAnalytics.totalCreditAmount)],
+        ['Pending Credits', formatCurrency(analytics.creditAnalytics.pendingCreditAmount)],
+        ['Paid Credits', formatCurrency(analytics.creditAnalytics.paidCreditAmount)],
+        ['Orders with Credits', analytics.creditAnalytics.ordersWithCredits.toString()],
+        ['Revenue Collection Rate', `${analytics.creditAnalytics.revenueCollectionRate.toFixed(1)}%`]
+      ];
+
+      doc.autoTable({
+        startY: yPosition,
+        head: [['Credit Metric', 'Value']],
+        body: creditSummaryData,
+        theme: 'grid',
+        styles: { 
+          fontSize: 10,
+          font: 'helvetica',
+          textColor: [33, 37, 41],
+          cellPadding: 6,
+          lineColor: [220, 220, 220],
+          lineWidth: 0.5
+        },
+        headStyles: { 
+          fillColor: [220, 53, 69],
+          textColor: [255, 255, 255],
+          fontSize: 11,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 80 },
+          1: { halign: 'right', cellWidth: 60 }
+        }
+      });
+
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+      // Credit Transactions Details (if any)
+      if (analytics.creditAnalytics.creditTransactions.length > 0) {
+        if (yPosition > 220) {
+          doc.addPage();
+          yPosition = 20;
+        }
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Credit Transactions Details', 20, yPosition);
+        yPosition += 10;
+
+        const creditTransactionData = analytics.creditAnalytics.creditTransactions
+          .slice(0, 15) // Limit to first 15 transactions to avoid overflow
+          .map(credit => [
+            credit.customerName,
+            credit.tableNumber,
+            formatCurrency(credit.totalAmount),
+            formatCurrency(credit.amountReceived),
+            formatCurrency(credit.remainingAmount),
+            credit.status.replace('_', ' ').toUpperCase(),
+            formatDate(credit.createdAt)
+          ]);
+
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Customer', 'Table', 'Total', 'Received', 'Remaining', 'Status', 'Date']],
+          body: creditTransactionData,
+          theme: 'grid',
+          styles: { 
+            fontSize: 8,
+            font: 'helvetica',
+            textColor: [33, 37, 41],
+            cellPadding: 4,
+            lineColor: [220, 220, 220],
+            lineWidth: 0.5
+          },
+          headStyles: { 
+            fillColor: [220, 53, 69],
+            textColor: [255, 255, 255],
+            fontSize: 9,
+            fontStyle: 'bold',
+            halign: 'center'
+          },
+          columnStyles: {
+            0: { cellWidth: 35 },
+            1: { halign: 'center', cellWidth: 20 },
+            2: { halign: 'right', cellWidth: 25 },
+            3: { halign: 'right', cellWidth: 25 },
+            4: { halign: 'right', cellWidth: 25 },
+            5: { halign: 'center', cellWidth: 25 },
+            6: { halign: 'center', cellWidth: 25 }
+          }
+        });
+
+        yPosition = (doc as any).lastAutoTable.finalY + 20;
+
+        // Add note if there are more transactions
+        if (analytics.creditAnalytics.creditTransactions.length > 15) {
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'italic');
+          doc.setTextColor(108, 117, 125);
+          doc.text(`Note: Showing first 15 of ${analytics.creditAnalytics.creditTransactions.length} credit transactions.`, 20, yPosition);
+          yPosition += 10;
+        }
+      }
     }
 
     // Order Type Analysis
