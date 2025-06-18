@@ -45,8 +45,10 @@ export class TableStatusService {
             const ordersResult = await OrderService.getOrdersByTable(restaurantId, table.id);
             
             if (ordersResult.success && ordersResult.data) {
+              // Consider orders as "active" if they are in kitchen workflow OR completed but not paid
               const activeOrders = ordersResult.data.filter(order => 
-                ['placed', 'confirmed', 'preparing', 'ready'].includes(order.status)
+                ['placed', 'confirmed', 'preparing', 'ready'].includes(order.status) ||
+                (order.status === 'completed' && order.paymentStatus !== 'paid')
               );
               
               // If no active orders but table shows occupied, fix it

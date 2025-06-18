@@ -19,17 +19,18 @@ export class GamificationService {
   private static getBaseUrl(): string {
     // Try to get from environment variables first
     try {
-      // Check Vite environment variables
-      if ((import.meta as any)?.env?.VITE_APP_BASE_URL) {
+      // Check Vite environment variables safely
+      if (import.meta && (import.meta as any).env && (import.meta as any).env.VITE_APP_BASE_URL) {
         return (import.meta as any).env.VITE_APP_BASE_URL;
       }
       
       // Check process environment variables
-      if (typeof process !== 'undefined' && process.env?.REACT_APP_BASE_URL) {
+      if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_BASE_URL) {
         return process.env.REACT_APP_BASE_URL;
       }
     } catch (e) {
-      // Environment variables not available
+      // Environment variables not available, continue to fallback
+      console.log('Environment variables not accessible, using fallback URL generation');
     }
     
     // Default: use current origin, but remove specific subdomains that might be wrong

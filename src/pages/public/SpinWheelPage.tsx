@@ -29,14 +29,33 @@ export default function SpinWheelPage() {
     try {
       setIsLoading(true);
       
-      // Load restaurant info by slug
-      const restaurantResult = await RestaurantService.getRestaurantBySlug(slug);
+      // Load restaurant info by slug or ID
+      let restaurantResult;
+      try {
+        // First try by slug
+        restaurantResult = await RestaurantService.getRestaurantBySlug(slug);
+        
+        // If not found and slug looks like an ID (long alphanumeric), try by ID
+        if (!restaurantResult.success && slug.length > 15 && /^[a-zA-Z0-9]+$/.test(slug)) {
+          console.log('Slug not found, trying as restaurant ID:', slug);
+          restaurantResult = await RestaurantService.getRestaurantById(slug);
+        }
+      } catch (error) {
+        console.error('Error loading restaurant:', error);
+        throw new Error('Failed to load restaurant information');
+      }
       if (restaurantResult.success && restaurantResult.data) {
         setRestaurantName(restaurantResult.data.name);
         setRestaurantId(restaurantResult.data.id);
 
         // Load all spin wheels for restaurant and find the first active one
-        const wheelsResult = await GamificationService.getSpinWheelsForRestaurant(restaurantResult.data.id);
+        let wheelsResult;
+        try {
+          wheelsResult = await GamificationService.getSpinWheelsForRestaurant(restaurantResult.data.id);
+        } catch (error) {
+          console.error('Error calling getSpinWheelsForRestaurant:', error);
+          throw new Error('Failed to load spin wheel configuration');
+        }
         if (wheelsResult.success && wheelsResult.data) {
           // Find the first active wheel
           const activeWheel = wheelsResult.data.find(w => w.isActive);
@@ -115,6 +134,7 @@ export default function SpinWheelPage() {
         wheelConfig={wheelConfig}
         restaurantName={restaurantName}
         onSpinComplete={handleSpinComplete}
+        currentSlug={slug}
       />
       
       {/* Footer */}

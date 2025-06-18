@@ -372,8 +372,28 @@ export default function KitchenDisplay() {
     if (!restaurant) return;
 
     try {
+      // If marking as completed, just remove from UI and log
+      if (newStatus === 'completed') {
+        console.log(`🍽️ KDS: Order ${orderId} marked as completed - removing from UI only (no database update)`);
+        
+        // Remove the order from both regular and menu portal orders UI
+        setRegularOrders(prev => prev.filter(order => order.id !== orderId));
+        setMenuPortalOrders(prev => prev.filter(order => order.id !== orderId));
+        
+        toast.success('Order completed and removed from kitchen display');
+        return;
+      }
+
+      // For other status updates (preparing, ready, etc.), keep the original functionality
+      const orderToUpdate = [...regularOrders, ...menuPortalOrders].find(order => order.id === orderId);
+      
       const result = await OrderService.updateOrderStatus(orderId, restaurant.id, newStatus);
       if (result.success) {
+        // If order is being completed and it's a regular dine-in order (not menu portal), handle table status
+        if (newStatus === 'completed' && orderToUpdate && orderToUpdate.tableId !== 'customer-portal') {
+          await handleTableStatusAfterOrderCompletion(orderToUpdate.tableId);
+        }
+        
         await loadKitchenData();
         toast.success(`Order status updated to ${newStatus}`);
       } else {
@@ -382,6 +402,36 @@ export default function KitchenDisplay() {
     } catch (error) {
       console.error('Error updating order status:', error);
       toast.error('Failed to update order status');
+    }
+  };
+
+  // Handle table status after order completion
+  const handleTableStatusAfterOrderCompletion = async (tableId: string) => {
+    if (!restaurant || !tableId) return;
+
+    try {
+      // Get all active orders for this table (excluding the one we just completed)
+      const activeOrdersResult = await OrderService.getOrdersByTable(restaurant.id, tableId);
+      
+      if (activeOrdersResult.success && activeOrdersResult.data) {
+        const activeOrders = activeOrdersResult.data.filter(order => 
+          ['placed', 'confirmed', 'preparing', 'ready'].includes(order.status)
+        );
+
+        console.log(`🍽️ Table ${tableId}: Found ${activeOrders.length} remaining active orders`);
+
+        // If no more active orders for this table, keep table occupied but ready for payment
+        // Don't automatically make it available - that should only happen after payment
+        if (activeOrders.length === 0) {
+          console.log(`🍽️ Table ${tableId}: No more active orders, keeping table occupied for payment`);
+          // Table remains occupied until payment is processed in TakeOrder page
+        } else {
+          console.log(`🍽️ Table ${tableId}: Still has ${activeOrders.length} active orders, keeping table occupied`);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking table status after order completion:', error);
+      // Don't throw error - this is not critical for order completion
     }
   };
 

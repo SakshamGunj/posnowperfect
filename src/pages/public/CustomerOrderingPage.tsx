@@ -29,7 +29,9 @@ import {
   SlidersHorizontal,
   User,
   Utensils,
-  AlertTriangle
+  AlertTriangle,
+  ChefHat,
+  Bell
 } from 'lucide-react';
 import { formatCurrency, formatTime } from '@/lib/utils';
 
@@ -148,7 +150,12 @@ export default function CustomerOrderingPage() {
   const [priceFilter, setPriceFilter] = useState<'all' | 'low' | 'medium' | 'high'>('all');
   const [showFilters, setShowFilters] = useState(false);
   
+  // Order tracking states
+  const [submittedOrder, setSubmittedOrder] = useState<Order | null>(null);
+  const [showOrderStatus, setShowOrderStatus] = useState(false);
+  
   const verificationAttempted = useRef(false);
+  const orderSubscriptionRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (slug) {
@@ -242,6 +249,16 @@ export default function CustomerOrderingPage() {
     
     return () => {
       document.head.removeChild(styleSheet);
+    };
+  }, []);
+
+  // Cleanup order subscription on unmount
+  useEffect(() => {
+    return () => {
+      if (orderSubscriptionRef.current) {
+        orderSubscriptionRef.current();
+        orderSubscriptionRef.current = null;
+      }
     };
   }, []);
 
@@ -340,7 +357,10 @@ export default function CustomerOrderingPage() {
       }
 
       // Location verification (invisible to user)
-      if (portalSettings.security.locationVerification && portalSettings.location.latitude && portalSettings.location.longitude) {
+      if (portalSettings.security.locationVerification && 
+          portalSettings.location && 
+          portalSettings.location.latitude && 
+          portalSettings.location.longitude) {
         console.log('🔍 Running location verification...');
         const restaurantLocation = {
           latitude: portalSettings.location.latitude,
@@ -996,6 +1016,114 @@ export default function CustomerOrderingPage() {
     }
   };
 
+  // Set up real-time order tracking
+  const setupOrderTracking = (orderId: string) => {
+    if (!restaurant) return;
+
+    // Clean up any existing subscription
+    if (orderSubscriptionRef.current) {
+      orderSubscriptionRef.current();
+    }
+
+    console.log('🔄 Setting up real-time order tracking for:', orderId);
+
+    // Subscribe to order updates
+    orderSubscriptionRef.current = OrderService.subscribeToOrders(
+      restaurant.id,
+      (orders: Order[]) => {
+        const updatedOrder = orders.find(order => order.id === orderId);
+        if (updatedOrder && submittedOrder) {
+          console.log('📱 Order status updated:', {
+            orderId: updatedOrder.id,
+            status: updatedOrder.status,
+            previousStatus: submittedOrder.status
+          });
+
+          // Update the order state
+          setSubmittedOrder(updatedOrder);
+
+          // Show toast notification for status changes
+          if (updatedOrder.status !== submittedOrder.status) {
+            const statusMessages = {
+              confirmed: '✅ Order confirmed! Kitchen is preparing your food.',
+              preparing: '👨‍🍳 Your order is being prepared in the kitchen.',
+              ready: '🔔 Your order is ready! Please proceed to payment.',
+              completed: '🎉 Order completed! Thank you for dining with us.'
+            };
+
+            const message = statusMessages[updatedOrder.status as keyof typeof statusMessages];
+            if (message) {
+              toast.success(message, {
+                duration: 4000,
+                style: {
+                  background: 'linear-gradient(135deg, #10B981, #059669)',
+                  color: '#fff',
+                  fontWeight: '600',
+                }
+              });
+            }
+          }
+        }
+      }
+    );
+  };
+
+  const getOrderStatusConfig = (status: string) => {
+    const configs = {
+      placed: { 
+        color: 'border-yellow-300 bg-yellow-50 text-yellow-800', 
+        icon: Clock, 
+        label: 'Order Placed',
+        description: 'Your order has been received and is waiting for confirmation.'
+      },
+      confirmed: { 
+        color: 'border-blue-300 bg-blue-50 text-blue-800', 
+        icon: CheckCircle, 
+        label: 'Order Confirmed',
+        description: 'Your order has been confirmed and sent to the kitchen.'
+      },
+      preparing: { 
+        color: 'border-indigo-300 bg-indigo-50 text-indigo-800', 
+        icon: ChefHat, 
+        label: 'Being Prepared',
+        description: 'Your delicious food is being prepared in the kitchen.'
+      },
+      ready: { 
+        color: 'border-green-300 bg-green-50 text-green-800', 
+        icon: Bell, 
+        label: 'Ready for Payment',
+        description: 'Your order is ready! Please proceed to payment counter.'
+      },
+      completed: { 
+        color: 'border-emerald-300 bg-emerald-50 text-emerald-800', 
+        icon: CheckCircle, 
+        label: 'Order Completed',
+        description: 'Thank you for your order! Enjoy your meal.'
+      },
+    };
+    return configs[status as keyof typeof configs] || configs.placed;
+  };
+
+  const closeOrderStatus = () => {
+    setShowOrderStatus(false);
+    setSubmittedOrder(null);
+    
+    // Clean up subscription
+    if (orderSubscriptionRef.current) {
+      orderSubscriptionRef.current();
+      orderSubscriptionRef.current = null;
+    }
+
+    // Redirect to customer dashboard
+    if (restaurant) {
+      const redirectPhone = isPhoneAuthenticated && phoneAuthUser 
+        ? phoneAuthUser.phone 
+        : (phoneNumber || 'customer');
+      
+      window.location.href = `/${restaurant.slug}/customer-dashboard?phone=${redirectPhone}`;
+    }
+  };
+
   const submitOrder = async () => {
     if (!restaurant || cart.length === 0) return;
 
@@ -1038,7 +1166,7 @@ export default function CustomerOrderingPage() {
       if (result.success && result.data) {
         console.log('✅ Order submitted successfully:', result.data);
         
-        toast.success('🎉 Order placed successfully! Redirecting to your dashboard...', {
+        toast.success('🎉 Order placed successfully! Tracking your order...', {
           duration: 3000,
           style: {
             background: 'linear-gradient(135deg, #10B981, #059669)',
@@ -1049,22 +1177,22 @@ export default function CustomerOrderingPage() {
         
         setCart([]);
         setShowCart(false);
+        setSubmittedOrder(result.data);
+        setShowOrderStatus(true);
+        
+        // Set up real-time order tracking
+        setupOrderTracking(result.data.id);
         
         // Determine phone for redirect based on authentication method
         const redirectPhone = isPhoneAuthenticated && phoneAuthUser 
           ? phoneAuthUser.phone 
           : (phoneNumber || 'customer');
         
-        console.log('🔄 Redirecting to customer dashboard with:', {
+        console.log('🔄 Order tracking started for:', {
           orderId: result.data.id,
           phone: redirectPhone,
           authMethod: phoneAuthUser?.authMethod || 'otp'
         });
-        
-        // Redirect to customer dashboard page
-        setTimeout(() => {
-          window.location.href = `/${restaurant.slug}/customer-dashboard?phone=${redirectPhone}&lastOrder=${result.data?.id}`;
-        }, 1500);
       } else {
         throw new Error(result.error || 'Failed to place order');
       }
@@ -2066,6 +2194,91 @@ export default function CustomerOrderingPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Status Modal */}
+      {showOrderStatus && submittedOrder && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-6">
+              {/* Header */}
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                  <CheckCircle className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Tracking</h2>
+                <p className="text-gray-600">Order #{submittedOrder.orderNumber}</p>
+              </div>
+
+              {/* Status Card */}
+              <div className={`p-4 rounded-xl border-2 mb-6 ${getOrderStatusConfig(submittedOrder.status).color}`}>
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+                    {(() => {
+                      const StatusIcon = getOrderStatusConfig(submittedOrder.status).icon;
+                      return <StatusIcon className="w-5 h-5 text-gray-700" />;
+                    })()}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-lg">{getOrderStatusConfig(submittedOrder.status).label}</h3>
+                    <p className="text-sm opacity-80">{getOrderStatusConfig(submittedOrder.status).description}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Details */}
+              <div className="space-y-4 mb-6">
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h4 className="font-semibold text-gray-900 mb-3">Order Items</h4>
+                  <div className="space-y-2">
+                    {submittedOrder.items.map((item, index) => (
+                      <div key={index} className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">{item.name}</span>
+                          <span className="text-xs text-gray-500 ml-2">x{item.quantity}</span>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-900">{formatCurrency(item.total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t border-gray-200 mt-3 pt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-gray-900">Total</span>
+                      <span className="font-bold text-lg text-gray-900">{formatCurrency(submittedOrder.total)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Info */}
+                <div className="bg-blue-50 rounded-xl p-4">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-900">Order Time</span>
+                  </div>
+                  <p className="text-sm text-blue-700">{formatTime(submittedOrder.createdAt)}</p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                {submittedOrder.status === 'ready' && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                    <Bell className="w-6 h-6 text-green-600 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-green-800">Your order is ready!</p>
+                    <p className="text-xs text-green-600">Please proceed to the payment counter</p>
+                  </div>
+                )}
+                
+                <button
+                  onClick={closeOrderStatus}
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                >
+                  Go to Dashboard
+                </button>
               </div>
             </div>
           </div>

@@ -171,16 +171,30 @@ export default function TakeOrder() {
     }
   };
 
-  const checkExistingOrder = async () => {
+  const checkExistingOrder = async (retryCount = 0) => {
     if (!restaurant || !tableId) return;
 
     try {
+      // Clear cache to ensure we get fresh data
+      OrderService.clearCache(restaurant.id);
+      
+      // Small delay to allow Firebase updates to propagate if this is a retry
+      if (retryCount > 0) {
+        console.log(`🔄 TakeOrder: Retry attempt ${retryCount} for table ${tableId}`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
       // Check if there's an active order for this table
       const ordersResult = await OrderService.getOrdersByTable(restaurant.id, tableId);
       if (ordersResult.success && ordersResult.data) {
         const activeOrders = ordersResult.data.filter(order => 
-          ['placed', 'confirmed', 'preparing', 'ready'].includes(order.status)
+          ['placed', 'confirmed', 'preparing', 'ready'].includes(order.status) ||
+          (order.status === 'completed' && order.paymentStatus !== 'paid')
         );
+        
+        console.log(`🍽️ TakeOrder: Found ${activeOrders.length} active orders for table ${tableId}`, {
+          orders: activeOrders.map(o => ({ id: o.id, status: o.status, paymentStatus: o.paymentStatus }))
+        });
         
         setAllOrders(activeOrders);
         
@@ -191,15 +205,40 @@ export default function TakeOrder() {
           )[0];
           
           setCurrentOrder(latestOrder);
+          
+          // Always set to 'placed' if we have active orders, regardless of current state
+          console.log(`🍽️ TakeOrder: Found ${activeOrders.length} active orders, forcing state to 'placed'`);
           setOrderState('placed');
           
           // Clear cart since order is already placed
           CartManager.clearCart(restaurant!.id, tableId);
           setCartItems([]);
+        } else {
+          console.log(`🍽️ TakeOrder: No active orders found for table ${tableId}`);
+          
+          // If no orders found and this is first attempt, retry once
+          if (retryCount === 0) {
+            console.log(`🔄 TakeOrder: No orders found, retrying once for table ${tableId}`);
+            setTimeout(() => checkExistingOrder(1), 500);
+            return;
+          }
+          
+          // Only reset to cart if we're not already in a specific state
+          if (orderState !== 'completed') {
+            console.log(`🍽️ TakeOrder: Resetting to cart state`);
+            setOrderState('cart');
+            setCurrentOrder(null);
+          }
         }
       }
     } catch (error) {
       console.error('Failed to check existing order:', error);
+      
+      // Retry once on error
+      if (retryCount === 0) {
+        console.log(`🔄 TakeOrder: Error occurred, retrying for table ${tableId}`);
+        setTimeout(() => checkExistingOrder(1), 1000);
+      }
     }
   };
 
@@ -1433,7 +1472,8 @@ export default function TakeOrder() {
     if (restaurant && tableId) {
       loadData();
       loadCart();
-      checkExistingOrder();
+      // Don't call checkExistingOrder immediately - let the real-time subscription handle it
+      // This prevents race conditions between initial load and real-time updates
     }
   }, [restaurant, tableId]);
 
@@ -1444,6 +1484,73 @@ export default function TakeOrder() {
       setPaymentValue('amountReceived', combinedTotal);
     }
   }, [allOrders, showPaymentModal, setPaymentValue]);
+
+  // Real-time subscription to orders for this table
+  useEffect(() => {
+    if (!restaurant || !tableId) return;
+
+    console.log(`🔄 TakeOrder: Setting up real-time subscription for table ${tableId}`);
+    
+    // Subscribe to all orders for this restaurant and filter for our table
+    const unsubscribe = OrderService.subscribeToOrders(
+      restaurant.id,
+      (allOrders) => {
+        // Filter orders for this specific table
+        const tableOrders = allOrders.filter(order => order.tableId === tableId);
+        
+        // Filter for active orders (including completed but unpaid)
+        const activeOrders = tableOrders.filter(order => 
+          ['placed', 'confirmed', 'preparing', 'ready'].includes(order.status) ||
+          (order.status === 'completed' && order.paymentStatus !== 'paid')
+        );
+
+        console.log(`🔄 TakeOrder: Real-time update for table ${tableId}:`, {
+          totalTableOrders: tableOrders.length,
+          activeOrders: activeOrders.length,
+          orderDetails: activeOrders.map(o => ({ 
+            id: o.id, 
+            orderNumber: o.orderNumber, 
+            status: o.status, 
+            paymentStatus: o.paymentStatus 
+          }))
+        });
+
+        // Update state with active orders
+        setAllOrders(activeOrders);
+
+        if (activeOrders.length > 0) {
+          // Set the most recent order as current
+          const latestOrder = activeOrders.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )[0];
+          
+          setCurrentOrder(latestOrder);
+          
+          // Force to 'placed' state when we have active orders
+          console.log(`🔄 TakeOrder: Real-time update forcing state to 'placed' for table ${tableId}`);
+          setOrderState('placed');
+          
+          // Clear cart since order is already placed
+          CartManager.clearCart(restaurant.id, tableId);
+          setCartItems([]);
+        } else {
+          // Only change state if we don't have any active orders and we're not completed
+          if (orderState === 'placed' && activeOrders.length === 0) {
+            console.log(`🔄 TakeOrder: Real-time update - no active orders, resetting to cart`);
+            setOrderState('cart');
+            setCurrentOrder(null);
+          }
+        }
+      },
+      100 // Get more orders to ensure we don't miss any
+    );
+
+    // Cleanup subscription
+    return () => {
+      console.log(`🔄 TakeOrder: Cleaning up real-time subscription for table ${tableId}`);
+      unsubscribe();
+    };
+  }, [restaurant?.id, tableId]); // Don't include orderState to prevent loops
 
   // Filter menu items with real-time search (optimized with useMemo)
   const filteredItems = useMemo(() => {
@@ -2294,6 +2401,8 @@ export default function TakeOrder() {
         onPrintKOT={handlePrintKOT}
         orderDetails={voiceOrderDetails}
       />
+
+
     </div>
   );
 }

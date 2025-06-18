@@ -86,9 +86,10 @@ interface SpinWheelGameProps {
   wheelConfig: SpinWheelConfig;
   restaurantName: string;
   onSpinComplete?: (result: CustomerSpin) => void;
+  currentSlug?: string; // Add current slug prop
 }
 
-export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinComplete }: SpinWheelGameProps) {
+export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinComplete, currentSlug }: SpinWheelGameProps) {
   // Game state
   const [isSpinning, setIsSpinning] = useState(false);
   const [hasSpun, setHasSpun] = useState(false);
@@ -1195,9 +1196,9 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                     <button
                       onClick={() => {
                         if (phoneAuthUser) {
-                          // Navigate to the enhanced customer dashboard
-                          const restaurantSlug = wheelConfig.restaurantId; // Assuming this is the slug
-                          window.open(`/${restaurantSlug}/customer-dashboard?phone=${phoneAuthUser.phone}`, '_blank');
+                          // Navigate to the enhanced customer dashboard using current slug/ID
+                          const urlSlug = currentSlug || wheelConfig.restaurantId; // Use current slug from URL or fallback
+                          window.open(`/${urlSlug}/customer-dashboard?phone=${phoneAuthUser.phone}`, '_blank');
                         }
                       }}
                       className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-white font-medium transition-all duration-200 flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm shadow-lg"
@@ -1807,8 +1808,8 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                   <div className="mt-2">
                     <button
                       onClick={() => {
-                        const restaurantSlug = wheelConfig.restaurantId;
-                        window.open(`/${restaurantSlug}/customer-dashboard?phone=${phoneAuthUser.phone}`, '_blank');
+                        const urlSlug = currentSlug || wheelConfig.restaurantId;
+                        window.open(`/${urlSlug}/customer-dashboard?phone=${phoneAuthUser.phone}`, '_blank');
                       }}
                       className="text-purple-600 hover:text-purple-700 text-sm font-medium flex items-center space-x-1"
                     >
@@ -2113,6 +2114,99 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                           </div>
                         );
                       })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Redeemed Rewards Section */}
+                {userSpinHistory.filter(spin => spin.isRedeemed).length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                        <CheckCircle className="w-6 h-6 text-green-500 mr-3" />
+                        Redeemed Rewards
+                      </h3>
+                      <div className="text-sm text-gray-500">
+                        {userSpinHistory.filter(spin => spin.isRedeemed).length} redeemed
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4 max-h-80 overflow-y-auto">
+                      {userSpinHistory
+                        .filter(spin => spin.isRedeemed)
+                        .sort((a, b) => new Date(b.redeemedDate || b.spinDate).getTime() - new Date(a.redeemedDate || a.spinDate).getTime())
+                        .map((spin, index) => {
+                          const spinDate = new Date(spin.spinDate);
+                          const redeemedDate = spin.redeemedDate ? new Date(spin.redeemedDate) : null;
+                          
+                          return (
+                            <div key={spin.id || index} className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-start space-x-4 flex-1">
+                                  <div className="w-12 h-12 rounded-full flex items-center justify-center bg-gradient-to-r from-green-400 to-emerald-500">
+                                    <Gift className="w-6 h-6 text-white" />
+                                  </div>
+                                  
+                                  <div className="flex-1">
+                                    <div className="font-bold text-gray-900 text-lg">{spin.resultMessage}</div>
+                                    <div className="text-gray-600 text-sm mb-2">
+                                      Won on: {spinDate.toLocaleDateString()} at {spinDate.toLocaleTimeString()}
+                                    </div>
+                                    {redeemedDate && (
+                                      <div className="text-green-600 text-sm mb-2 font-medium">
+                                        Redeemed on: {redeemedDate.toLocaleDateString()} at {redeemedDate.toLocaleTimeString()}
+                                      </div>
+                                    )}
+                                    
+                                    <div className="flex flex-wrap gap-2">
+                                      {spin.pointsEarned > 0 && (
+                                        <span className="px-3 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+                                          +{spin.pointsEarned} points
+                                        </span>
+                                      )}
+                                      {spin.couponCode && (
+                                        <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-mono">
+                                          {spin.couponCode}
+                                        </span>
+                                      )}
+                                      <span className="px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full font-medium">
+                                        ✅ Successfully Redeemed
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex flex-col items-end space-y-2">
+                                  <span className="px-3 py-1 bg-green-600 text-white text-xs rounded-full font-medium">
+                                    🎯 REDEEMED
+                                  </span>
+                                  <button
+                                    onClick={() => setSelectedSpin(spin)}
+                                    className="text-green-600 hover:text-green-700 text-xs font-medium underline"
+                                  >
+                                    View Details
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                    
+                    {/* Redeemed Rewards Summary */}
+                    <div className="mt-6 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl p-4 border border-green-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-bold text-green-900">Redemption Summary</h4>
+                          <p className="text-green-700 text-sm">Your total rewards used</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-green-600">
+                            {userSpinHistory.filter(spin => spin.isRedeemed).length}
+                          </div>
+                          <div className="text-green-700 text-sm">Rewards Used</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
