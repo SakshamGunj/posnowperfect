@@ -25,11 +25,11 @@ import bcrypt from 'bcryptjs';
 
 // Available modules for permission assignment
 export const AVAILABLE_MODULES: ModulePermission[] = [
-  // Core Operations
+  // =================== CORE OPERATIONS ===================
   {
     id: 'orders',
     name: 'Orders Management',
-    description: 'View and manage customer orders',
+    description: 'View, manage, and track customer orders across all channels',
     category: 'core',
     icon: 'ShoppingBag',
     defaultAccess: true
@@ -37,15 +37,23 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
   {
     id: 'take_order',
     name: 'Take Orders',
-    description: 'Create new orders and process payments',
+    description: 'Create new orders, add items, and process customer requests',
     category: 'core',
     icon: 'Plus',
     defaultAccess: true
   },
   {
+    id: 'order_modification',
+    name: 'Order Modification',
+    description: 'Edit, cancel, and modify existing orders',
+    category: 'core',
+    icon: 'Edit',
+    defaultAccess: true
+  },
+  {
     id: 'tables',
     name: 'Table Management',
-    description: 'Manage table status and reservations',
+    description: 'Manage table status, reservations, and seating arrangements',
     category: 'core',
     icon: 'Grid3X3',
     defaultAccess: true
@@ -53,59 +61,245 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
   {
     id: 'billing',
     name: 'Billing & Payments',
-    description: 'Process payments and generate bills',
+    description: 'Process payments, generate bills, and handle transactions',
     category: 'core',
     icon: 'Receipt',
     defaultAccess: true
   },
-  
-  // Management Features
+  {
+    id: 'kitchen_display',
+    name: 'Kitchen Display System',
+    description: 'Access kitchen display, manage KOT printing, and track preparation',
+    category: 'core',
+    icon: 'ChefHat',
+    defaultAccess: true
+  },
+
+  // =================== ADVANCED OPERATIONS ===================
+  {
+    id: 'voice_commands',
+    name: 'Voice Command System',
+    description: 'Use voice commands for orders, payments, and table management',
+    category: 'management',
+    icon: 'Mic',
+    defaultAccess: false
+  },
+  {
+    id: 'table_operations',
+    name: 'Advanced Table Operations',
+    description: 'Table merging, transfers, and advanced table management',
+    category: 'management',
+    icon: 'ArrowLeftRight',
+    defaultAccess: false
+  },
+  {
+    id: 'bulk_operations',
+    name: 'Bulk Operations',
+    description: 'Bulk menu imports, bulk table operations, and mass updates',
+    category: 'management',
+    icon: 'Database',
+    defaultAccess: false
+  },
+
+  // =================== MENU & INVENTORY ===================
   {
     id: 'menu',
     name: 'Menu Management',
-    description: 'Add, edit, and manage menu items',
+    description: 'Add, edit, and manage menu items, categories, and pricing',
     category: 'management',
     icon: 'ChefHat',
     defaultAccess: false
   },
   {
+    id: 'menu_categories',
+    name: 'Category Management',
+    description: 'Create and manage menu categories and organization',
+    category: 'management',
+    icon: 'FolderOpen',
+    defaultAccess: false
+  },
+  {
+    id: 'variant_management',
+    name: 'Product Variants',
+    description: 'Manage menu item variants, sizes, and customizations',
+    category: 'management',
+    icon: 'Settings',
+    defaultAccess: false
+  },
+  {
     id: 'inventory',
     name: 'Inventory Management',
-    description: 'Track and manage inventory levels',
+    description: 'Track inventory levels, manage stock, and monitor usage',
     category: 'management',
     icon: 'Package',
     defaultAccess: false
   },
   {
+    id: 'inventory_alerts',
+    name: 'Inventory Alerts',
+    description: 'Receive and manage low stock alerts and notifications',
+    category: 'management',
+    icon: 'AlertTriangle',
+    defaultAccess: false
+  },
+  {
+    id: 'supplier_management',
+    name: 'Supplier Management',
+    description: 'Manage suppliers, procurement, and vendor relationships',
+    category: 'management',
+    icon: 'Truck',
+    defaultAccess: false
+  },
+
+  // =================== CUSTOMER MANAGEMENT ===================
+  {
     id: 'customers',
     name: 'Customer Management',
-    description: 'Manage customer information and loyalty',
+    description: 'Manage customer profiles, preferences, and contact information',
     category: 'management',
     icon: 'Users',
     defaultAccess: false
   },
   {
+    id: 'customer_history',
+    name: 'Customer Order History',
+    description: 'View customer order history, preferences, and visit patterns',
+    category: 'management',
+    icon: 'History',
+    defaultAccess: false
+  },
+  {
+    id: 'loyalty_points',
+    name: 'Loyalty Points System',
+    description: 'Manage customer loyalty points, tiers, and rewards',
+    category: 'management',
+    icon: 'Star',
+    defaultAccess: false
+  },
+  {
+    id: 'customer_insights',
+    name: 'Customer Analytics',
+    description: 'Access customer behavior analytics and insights',
+    category: 'management',
+    icon: 'TrendingUp',
+    defaultAccess: false
+  },
+
+  // =================== GAMIFICATION & PROMOTIONS ===================
+  {
+    id: 'gamification',
+    name: 'Gamification System',
+    description: 'Manage spin wheels, games, and customer engagement tools',
+    category: 'management',
+    icon: 'Gamepad2',
+    defaultAccess: false
+  },
+  {
+    id: 'spin_wheel_management',
+    name: 'Spin Wheel Configuration',
+    description: 'Create and configure spin wheel games and rewards',
+    category: 'management',
+    icon: 'RotateCcw',
+    defaultAccess: false
+  },
+  {
     id: 'coupons',
     name: 'Coupon Management',
-    description: 'Create and manage discount coupons',
+    description: 'Create, edit, and manage discount coupons and promotions',
     category: 'management',
     icon: 'Gift',
     defaultAccess: false
   },
   {
+    id: 'promotions',
+    name: 'Promotions & Campaigns',
+    description: 'Design and manage marketing campaigns and special offers',
+    category: 'management',
+    icon: 'Megaphone',
+    defaultAccess: false
+  },
+  {
+    id: 'rewards_redemption',
+    name: 'Rewards Redemption',
+    description: 'Process reward claims and coupon redemptions',
+    category: 'management',
+    icon: 'Award',
+    defaultAccess: false
+  },
+
+  // =================== FINANCIAL MANAGEMENT ===================
+  {
     id: 'credits',
     name: 'Credit Management',
-    description: 'Manage customer credits and payments',
+    description: 'Manage customer credits, payments, and account balances',
     category: 'management',
     icon: 'CreditCard',
     defaultAccess: false
   },
-  
-  // Reports & Analytics
+  {
+    id: 'payment_methods',
+    name: 'Payment Methods',
+    description: 'Configure and manage accepted payment methods',
+    category: 'management',
+    icon: 'Wallet',
+    defaultAccess: false
+  },
+  {
+    id: 'discounts',
+    name: 'Discount Management',
+    description: 'Apply discounts, manage pricing rules, and special rates',
+    category: 'management',
+    icon: 'Percent',
+    defaultAccess: false
+  },
+  {
+    id: 'refunds',
+    name: 'Refunds & Returns',
+    description: 'Process refunds, returns, and payment reversals',
+    category: 'management',
+    icon: 'RotateCcw',
+    defaultAccess: false
+  },
+
+  // =================== MARKETPLACE & PROCUREMENT ===================
+  {
+    id: 'marketplace',
+    name: 'Marketplace Access',
+    description: 'Access wholesale marketplace and supplier catalog',
+    category: 'management',
+    icon: 'ShoppingCart',
+    defaultAccess: false
+  },
+  {
+    id: 'marketplace_ordering',
+    name: 'Marketplace Ordering',
+    description: 'Place orders for bulk supplies and manage procurement',
+    category: 'management',
+    icon: 'PackageCheck',
+    defaultAccess: false
+  },
+  {
+    id: 'marketplace_analytics',
+    name: 'Procurement Analytics',
+    description: 'View marketplace spending, supplier performance, and cost savings',
+    category: 'management',
+    icon: 'BarChart3',
+    defaultAccess: false
+  },
+  {
+    id: 'supplier_contracts',
+    name: 'Supplier Contracts',
+    description: 'Manage long-term supplier contracts and agreements',
+    category: 'management',
+    icon: 'FileText',
+    defaultAccess: false
+  },
+
+  // =================== REPORTS & ANALYTICS ===================
   {
     id: 'reports',
-    name: 'Reports & Analytics',
-    description: 'View sales reports and analytics',
+    name: 'Sales Reports',
+    description: 'Generate and view detailed sales reports and analytics',
     category: 'reports',
     icon: 'BarChart3',
     defaultAccess: false
@@ -113,17 +307,57 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
   {
     id: 'dashboard',
     name: 'Dashboard Analytics',
-    description: 'View dashboard statistics and insights',
+    description: 'View dashboard statistics, KPIs, and business insights',
     category: 'reports',
     icon: 'TrendingUp',
     defaultAccess: true
   },
-  
-  // Settings & Configuration
+  {
+    id: 'financial_reports',
+    name: 'Financial Reports',
+    description: 'Access P&L, revenue reports, and financial analytics',
+    category: 'reports',
+    icon: 'DollarSign',
+    defaultAccess: false
+  },
+  {
+    id: 'inventory_reports',
+    name: 'Inventory Reports',
+    description: 'View inventory usage, waste reports, and stock analytics',
+    category: 'reports',
+    icon: 'Package',
+    defaultAccess: false
+  },
+  {
+    id: 'customer_reports',
+    name: 'Customer Reports',
+    description: 'Generate customer behavior, loyalty, and satisfaction reports',
+    category: 'reports',
+    icon: 'Users',
+    defaultAccess: false
+  },
+  {
+    id: 'staff_performance',
+    name: 'Staff Performance Reports',
+    description: 'View employee performance metrics and productivity reports',
+    category: 'reports',
+    icon: 'UserCheck',
+    defaultAccess: false
+  },
+  {
+    id: 'export_data',
+    name: 'Data Export',
+    description: 'Export reports and data in various formats (PDF, Excel, CSV)',
+    category: 'reports',
+    icon: 'Download',
+    defaultAccess: false
+  },
+
+  // =================== SYSTEM SETTINGS ===================
   {
     id: 'settings',
     name: 'Restaurant Settings',
-    description: 'Manage restaurant configuration and preferences',
+    description: 'Manage restaurant configuration, preferences, and system settings',
     category: 'settings',
     icon: 'Settings',
     defaultAccess: false
@@ -131,17 +365,93 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
   {
     id: 'employees',
     name: 'Employee Management',
-    description: 'Manage staff and their permissions (Owner only)',
+    description: 'Manage staff accounts, permissions, and access control (Owner only)',
     category: 'settings',
     icon: 'UserPlus',
     defaultAccess: false
   },
   {
-    id: 'marketplace',
-    name: 'Marketplace',
-    description: 'Order bulk supplies and manage wholesale orders',
+    id: 'system_configuration',
+    name: 'System Configuration',
+    description: 'Configure POS system settings, integrations, and preferences',
+    category: 'settings',
+    icon: 'Cog',
+    defaultAccess: false
+  },
+  {
+    id: 'backup_restore',
+    name: 'Backup & Restore',
+    description: 'Manage data backups, restore operations, and data recovery',
+    category: 'settings',
+    icon: 'Database',
+    defaultAccess: false
+  },
+  {
+    id: 'security_settings',
+    name: 'Security Settings',
+    description: 'Manage security policies, access controls, and audit logs',
+    category: 'settings',
+    icon: 'Shield',
+    defaultAccess: false
+  },
+
+  // =================== COMMUNICATION & NOTIFICATIONS ===================
+  {
+    id: 'notifications',
+    name: 'Notification Management',
+    description: 'Manage system notifications, alerts, and communication settings',
+    category: 'settings',
+    icon: 'Bell',
+    defaultAccess: false
+  },
+  {
+    id: 'customer_communication',
+    name: 'Customer Communication',
+    description: 'Send SMS, email notifications, and customer updates',
     category: 'management',
-    icon: 'ShoppingCart',
+    icon: 'MessageSquare',
+    defaultAccess: false
+  },
+  {
+    id: 'marketing_tools',
+    name: 'Marketing Tools',
+    description: 'Access marketing automation, campaigns, and customer outreach',
+    category: 'management',
+    icon: 'Megaphone',
+    defaultAccess: false
+  },
+
+  // =================== ADVANCED FEATURES ===================
+  {
+    id: 'api_access',
+    name: 'API Access',
+    description: 'Access to restaurant APIs and third-party integrations',
+    category: 'settings',
+    icon: 'Code',
+    defaultAccess: false
+  },
+  {
+    id: 'multi_location',
+    name: 'Multi-Location Management',
+    description: 'Manage multiple restaurant locations and branch operations',
+    category: 'settings',
+    icon: 'MapPin',
+    defaultAccess: false
+  },
+  {
+    id: 'franchise_management',
+    name: 'Franchise Management',
+    description: 'Manage franchise operations, royalties, and brand compliance',
+    category: 'settings',
+    icon: 'Building',
+    defaultAccess: false
+  },
+  {
+    id: 'advanced_analytics',
+    name: 'Advanced Analytics',
+    description: 'Access AI-powered insights, predictive analytics, and business intelligence',
+    category: 'reports',
+    icon: 'Brain',
     defaultAccess: false
   }
 ];

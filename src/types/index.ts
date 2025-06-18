@@ -73,9 +73,12 @@ export interface Employee {
   name: string;
   email: string;
   pin: string; // 4-digit PIN for quick login
-  role: 'manager' | 'staff';
+  role: 'manager' | 'staff' | 'kitchen_manager' | 'cashier' | 'supervisor';
   permissions: EmployeePermission[];
   isActive: boolean;
+  department?: 'kitchen' | 'service' | 'management' | 'finance' | 'marketing';
+  shift?: 'morning' | 'afternoon' | 'evening' | 'night' | 'flexible';
+  hourlyRate?: number;
   lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -85,6 +88,7 @@ export interface Employee {
 export interface EmployeePermission {
   module: string;
   access: boolean;
+  level?: 'read' | 'write' | 'admin'; // Permission level within the module
 }
 
 export interface CreateEmployeeRequest {
@@ -92,8 +96,11 @@ export interface CreateEmployeeRequest {
   email: string;
   password: string;
   pin: string;
-  role: 'manager' | 'staff';
+  role: 'manager' | 'staff' | 'kitchen_manager' | 'cashier' | 'supervisor';
   permissions: EmployeePermission[];
+  department?: 'kitchen' | 'service' | 'management' | 'finance' | 'marketing';
+  shift?: 'morning' | 'afternoon' | 'evening' | 'night' | 'flexible';
+  hourlyRate?: number;
 }
 
 export interface UpdateEmployeeRequest {
@@ -101,9 +108,12 @@ export interface UpdateEmployeeRequest {
   email?: string;
   password?: string;
   pin?: string;
-  role?: 'manager' | 'staff';
+  role?: 'manager' | 'staff' | 'kitchen_manager' | 'cashier' | 'supervisor';
   permissions?: EmployeePermission[];
   isActive?: boolean;
+  department?: 'kitchen' | 'service' | 'management' | 'finance' | 'marketing';
+  shift?: 'morning' | 'afternoon' | 'evening' | 'night' | 'flexible';
+  hourlyRate?: number;
 }
 
 // Available modules for permission assignment
@@ -111,9 +121,11 @@ export interface ModulePermission {
   id: string;
   name: string;
   description: string;
-  category: 'core' | 'management' | 'reports' | 'settings';
+  category: 'core' | 'management' | 'reports' | 'settings' | 'advanced';
   icon: string;
   defaultAccess: boolean; // Default access for new employees
+  requiresTraining?: boolean; // Whether this permission requires training
+  riskLevel?: 'low' | 'medium' | 'high'; // Risk level for audit purposes
 }
 
 // Admin-specific types

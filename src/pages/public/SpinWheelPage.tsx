@@ -136,19 +136,6 @@ export default function SpinWheelPage() {
         onSpinComplete={handleSpinComplete}
         currentSlug={slug}
       />
-      
-      {/* Footer */}
-      <div className="fixed bottom-4 right-4">
-        <a
-                                href={`/${slug}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center space-x-2 px-4 py-2 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/30 transition-colors"
-        >
-          <span className="text-sm">Visit {restaurantName} POS</span>
-          <ExternalLink className="w-4 h-4" />
-        </a>
-      </div>
     </div>
   );
 } 
