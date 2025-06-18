@@ -415,4 +415,73 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Gaming-style Animations for Spin Wheel */
+@keyframes scanning {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes float-delay-1 {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+@keyframes float-delay-2 {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-25px);
+  }
+}
+
+@keyframes float-delay-3 {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-18px);
+  }
+}
+
+.animate-scanning {
+  animation: scanning 2s linear infinite;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-delay-1 {
+  animation: float-delay-1 8s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
+.animate-float-delay-2 {
+  animation: float-delay-2 7s ease-in-out infinite;
+  animation-delay: 4s;
+}
+
+.animate-float-delay-3 {
+  animation: float-delay-3 9s ease-in-out infinite;
+  animation-delay: 6s;
 } 

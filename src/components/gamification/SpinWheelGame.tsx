@@ -143,20 +143,42 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
     // Set up global phone email listener
     window.phoneEmailListener = handlePhoneAuthSuccess;
     
+    // Add detailed logging for wheel configuration
+    console.log('🎯 Spin Wheel Configuration Loaded:', {
+      wheelId: wheelConfig.id,
+      wheelName: wheelConfig.name,
+      maxSpinsPerCustomer: wheelConfig.maxSpinsPerCustomer,
+      maxSpinsType: typeof wheelConfig.maxSpinsPerCustomer,
+      maxSpinsConverted: Number(wheelConfig.maxSpinsPerCustomer),
+      isUnlimited: Number(wheelConfig.maxSpinsPerCustomer) === 0,
+      isActive: wheelConfig.isActive,
+      restaurantId: wheelConfig.restaurantId
+    });
+    
     return () => {
       // Cleanup
       if (window.phoneEmailListener) {
         delete window.phoneEmailListener;
       }
     };
-  }, []);
+  }, [wheelConfig]);
 
   useEffect(() => {
     if ((isAuthenticated && currentUser) || (isPhoneAuthenticated && phoneAuthUser)) {
       checkSpinLimit();
       loadInitialLoyaltyInfo();
+      // Load dashboard data immediately when user is authenticated
+      loadUserDashboard();
     }
   }, [isAuthenticated, currentUser, isPhoneAuthenticated, phoneAuthUser]);
+
+  // Track spin history changes for debugging
+  useEffect(() => {
+    console.log('🎯 User spin history changed:', {
+      count: userSpinHistory.length,
+      history: userSpinHistory.map(spin => ({ id: spin.id, timestamp: spin.timestamp }))
+    });
+  }, [userSpinHistory]);
 
   const loadInitialLoyaltyInfo = async () => {
     // Use phone authenticated user or regular authenticated user
@@ -395,21 +417,47 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
 
   // Handle claim reward
   const handleClaimReward = async () => {
+    console.log('🎁 Claim Reward clicked! Debug info:', {
+      spinResult,
+      currentSpinRecord,
+      phoneAuthUser,
+      currentUser,
+      isClaimingReward,
+      isClaimed
+    });
+    
     // Use phone authenticated user or regular authenticated user
     const user = phoneAuthUser || currentUser;
     
-    if (!spinResult || !currentSpinRecord || !user) return;
+    if (!spinResult || !currentSpinRecord || !user) {
+      console.log('❌ Early return - missing required data:', {
+        hasSpinResult: !!spinResult,
+        hasCurrentSpinRecord: !!currentSpinRecord,
+        hasUser: !!user
+      });
+      return;
+    }
     
     // Check if it's a "Better Luck" or losing segment
     const isWinning = !(spinResult.rewardType === 'custom' && spinResult.label.toLowerCase().includes('luck'));
     
+    console.log('🎯 Reward claim check:', {
+      isWinning,
+      rewardType: spinResult.rewardType,
+      label: spinResult.label,
+      labelLowerCase: spinResult.label.toLowerCase(),
+      includesLuck: spinResult.label.toLowerCase().includes('luck')
+    });
+    
     if (!isWinning) {
+      console.log('❌ Not a winning segment');
       toast.error('No reward to claim. Better luck next time!');
       return;
     }
 
-    // Start the claiming process immediately with animation
-    setIsClaimingReward(true);
+    console.log('✅ Starting reward claim process...');
+    
+    // Loading animation is already started by button click
     
     // Force a render cycle to ensure the loading state is shown
     await new Promise(resolve => {
@@ -484,7 +532,14 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
     
     if (!user || !authenticated) return;
     
-    if (wheelConfig.maxSpinsPerCustomer === 0) return; // Unlimited spins
+    // Handle unlimited spins properly - check for both string "0" and number 0
+    const maxSpins = Number(wheelConfig.maxSpinsPerCustomer);
+    if (maxSpins === 0) {
+      setCanSpin(true);
+      setRemainingSpins(999); // Set a high number for unlimited display
+      console.log('📊 Unlimited spins enabled for wheel:', wheelConfig.id);
+      return;
+    }
 
     try {
       const userPhone = phoneAuthUser ? phoneAuthUser.phone : currentUser?.phone;
@@ -494,7 +549,7 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
       const result = await GamificationService.getCustomerSpinsCountToday(wheelConfig.restaurantId, userPhone, wheelConfig.id);
       if (result.success && typeof result.data === 'number') {
         const spinsToday = result.data;
-        const remaining = Math.max(0, wheelConfig.maxSpinsPerCustomer - spinsToday);
+        const remaining = Math.max(0, maxSpins - spinsToday);
         setRemainingSpins(remaining);
         setCanSpin(remaining > 0);
         
@@ -502,7 +557,9 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
           userPhone,
           spinWheelId: wheelConfig.id,
           spinsToday,
-          maxAllowed: wheelConfig.maxSpinsPerCustomer,
+          maxAllowed: maxSpins,
+          maxAllowedOriginal: wheelConfig.maxSpinsPerCustomer,
+          maxAllowedType: typeof wheelConfig.maxSpinsPerCustomer,
           remaining,
           canSpin: remaining > 0
         });
@@ -510,7 +567,7 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
     } catch (error) {
       console.error('Error checking spin limit:', error);
       // Fallback to unlimited spins on error
-      setRemainingSpins(wheelConfig.maxSpinsPerCustomer || 999);
+      setRemainingSpins(maxSpins || 999);
       setCanSpin(true);
     }
   };
@@ -748,14 +805,34 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
           setRemainingSpins(prev => Math.max(0, prev - 1));
           setCanSpin(remainingSpins - 1 > 0);
           
-          // Check if this is a winning spin and user needs to provide name for phone auth
-          if (isWinning && phoneAuthUser && !phoneAuthUser.fullName) {
-            setRewardClaimData({
-              spinResult: selectedSegment,
-              spinRecord: result.data,
-              couponCode: generateCouponCode()
-            });
-            setShowRewardClaimModal(true);
+          // 🔄 IMMEDIATE DASHBOARD REFRESH - Update spin count in header immediately
+          setTimeout(() => {
+            loadUserDashboard();
+          }, 100); // Very quick refresh to update the header stats
+          
+          // 🎯 AUTO-CLAIM WINNING REWARDS - Process reward automatically for winning spins
+          if (isWinning) {
+            // Check if user needs to provide name for phone auth
+            if (phoneAuthUser && !phoneAuthUser.fullName) {
+              setRewardClaimData({
+                spinResult: selectedSegment,
+                spinRecord: result.data,
+                couponCode: generateCouponCode()
+              });
+              setShowRewardClaimModal(true);
+            } else {
+              // Auto-process the reward claim with loading animation
+              // Start loading animation immediately, then process after delay
+              setTimeout(() => {
+                setIsClaimingReward(true);
+                console.log('🎯 Auto-processing reward claim after spin...');
+              }, 100); // Start loading animation almost immediately
+              
+              // Capture the required data at this moment to avoid null references later
+              setTimeout(async () => {
+                await handleAutoClaimReward(selectedSegment, result.data);
+              }, 1000); // 1 second delay to let user see the result modal
+            }
           }
           
           // Refresh loyalty info if points were earned
@@ -765,13 +842,115 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
           
           // Refresh dashboard data if dashboard is open
           if (showUserDashboard) {
-            setTimeout(() => loadUserDashboard(), 700); // Reduced delay for dashboard refresh
+            setTimeout(() => {
+          console.log('🔄 Triggering dashboard refresh after spin...');
+          loadUserDashboard();
+        }, 200); // Faster refresh after spin
           }
         }
       } catch (error) {
         console.error('Error recording spin:', error);
       }
     }, 2500); // 2.5 second spin duration for optimal balance of excitement and speed
+  };
+
+  // Auto-claim reward function (called automatically after winning spins)
+  const handleAutoClaimReward = async (capturedSpinResult?: SpinWheelSegment, capturedSpinRecord?: CustomerSpin) => {
+    // Use captured data or fallback to state
+    const finalSpinResult = capturedSpinResult || spinResult;
+    const finalSpinRecord = capturedSpinRecord || currentSpinRecord;
+    
+    console.log('🎁 Auto-claim reward triggered! Debug info:', {
+      capturedSpinResult,
+      capturedSpinRecord,
+      finalSpinResult,
+      finalSpinRecord,
+      phoneAuthUser,
+      currentUser,
+      isClaimingReward,
+      isClaimed
+    });
+    
+    // Use phone authenticated user or regular authenticated user
+    const user = phoneAuthUser || currentUser;
+    
+    if (!finalSpinResult || !finalSpinRecord || !user) {
+      console.log('❌ Early return - missing required data:', {
+        hasFinalSpinResult: !!finalSpinResult,
+        hasFinalSpinRecord: !!finalSpinRecord,
+        hasUser: !!user
+      });
+      return;
+    }
+    
+    // Check if it's a "Better Luck" or losing segment
+    const isWinning = !(finalSpinResult.rewardType === 'custom' && finalSpinResult.label.toLowerCase().includes('luck'));
+    
+    console.log('🎯 Auto reward claim check:', {
+      isWinning,
+      rewardType: finalSpinResult.rewardType,
+      label: finalSpinResult.label,
+      labelLowerCase: finalSpinResult.label.toLowerCase(),
+      includesLuck: finalSpinResult.label.toLowerCase().includes('luck')
+    });
+    
+    if (!isWinning) {
+      console.log('❌ Not a winning segment');
+      return;
+    }
+
+    console.log('✅ Starting auto reward claim process...');
+    
+    // Update state to reflect the captured data
+    if (capturedSpinResult) setSpinResult(capturedSpinResult);
+    if (capturedSpinRecord) setCurrentSpinRecord(capturedSpinRecord);
+    
+    // Loading animation is already started, just add a processing delay
+    // Force a render cycle to ensure the loading state is shown
+    await new Promise(resolve => {
+      // Use requestAnimationFrame to ensure the DOM is updated
+      requestAnimationFrame(() => {
+        // Wait another frame to be absolutely sure
+        requestAnimationFrame(() => {
+          setTimeout(resolve, 1000); // 1 second processing animation (reduced since loading already started)
+        });
+      });
+    });
+
+    try {
+      // Generate coupon code for instant feedback
+      const newCouponCode = generateCouponCode();
+      
+      // Set the coupon code and claimed state after animation
+      setCouponCode(newCouponCode);
+      setIsClaimed(true);
+      
+      // Show immediate success feedback
+      toast.success('🎉 Reward claimed! Processing...');
+
+      // For phone auth users without a name, use a default name or phone number
+      let customerName = '';
+      if (phoneAuthUser) {
+        customerName = phoneAuthUser.fullName || phoneAuthUser.firstName || `Customer ${phoneAuthUser.phone.slice(-4)}`;
+      } else if (currentUser) {
+        customerName = currentUser.name || 'User';
+      }
+
+      // Process the reward claim in the background using the captured data
+      await processRewardClaimWithData(customerName, newCouponCode, finalSpinResult, finalSpinRecord);
+
+    } catch (error) {
+      console.error('Error in auto-claim process:', error);
+      // If there's an error, revert the state
+      setIsClaimed(false);
+      setCouponCode('');
+      toast.error('Failed to claim reward. Please try again.');
+    } finally {
+      setIsClaimingReward(false);
+      // Force dashboard refresh to update spin count
+      console.log('🔄 Auto-claim complete, refreshing dashboard...');
+      setTimeout(() => loadUserDashboard(), 100);
+    }
   };
 
   // Handle reward claim form submission (for the modal)
@@ -789,6 +968,101 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
     } catch (error) {
       console.error('Error claiming reward:', error);
       toast.error('Failed to claim reward. Please try again.');
+    }
+  };
+
+  // Process reward claim with explicit data (for auto-claim)
+  const processRewardClaimWithData = async (customerName?: string, providedCouponCode?: string, finalSpinResult?: SpinWheelSegment, finalSpinRecord?: CustomerSpin) => {
+    const user = phoneAuthUser || currentUser;
+    if (!finalSpinResult || !finalSpinRecord || !user) return;
+
+    try {
+      // Use provided coupon code or generate a new one
+      const newCouponCode = providedCouponCode || generateCouponCode();
+      
+      // Use provided name or existing user name
+      const finalCustomerName = customerName || 
+        (phoneAuthUser ? phoneAuthUser.fullName : currentUser?.name) || 'User';
+      
+      // Step 1: Update the spin record with coupon code
+      const claimResult = await GamificationService.claimSpinReward(
+        wheelConfig.restaurantId,
+        finalSpinRecord.id,
+        {
+          customerName: finalCustomerName,
+          customerPhone: phoneAuthUser ? phoneAuthUser.phone : (currentUser?.phone || ''),
+          customerEmail: phoneAuthUser ? '' : (currentUser?.email || ''),
+          couponCode: newCouponCode,
+        }
+      );
+
+      if (claimResult.success) {
+        // Step 2: For phone users, create a simplified user object for integration
+        let userForIntegration: GamificationUser;
+        
+        if (phoneAuthUser) {
+          userForIntegration = {
+            id: `phone_user_${phoneAuthUser.phone}`,
+            restaurantId: wheelConfig.restaurantId,
+            name: finalCustomerName,
+            phone: phoneAuthUser.phone,
+            email: '',
+            passwordHash: '',
+            isVerified: true,
+            phoneVerified: true,
+            emailVerified: false,
+            isBlocked: false,
+            totalSpins: 0,
+            totalWins: 0,
+            createdAt: new Date(),
+            lastLoginAt: new Date()
+          } as GamificationUser;
+        } else if (currentUser) {
+          userForIntegration = currentUser;
+        } else {
+          toast.error('User information not available');
+          return;
+        }
+        
+        // Step 3: Integrate with CRM and Coupon systems
+        const integrationResult = await GamificationIntegrationService.integrateSpinReward(
+          wheelConfig.restaurantId,
+          userForIntegration,
+          finalSpinResult,
+          newCouponCode,
+          finalSpinRecord
+        );
+
+        if (integrationResult.success) {
+          toast.success('🎉 Reward processed and added to systems!');
+          console.log('✅ Customer added to CRM and coupon created in coupon dashboard');
+        } else {
+          // Claim succeeded but integration failed - still show success to user
+          toast.success('🎉 Reward processed successfully!');
+          console.warn('⚠️ Integration with CRM/Coupon system failed:', integrationResult.error);
+        }
+
+        // If customer name was provided, update the phone user data
+        if (customerName && phoneAuthUser) {
+          const updatedPhoneUser = {
+            ...phoneAuthUser,
+            fullName: customerName,
+            firstName: customerName.split(' ')[0] || '',
+            lastName: customerName.split(' ').slice(1).join(' ') || ''
+          };
+          localStorage.setItem('spinWheelPhoneUser', JSON.stringify(updatedPhoneUser));
+          setPhoneAuthUser(updatedPhoneUser);
+          
+          // Update CRM with name
+          await updateCustomerName(phoneAuthUser.phone, customerName);
+        }
+      } else {
+        toast.error('Failed to claim reward. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error claiming reward:', error);
+      toast.error('Something went wrong. Please try again.');
+      throw error; // Re-throw so handleClaimReward can handle it
     }
   };
 
@@ -940,9 +1214,11 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
       if (spinHistoryResult.success && spinHistoryResult.data) {
         console.log('✅ Setting spin history:', spinHistoryResult.data);
         setUserSpinHistory(spinHistoryResult.data);
+        console.log('📊 User spin history updated, count:', spinHistoryResult.data.length);
       } else {
         console.log('❌ No spin history or error:', spinHistoryResult.error);
         setUserSpinHistory([]); // Ensure it's set to empty array
+        console.log('📊 User spin history set to empty array');
       }
 
       // Load loyalty information if points are enabled
@@ -1003,6 +1279,9 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
           setUserSpinHistory([]);
         }
       }
+
+      // Force a re-render by logging final state
+      console.log('🎯 Dashboard load complete, final spin count will be:', userSpinHistory.length);
 
     } catch (error) {
       console.error('Error loading user dashboard:', error);
@@ -1116,6 +1395,21 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
 
   const isWinningSegment = spinResult && !(spinResult.rewardType === 'custom' && spinResult.label.toLowerCase().includes('luck'));
 
+  console.log('🎯 Result Modal Debug:', {
+    showResultModal,
+    spinResult,
+    isWinningSegment,
+    isClaimed,
+    isClaimingReward,
+    spinResultDetails: spinResult ? {
+      rewardType: spinResult.rewardType,
+      label: spinResult.label,
+      labelLowerCase: spinResult.label.toLowerCase(),
+      includesLuck: spinResult.label.toLowerCase().includes('luck'),
+      isCustom: spinResult.rewardType === 'custom'
+    } : null
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-500 to-indigo-600 relative overflow-hidden">
       {/* Animated Background Elements - Modern Style */}
@@ -1149,45 +1443,59 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
         </div>
       )}
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 py-4 sm:py-6">
-        {/* Header - Clean Modern Design */}
-        <div className="text-center mb-8">
-          {/* User Info & Controls (when authenticated) */}
+      <div className="relative z-10 max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 md:py-6">
+        {/* Header - Mobile Optimized */}
+        <div className="text-center mb-4 sm:mb-6 md:mb-8">
+          {/* User Info & Controls (when authenticated) - Enhanced */}
           {((isAuthenticated && currentUser) || (isPhoneAuthenticated && phoneAuthUser)) && (
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-4 mb-6 border border-white/20">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <div className="bg-white/15 backdrop-blur-lg rounded-3xl p-4 sm:p-6 mb-6 border border-white/30 shadow-2xl">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
+                <div className="flex items-center space-x-4 sm:space-x-5">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-xl ring-2 ring-white/20">
+                    <User className="w-6 h-6 sm:w-7 sm:h-7 text-white drop-shadow-sm" />
                   </div>
                   <div className="text-left">
-                    <div className="text-white font-semibold text-sm sm:text-base">
+                    <div className="text-white font-bold text-lg sm:text-xl md:text-2xl mb-1 text-shadow-sm">
                       {phoneAuthUser ? (phoneAuthUser.fullName || 'Spin Wheel User') : (currentUser?.name || 'User')}
                     </div>
-                    <div className="text-white/70 text-xs sm:text-sm">
+                    <div className="text-white/80 text-sm sm:text-base md:text-lg font-medium mb-2">
                       {phoneAuthUser ? phoneAuthUser.phone : (currentUser?.phone || '')}
                     </div>
-                    <div className="text-green-400 text-xs sm:text-sm font-medium">
-                      🏆 {userLoyaltyInfo?.currentThreshold?.name || 'Bronze'} • 🎯 {userSpinHistory.length} spins • 🎟️ {userCoupons.filter(c => c.usageCount === 0).length} coupons
+                    <div className="bg-gradient-to-r from-green-400/20 to-blue-400/20 backdrop-blur-sm rounded-xl px-3 py-1.5 border border-green-400/30">
+                      <div className="text-green-300 text-sm sm:text-base font-semibold flex items-center space-x-2">
+                        <span>🏆 {(userLoyaltyInfo?.currentThreshold?.name || 'Bronze').replace(/\s*Member$/i, '')}</span>
+                        <span className="text-white/60">•</span>
+                        <span>🎯 {userSpinHistory.length} spins</span>
+                        <span className="text-white/60">•</span>
+                        <span>🎟️ {userCoupons.filter(c => c.usageCount === 0).length} coupons</span>
+                      </div>
                     </div>
                   </div>
                 </div>
                 
-                <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 w-full sm:w-auto">
-                  {wheelConfig.maxSpinsPerCustomer > 0 && (
-                    <div className="bg-blue-500/30 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-blue-400/50">
-                      <span className="text-white text-xs sm:text-sm font-semibold">
+                <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 w-full sm:w-auto">
+                  {Number(wheelConfig.maxSpinsPerCustomer) > 0 && (
+                    <div className="bg-gradient-to-r from-blue-500/40 to-cyan-500/40 backdrop-blur-sm px-4 py-2 sm:px-5 sm:py-3 rounded-2xl border border-blue-400/60 shadow-xl">
+                      <span className="text-white text-sm sm:text-base md:text-lg font-bold text-shadow-sm">
                         🎯 {remainingSpins} spins left
                       </span>
                     </div>
                   )}
                   
-                  <div className="flex items-center space-x-2">
+                  {Number(wheelConfig.maxSpinsPerCustomer) === 0 && (
+                    <div className="bg-gradient-to-r from-green-500/40 to-emerald-500/40 backdrop-blur-sm px-4 py-2 sm:px-5 sm:py-3 rounded-2xl border border-green-400/60 shadow-xl">
+                      <span className="text-white text-sm sm:text-base md:text-lg font-bold text-shadow-sm">
+                        ♾️ Unlimited Spins
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center space-x-3 sm:space-x-4">
                     <button
                       onClick={handleOpenDashboard}
-                      className="bg-white/20 hover:bg-white/30 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-white font-medium transition-all duration-200 flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm"
+                      className="bg-white/25 hover:bg-white/35 px-4 py-2 sm:px-5 sm:py-3 rounded-xl text-white font-semibold transition-all duration-200 flex items-center space-x-2 text-sm sm:text-base shadow-lg hover:shadow-xl backdrop-blur-sm border border-white/20"
                     >
-                      <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
                       <span className="hidden sm:inline">Dashboard</span>
                       <span className="sm:hidden">Stats</span>
                     </button>
@@ -1201,9 +1509,9 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                           window.open(`/${urlSlug}/customer-dashboard?phone=${phoneAuthUser.phone}`, '_blank');
                         }
                       }}
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-white font-medium transition-all duration-200 flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm shadow-lg"
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 px-4 py-2 sm:px-5 sm:py-3 rounded-xl text-white font-semibold transition-all duration-200 flex items-center space-x-2 text-sm sm:text-base shadow-lg hover:shadow-xl"
                     >
-                      <User className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <User className="w-4 h-4 sm:w-5 sm:h-5" />
                       <span className="hidden sm:inline">Full Dashboard</span>
                       <span className="sm:hidden">Profile</span>
                     </button>
@@ -1221,7 +1529,7 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                           handleLogout();
                         }
                       }}
-                      className="bg-red-500/20 hover:bg-red-500/30 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-white font-medium transition-all duration-200 text-xs sm:text-sm"
+                      className="bg-red-500/30 hover:bg-red-500/40 px-4 py-2 sm:px-5 sm:py-3 rounded-xl text-white font-semibold transition-all duration-200 text-sm sm:text-base shadow-lg hover:shadow-xl backdrop-blur-sm border border-red-400/30"
                     >
                       Logout
                     </button>
@@ -1231,33 +1539,34 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
             </div>
           )}
 
-          {/* Main Title */}
-          <div className="mb-6">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold text-white mb-2 px-4">
+          {/* Main Title - Mobile Optimized */}
+          <div className="mb-4 sm:mb-6">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 px-2 leading-tight">
               {restaurantName}
             </h1>
-            <div className="h-1 w-16 sm:w-20 md:w-24 bg-gradient-to-r from-yellow-400 to-orange-500 mx-auto rounded-full mb-4"></div>
-            <h2 className="text-lg sm:text-xl md:text-2xl text-white/90 font-medium px-4">
+            <div className="h-1 w-12 sm:w-16 md:w-20 bg-gradient-to-r from-yellow-400 to-orange-500 mx-auto rounded-full mb-3 sm:mb-4"></div>
+            <h2 className="text-base sm:text-lg md:text-xl text-white/90 font-medium px-2">
               {wheelConfig.name}
             </h2>
           </div>
         </div>
 
-        {/* Main Content Container */}
-        <div className="flex flex-col items-center justify-center space-y-6 sm:space-y-8">
+        {/* Main Content Container - Mobile Optimized */}
+        <div className="flex flex-col items-center justify-center space-y-4 sm:space-y-6 md:space-y-8 px-2">
 
-
-          {/* Spin Wheel Section */}
+          {/* Spin Wheel Section - Extra Large on Mobile */}
           <div className="w-full flex justify-center">
-            <div className="relative max-w-[280px] sm:max-w-[360px] md:max-w-[420px] lg:max-w-[480px] w-full">
-              {/* Wheel Container */}
-              <div className="relative mb-8">
-                {/* Background glow */}
-                <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-orange-500/20 to-yellow-400/20 rounded-full blur-2xl animate-pulse"></div>
+                          <div className="relative max-w-[450px] sm:max-w-[490px] md:max-w-[530px] lg:max-w-[580px] w-full">
+              {/* Wheel Container - Mobile Optimized */}
+              <div className="relative mb-6 sm:mb-8">
+                {/* Enhanced Background glow for mobile */}
+                <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/30 via-orange-500/30 to-yellow-400/30 rounded-full blur-xl sm:blur-2xl animate-pulse scale-105"></div>
                 
-                {/* Pointer */}
-                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1 sm:-translate-y-2 z-20">
-                  <div className="w-0 h-0 border-l-3 border-r-3 border-b-6 sm:border-l-5 sm:border-r-5 sm:border-b-10 border-transparent border-b-white drop-shadow-lg"></div>
+                {/* Bigger Pointer for mobile */}
+                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-2 sm:-translate-y-3 z-20">
+                  <div className="w-0 h-0 border-l-4 border-r-4 border-b-8 sm:border-l-5 sm:border-r-5 sm:border-b-12 md:border-l-6 md:border-r-6 md:border-b-14 border-transparent border-b-white drop-shadow-xl"></div>
+                  {/* Pointer glow effect */}
+                  <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rounded-full blur-sm opacity-70"></div>
                 </div>
                 
                 {/* Main Wheel */}
@@ -1286,14 +1595,14 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                           className="drop-shadow-sm"
                         />
                         
-                        {/* Segment text - Single offer text */}
+                        {/* Segment text - Clean & Bold */}
                         <g transform={`translate(${textPos.x}, ${textPos.y}) rotate(${textPos.rotation})`}>
                           <text
                             x="0"
                             y="0"
                             textAnchor="middle"
                             dominantBaseline="middle"
-                            fontSize={Math.max(16, getOptimalFontSize(segment.label, wheelConfig.segments.length) + 4)}
+                            fontSize={Math.max(22, getOptimalFontSize(segment.label, wheelConfig.segments.length) + 8)}
                             fontWeight="bold"
                             fill="black"
                             style={{ 
@@ -1304,21 +1613,21 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                           </text>
                         </g>
                         
-                        {/* Reward icon */}
+                        {/* Reward icon - Bigger for mobile */}
                         <g transform={`translate(${300 + 240 * Math.cos((2 * Math.PI * index) / wheelConfig.segments.length + Math.PI / wheelConfig.segments.length - Math.PI / 2)}, ${300 + 240 * Math.sin((2 * Math.PI * index) / wheelConfig.segments.length + Math.PI / wheelConfig.segments.length - Math.PI / 2)})`}>
                           <circle
-                            r="15"
+                            r="18"
                             fill="rgba(255,255,255,0.95)"
                             stroke={segment.color}
-                            strokeWidth="2"
-                            className="drop-shadow-md"
+                            strokeWidth="3"
+                            className="drop-shadow-lg"
                           />
                           <text
                             x="0"
-                            y="5"
+                            y="6"
                             textAnchor="middle"
                             dominantBaseline="middle"
-                            fontSize="16"
+                            fontSize="20"
                           >
                             {segment.rewardType === 'discount_percentage' ? '💯' :
                              segment.rewardType === 'discount_fixed' ? '💰' :
@@ -1342,34 +1651,39 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                   <circle 
                     cx="300" 
                     cy="300" 
-                    r="50" 
+                    r="55" 
                     fill="url(#centerGradient)" 
                     stroke="#ffffff" 
-                    strokeWidth="4" 
-                    className="drop-shadow-lg" 
+                    strokeWidth="5" 
+                    className="drop-shadow-xl" 
                   />
                   
-                  {/* Center content */}
+                  {/* Center content - Enhanced for mobile */}
                   <g transform="translate(300, 300)">
                     <text 
                       x="0" 
-                      y="-5" 
+                      y="-8" 
                       textAnchor="middle" 
                       dominantBaseline="middle" 
-                      fontSize="24"
+                      fontSize="28"
                     >
                       🎰
                     </text>
                     
                     <text 
                       x="0" 
-                      y="12" 
+                      y="15" 
                       textAnchor="middle" 
                       dominantBaseline="middle" 
-                      fontSize="10" 
+                      fontSize="12" 
                       fontWeight="bold"
                       fill="white"
-                      style={{ fontFamily: 'Inter, sans-serif' }}
+                      stroke="rgba(0,0,0,0.3)"
+                      strokeWidth="0.5"
+                      style={{ 
+                        fontFamily: 'Inter, sans-serif',
+                        textShadow: '1px 1px 2px rgba(0,0,0,0.5)'
+                      }}
                     >
                       SPIN
                     </text>
@@ -1377,41 +1691,71 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                 </svg>
               </div>
                 
-                {/* Spin Button */}
-                <div className="mb-8 w-full flex justify-center">
-                  <button
-                    onClick={handleSpin}
-                    disabled={!canSpin || isSpinning || !(isAuthenticated || isPhoneAuthenticated)}
-                    className={`relative px-4 sm:px-6 md:px-8 py-3 sm:py-4 text-lg sm:text-xl font-bold rounded-2xl transition-all duration-200 transform w-full max-w-xs ${
-                      canSpin && !isSpinning && (isAuthenticated || isPhoneAuthenticated)
-                        ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:scale-105 shadow-xl'
-                        : 'bg-gray-400 text-gray-700 cursor-not-allowed'
-                    } border-2 border-white/20`}
-                  >
-                    <div className="flex items-center justify-center space-x-2 sm:space-x-3">
-                      {isSpinning ? (
-                        <>
-                          <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
-                          <span className="text-sm sm:text-base">Spinning...</span>
-                        </>
-                      ) : !(isAuthenticated || isPhoneAuthenticated) ? (
-                        <>
-                          <Lock className="w-5 h-5 sm:w-6 sm:h-6" />
-                          <span className="text-sm sm:text-base">Verify Phone to Spin</span>
-                        </>
-                      ) : !canSpin ? (
-                        <>
-                          <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
-                          <span className="text-sm sm:text-base">No Spins Left</span>
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
-                          <span className="text-sm sm:text-base">Spin to Win!</span>
-                        </>
+                {/* Spin Button - Mobile Optimized */}
+                <div className="mb-6 sm:mb-8 w-full flex justify-center mt-8 sm:mt-12 px-4">
+                  <div className="relative w-full max-w-sm">
+                    {/* Enhanced glowing ring effect for mobile */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 rounded-2xl blur-xl opacity-80 animate-pulse scale-110"></div>
+                    
+                    {/* Enhanced gaming-style decorative corners */}
+                    <div className="absolute -top-3 -left-3 w-5 h-5 border-l-3 border-t-3 border-yellow-400 sm:w-6 sm:h-6"></div>
+                    <div className="absolute -top-3 -right-3 w-5 h-5 border-r-3 border-t-3 border-yellow-400 sm:w-6 sm:h-6"></div>
+                    <div className="absolute -bottom-3 -left-3 w-5 h-5 border-l-3 border-b-3 border-yellow-400 sm:w-6 sm:h-6"></div>
+                    <div className="absolute -bottom-3 -right-3 w-5 h-5 border-r-3 border-b-3 border-yellow-400 sm:w-6 sm:h-6"></div>
+                    
+                    <button
+                      onClick={handleSpin}
+                      disabled={!canSpin || isSpinning || !(isAuthenticated || isPhoneAuthenticated)}
+                      className={`relative px-6 sm:px-8 md:px-10 py-4 sm:py-5 text-xl sm:text-2xl md:text-3xl font-bold rounded-2xl transition-all duration-300 transform w-full ${
+                        canSpin && !isSpinning && (isAuthenticated || isPhoneAuthenticated)
+                          ? 'bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-400 text-white hover:scale-105 hover:shadow-2xl shadow-xl active:scale-95 hover:from-yellow-300 hover:via-orange-400 hover:to-yellow-300'
+                          : 'bg-gray-400 text-gray-700 cursor-not-allowed'
+                      } border-3 border-white/40 backdrop-blur-sm`}
+                      style={{
+                        boxShadow: canSpin && !isSpinning && (isAuthenticated || isPhoneAuthenticated) 
+                          ? '0 0 40px rgba(251, 191, 36, 0.6), inset 0 2px 0 rgba(255, 255, 255, 0.4)' 
+                          : 'none'
+                      }}
+                    >
+                      {/* Inner glow effect */}
+                      {canSpin && !isSpinning && (isAuthenticated || isPhoneAuthenticated) && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-2xl animate-pulse"></div>
                       )}
-                    </div>
-                  </button>
+                      
+                      <div className="relative flex items-center justify-center space-x-3 sm:space-x-4">
+                        {isSpinning ? (
+                          <>
+                            <RotateCcw className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 animate-spin" />
+                            <span className="font-extrabold tracking-wide text-shadow-sm">SPINNING...</span>
+                            <div className="absolute -right-10 sm:-right-12 text-2xl animate-bounce">🎰</div>
+                          </>
+                        ) : !(isAuthenticated || isPhoneAuthenticated) ? (
+                          <>
+                            <Lock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />
+                            <span className="font-extrabold tracking-wide text-shadow-sm">🔐 VERIFY TO PLAY</span>
+                          </>
+                        ) : !canSpin ? (
+                          <>
+                            <XCircle className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />
+                            <span className="font-extrabold tracking-wide text-shadow-sm">❌ NO SPINS LEFT</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 animate-pulse" />
+                            <span className="font-extrabold tracking-wide text-shadow-sm">🎯 SPIN TO WIN!</span>
+                            <div className="absolute -right-10 sm:-right-12 text-2xl animate-bounce delay-300">⚡</div>
+                          </>
+                        )}
+                      </div>
+                      
+                      {/* Gaming-style scanning line effect */}
+                      {canSpin && !isSpinning && (isAuthenticated || isPhoneAuthenticated) && (
+                        <div className="absolute inset-0 overflow-hidden rounded-2xl">
+                          <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-white to-transparent animate-scanning"></div>
+                        </div>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1507,33 +1851,46 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                 </div>
               </div>
 
-              {/* Coupon Code Display */}
+              {/* Coupon Code Display - Enhanced Success State */}
               {isClaimed && couponCode && (
-                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200 rounded-xl p-4 mb-6">
-                  <div className="text-sm text-gray-600 mb-2">Your Coupon Code</div>
-                  <div className="flex items-center justify-center space-x-2">
-                    <span className="text-xl font-bold text-orange-600 bg-white px-4 py-2 rounded-lg border-2 border-orange-200">
-                      {couponCode}
-                    </span>
-                    <button
-                      onClick={copyCouponCode}
-                      className="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-lg transition-colors"
-                    >
-                      <Copy className="w-5 h-5" />
-                    </button>
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4 mb-6 animate-fadeIn">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center animate-bounce">
+                      <CheckCircle className="w-8 h-8 text-white" />
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 mt-2">
-                    Show this code to redeem your reward
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-green-800 mb-2">🎉 Reward Claimed Successfully!</div>
+                    <div className="text-sm text-gray-600 mb-3">Your Coupon Code</div>
+                    <div className="flex items-center justify-center space-x-2">
+                      <span className="text-xl font-bold text-green-600 bg-white px-4 py-2 rounded-lg border-2 border-green-200 font-mono">
+                        {couponCode}
+                      </span>
+                      <button
+                        onClick={copyCouponCode}
+                        className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg transition-colors shadow-lg hover:shadow-xl"
+                      >
+                        <Copy className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-2">
+                      ✅ Code saved to CRM & Coupon Dashboard • Show this code to redeem your reward
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Action Buttons */}
               <div className="space-y-3">
-                {/* Claim Reward Button */}
+                {/* Claim Reward Button - Auto-processing or Manual Claim */}
                 {!isClaimed && isWinningSegment && (
                   <button
-                    onClick={handleClaimReward}
+                    onClick={() => {
+                      // Start loading animation immediately
+                      setIsClaimingReward(true);
+                      // Then call the actual claim handler
+                      handleClaimReward();
+                    }}
                     disabled={isClaimingReward}
                     className={`w-full font-bold py-4 px-6 rounded-xl transition-all duration-300 transform ${
                       isClaimingReward 
@@ -1545,14 +1902,19 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
                       {isClaimingReward ? (
                         <>
                           <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                          <span>Generating Your Coupon...</span>
+                          <span>🎯 Processing Your Reward...</span>
+                          <div className="flex space-x-1 ml-2">
+                            <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                            <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-100"></div>
+                            <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse delay-200"></div>
+                          </div>
                         </>
                       ) : (
                         <>
                           <div className="animate-bounce">
                             <Ticket className="w-5 h-5" />
                           </div>
-                          <span>Claim Your Reward!</span>
+                          <span>🎁 Claim Your Reward!</span>
                         </>
                       )}
                     </div>
@@ -2453,6 +2815,10 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
           0%, 100% { transform: translateY(0px) rotate(12deg); }
           50% { transform: translateY(-18px) rotate(22deg); }
         }
+        @keyframes fadeIn {
+          0% { opacity: 0; transform: scale(0.95) translateY(10px); }
+          100% { opacity: 1; transform: scale(1) translateY(0px); }
+        }
         .animate-float {
           animation: float 6s ease-in-out infinite;
         }
@@ -2464,6 +2830,22 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
         }
         .animate-float-delay-3 {
           animation: float-delay-3 9s ease-in-out infinite;
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.6s ease-out forwards;
+        }
+        
+        /* Mobile optimizations */
+        .text-shadow-sm {
+          text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Enhanced mobile touch targets */
+        @media (max-width: 640px) {
+          .touch-target {
+            min-height: 44px;
+            min-width: 44px;
+          }
         }
       `}</style>
     </div>

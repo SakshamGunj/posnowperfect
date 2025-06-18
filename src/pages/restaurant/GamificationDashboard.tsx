@@ -525,12 +525,24 @@ export default function GamificationDashboard() {
                           <Award className="w-4 h-4 inline mr-1" />
                           {wheel.totalRedemptions} redeemed
                         </span>
-                        <span>
-                          Max {wheel.maxSpinsPerCustomer} per customer
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          Number(wheel.maxSpinsPerCustomer) === 0 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {Number(wheel.maxSpinsPerCustomer) === 0 
+                            ? '♾️ Unlimited spins' 
+                            : `${wheel.maxSpinsPerCustomer} spins/day`
+                          }
                         </span>
                         <span>
                           {wheel.segments.length} segments
                         </span>
+                      </div>
+
+                      {/* Debug info for troubleshooting */}
+                      <div className="mt-2 text-xs text-gray-500 bg-gray-50 p-2 rounded border">
+                        <strong>Debug Info:</strong> maxSpinsPerCustomer = "{wheel.maxSpinsPerCustomer}" (type: {typeof wheel.maxSpinsPerCustomer}) | Number() = {Number(wheel.maxSpinsPerCustomer)} | isUnlimited = {Number(wheel.maxSpinsPerCustomer) === 0 ? 'YES' : 'NO'}
                       </div>
 
                       <div className="mt-3 flex items-center space-x-2">

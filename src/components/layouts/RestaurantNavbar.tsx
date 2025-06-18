@@ -181,7 +181,7 @@ export default function RestaurantNavbar() {
                       className="fixed inset-0 z-10" 
                       onClick={() => setIsQuickMenuOpen(false)}
                     ></div>
-                    <div className="absolute top-full mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-20">
+                    <div className="absolute top-full right-0 mt-2 max-w-xs min-w-[16rem] w-full bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-20">
                       <div className="px-4 py-2 border-b border-gray-100">
                         <h3 className="text-sm font-semibold text-gray-900">Quick Access</h3>
                         <p className="text-xs text-gray-500">Manage your restaurant operations</p>
