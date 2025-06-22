@@ -890,8 +890,8 @@ export interface OrderStatusHistory {
   status: MarketplaceOrderStatus;
   timestamp: Date;
   notes?: string;
-  updatedBy?: string; // Supplier or system
-  location?: string; // For tracking updates
+  updatedBy?: string;
+  location?: string;
 }
 
 export interface SupplierReview {
@@ -1020,4 +1020,45 @@ export interface Address {
   country: string;
   latitude?: number;
   longitude?: number;
+}
+
+export interface RestaurantInfo {
+  id: string;
+  name: string;
+  slug: string;
+  businessType: BusinessType;
+  isActive: boolean;
+  address?: string;
+  phone?: string;
+  email?: string;
+  logo?: string;
+  createdAt: Date;
+}
+
+export interface CustomerPortalSettings {
+  isEnabled: boolean;
+  allowedCategories: string[];
+  security: {
+    phoneVerification: boolean;
+    locationVerification: boolean;
+    operatingHours: {
+      enabled: boolean;
+      open: string;
+      close: string;
+    };
+    maxOrderValue?: number;
+  };
+  customization: {
+    theme: string;
+    logo?: string;
+    welcomeMessage?: string;
+    orderingInstructions?: string;
+    primaryColor?: string;
+  };
+  location?: {
+    latitude: number;
+    longitude: number;
+    address: string;
+    radius: number;
+  };
 } 

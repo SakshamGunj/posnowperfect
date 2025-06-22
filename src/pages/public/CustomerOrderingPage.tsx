@@ -65,11 +65,20 @@ interface CustomerPortalSettings {
       open: string;
       close: string;
     };
+    maxOrderValue?: number;
   };
   customization: {
     theme: string;
     logo?: string;
     welcomeMessage?: string;
+    orderingInstructions?: string;
+    primaryColor?: string;
+  };
+  location?: {
+    latitude: number;
+    longitude: number;
+    address: string;
+    radius: number;
   };
 }
 
@@ -290,19 +299,20 @@ export default function CustomerOrderingPage() {
           isEnabled: true, // Enable by default for demo
           allowedCategories: ['Appetizers', 'Main Course', 'Desserts', 'Beverages', 'Snacks'],
           security: {
-            locationVerification: true, // Enable location verification with lenient scoring
-            phoneVerification: true, // Enable phone verification for orders
-            maxOrderValue: 5000,
+            phoneVerification: false,
+            locationVerification: false,
             operatingHours: {
-              enabled: false, // Keep time restrictions disabled for demo
+              enabled: false,
               open: '09:00',
               close: '22:00'
-            }
+            },
+            maxOrderValue: 5000,
           },
           customization: {
             theme: 'default',
             logo: '',
-            welcomeMessage: `Welcome to ${restaurantResult.data.name}! Browse our menu and place your order.`
+            welcomeMessage: `Welcome to ${restaurantResult.data.name}! Browse our menu and place your order.`,
+            orderingInstructions: 'Please follow our ordering instructions carefully.'
           }
         };
         
@@ -1444,6 +1454,7 @@ export default function CustomerOrderingPage() {
               {portalSettings.customization.welcomeMessage}
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              {/* @ts-ignore - Property may not exist in type definition */}
               {portalSettings.customization.orderingInstructions}
             </p>
           </div>

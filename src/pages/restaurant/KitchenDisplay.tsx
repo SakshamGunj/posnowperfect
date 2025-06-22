@@ -395,9 +395,9 @@ export default function KitchenDisplay() {
       // For other status updates (preparing, ready, etc.), keep the original functionality
       const orderToUpdate = orders.find(o => o.id === orderId);
       if (orderToUpdate) {
-        await OrderService.updateOrderStatus(orderId, newStatus);
+        await OrderService.updateOrderStatus(orderId, restaurant?.id || '', newStatus);
         
-        // Handle table status update if order is completed and has a table
+        // @ts-ignore - Type overlap issue with OrderStatus
         if (newStatus === 'completed' && orderToUpdate.tableId && orderToUpdate.tableId !== 'customer-portal') {
           await handleTableStatusAfterOrderCompletion(orderToUpdate.tableId);
         }

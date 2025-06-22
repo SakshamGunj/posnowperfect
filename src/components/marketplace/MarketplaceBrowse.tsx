@@ -1,14 +1,25 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
+  Filter,
+  Star,
   ShoppingCart,
   Plus,
   Minus,
-  Star,
   MapPin,
-  Package2,
-  Truck,
-  DollarSign
+  TrendingUp,
+  Eye,
+  Heart,
+  Award,
+  Zap,
+  SlidersHorizontal,
+  Grid3X3,
+  List,
+  Store,
+  Package,
+  Loader2,
+  Database
 } from 'lucide-react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { 
@@ -57,10 +68,10 @@ const MarketplaceBrowse: React.FC<MarketplaceBrowseProps> = ({ onCartUpdate }) =
   const [cart, setCart] = useState<MarketplaceCartItem[]>([]);
   
   // Filter states
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000]);
-  const [showInStockOnly, setShowInStockOnly] = useState(true);
-  const [showVerifiedOnly, setShowVerifiedOnly] = useState(false);
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [priceRange] = useState<[number, number]>([0, 1000]);
+  const [showInStockOnly] = useState(true);
+  const [showVerifiedOnly] = useState(false);
+  const [selectedSuppliers] = useState<string[]>([]);
   const [isSeeding, setIsSeeding] = useState(false);
 
   // Load initial data
@@ -160,12 +171,19 @@ const MarketplaceBrowse: React.FC<MarketplaceBrowseProps> = ({ onCartUpdate }) =
     ) || product.pricingTiers[0];
     
     const newCartItem: MarketplaceCartItem = {
+      id: `${product.id}-${Date.now()}`,
       productId: product.id,
-      product,
-      quantity,
-      selectedTier: bestTier,
+      productName: product.name,
+      productImage: product.images[0] || '',
+      category: product.category,
+      supplierId: product.supplierId,
+      supplierName: product.supplierName,
+      unit: product.unit,
       unitPrice: bestTier.pricePerUnit,
-      totalPrice: bestTier.pricePerUnit * quantity
+      quantity,
+      appliedDiscount: bestTier.discountPercentage || 0,
+      totalPrice: bestTier.pricePerUnit * quantity,
+      product
     };
     
     let updatedCart: MarketplaceCartItem[];

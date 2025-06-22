@@ -87,8 +87,8 @@ export default function UserDashboardPage() {
       redeemedCoupons: 0,
       totalDiscountEarned: 0,
       totalDiscountUsed: 0,
-      availableCoupons: [],
-      spinHistory: []
+      availableCoupons: [] as any[],
+      spinHistory: [] as any[]
     }
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -185,8 +185,8 @@ export default function UserDashboardPage() {
             redeemedCoupons: 0,
             totalDiscountEarned: 0,
             totalDiscountUsed: 0,
-            availableCoupons: [],
-            spinHistory: []
+            availableCoupons: [] as any[],
+            spinHistory: [] as any[]
           };
 
           try {

@@ -6,8 +6,11 @@ import {
   Clock,
   Truck,
   Eye,
-  ChevronDown,
-  Search
+  Search,
+  DollarSign,
+  ExternalLink,
+  MapPin,
+  Download
 } from 'lucide-react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { 
@@ -18,8 +21,7 @@ import {
 } from '@/services/marketplaceService';
 import { 
   MarketplaceOrder, 
-  MarketplaceOrderStatus,
-  MarketplaceCategory 
+  MarketplaceOrderStatus
 } from '@/types';
 
 const MarketplaceOrders: React.FC = () => {

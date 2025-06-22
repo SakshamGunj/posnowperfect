@@ -114,8 +114,8 @@ export default function RestaurantDashboard() {
         }, 0);
 
         // Calculate actual revenue accounting for credits
-        let todayRevenueData = { actualRevenue: 0, creditAmount: 0 };
-        let yesterdayRevenueData = { actualRevenue: 0, creditAmount: 0 };
+        let todayRevenueData = { actualRevenue: 0, totalCreditAmount: 0 };
+        let yesterdayRevenueData = { actualRevenue: 0, totalCreditAmount: 0 };
         
         try {
           todayRevenueData = await RevenueService.calculateOrdersRevenue(todaysOrders, restaurant.id);
@@ -123,8 +123,8 @@ export default function RestaurantDashboard() {
         } catch (error) {
           console.error('Error calculating revenue data:', error);
           // Use fallback values
-          todayRevenueData = { actualRevenue: revenueToday, creditAmount: 0 };
-          yesterdayRevenueData = { actualRevenue: revenueYesterday, creditAmount: 0 };
+          todayRevenueData = { actualRevenue: revenueToday, totalCreditAmount: 0 };
+          yesterdayRevenueData = { actualRevenue: revenueYesterday, totalCreditAmount: 0 };
         }
 
         // Count active tables (tables with active orders)
@@ -143,7 +143,7 @@ export default function RestaurantDashboard() {
           totalOrdersToday: todaysOrders.length,
           revenueToday: revenueToday,
           actualRevenueToday: todayRevenueData.actualRevenue,
-          creditAmountToday: todayRevenueData.creditAmount,
+          creditAmountToday: todayRevenueData.totalCreditAmount,
           activeTables: activeTables,
           totalTables: tables.length,
           ordersYesterday: yesterdaysOrders.length,

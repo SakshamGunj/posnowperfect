@@ -16,12 +16,15 @@ import {
   MarketplaceProduct, 
   MarketplaceOrder, 
   MarketplaceOrderItem, 
+  MarketplaceCartItem,
   Supplier, 
   MarketplaceOrderStatus,
   MarketplaceCategory,
   PricingTier,
   SupplierReview,
-  MarketplaceAnalytics
+  MarketplaceAnalytics,
+  MarketplaceNotification,
+  OrderStatusHistory
 } from '@/types';
 
 // Collections
@@ -169,12 +172,19 @@ export const calculateCartItemPricing = (product: MarketplaceProduct, quantity: 
   const totalPrice = unitPrice * quantity;
   
   return {
+    id: `${product.id}-${Date.now()}`,
     productId: product.id,
-    product,
-    quantity,
-    selectedTier,
+    productName: product.name,
+    productImage: product.images[0] || '',
+    category: product.category,
+    supplierId: product.supplierId,
+    supplierName: product.supplierName,
+    unit: product.unit,
     unitPrice,
-    totalPrice
+    quantity,
+    appliedDiscount: selectedTier.discountPercentage || 0,
+    totalPrice,
+    product
   };
 };
 
@@ -371,7 +381,7 @@ export const getFeaturedProducts = async (limitCount: number = 12): Promise<Mark
 // ORDER MANAGEMENT
 // =============================================================================
 
-export const createOrder = async (orderData: Omit<MarketplaceOrder, 'id' | 'orderNumber' | 'createdAt' | 'updatedAt' | 'statusHistory'>): Promise<string> => {
+export const createOrder = async (orderData: Omit<MarketplaceOrder, 'id' | 'orderNumber' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   try {
     const orderNumber = generateOrderNumber();
     const initialStatusHistory: OrderStatusHistory = {
@@ -594,7 +604,7 @@ export const processCheckout = async (
         deliveryInstructions,
         isContractOrder: false,
         placedBy: restaurantId, // For now, using restaurantId as user ID
-        statusHistory: []
+        // statusHistory: []
       };
       
       const orderId = await createOrder(orderData);

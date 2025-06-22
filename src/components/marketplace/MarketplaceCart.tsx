@@ -12,10 +12,6 @@ import {
   AlertCircle,
   CheckCircle,
   User,
-  Phone,
-  Mail,
-  Package,
-  DollarSign,
   X
 } from 'lucide-react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -65,8 +61,8 @@ const MarketplaceCart: React.FC<MarketplaceCartProps> = ({ cartItems, onCartUpda
   const [showCheckout, setShowCheckout] = useState(false);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
   const [checkoutData, setCheckoutData] = useState({
-    deliveryAddress: restaurant?.address || {
-      street: '',
+    deliveryAddress: {
+      street: restaurant?.settings?.address || '',
       city: '',
       state: '',
       zipCode: '',
@@ -230,6 +226,7 @@ const MarketplaceCart: React.FC<MarketplaceCartProps> = ({ cartItems, onCartUpda
         orderNumber: `MP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         status: 'draft',
         items: supplierGroup.items.map(item => ({
+          id: `${item.productId}-${Date.now()}`,
           productId: item.productId,
           productName: item.productName,
           category: item.category,
@@ -253,7 +250,10 @@ const MarketplaceCart: React.FC<MarketplaceCartProps> = ({ cartItems, onCartUpda
           status: 'draft',
           timestamp: new Date(),
           notes: 'Order created'
-        }]
+        }],
+        paymentStatus: 'pending' as const,
+        isContractOrder: false,
+        placedBy: restaurant?.id || 'unknown',
       };
 
       const orderId = await createOrder(orderData);
