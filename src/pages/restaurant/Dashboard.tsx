@@ -20,7 +20,8 @@ import {
   Gift,
   Grid3X3,
   Receipt,
-  ShoppingCart
+  ShoppingCart,
+  Smartphone
 } from 'lucide-react';
 import { formatCurrency, getBusinessTypeDisplayName } from '@/lib/utils';
 import { OrderService } from '@/services/orderService';
@@ -47,7 +48,19 @@ export default function RestaurantDashboard() {
   const { restaurant } = useRestaurant();
   const { user } = useRestaurantAuth();
   const { canAccess } = useEmployeePermissions();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalOrdersToday: 0,
+    revenueToday: 0,
+    actualRevenueToday: 0,
+    creditAmountToday: 0,
+    activeTables: 0,
+    totalTables: 0,
+    ordersYesterday: 0,
+    revenueYesterday: 0,
+    actualRevenueYesterday: 0,
+    growth: 0,
+    actualGrowth: 0
+  });
   const [loading, setLoading] = useState(true);
   const [isSeeding, setIsSeeding] = useState(false);
 
@@ -101,8 +114,18 @@ export default function RestaurantDashboard() {
         }, 0);
 
         // Calculate actual revenue accounting for credits
-        const todayRevenueData = await RevenueService.calculateOrdersRevenue(todaysOrders, restaurant.id);
-        const yesterdayRevenueData = await RevenueService.calculateOrdersRevenue(yesterdaysOrders, restaurant.id);
+        let todayRevenueData = { actualRevenue: 0, creditAmount: 0 };
+        let yesterdayRevenueData = { actualRevenue: 0, creditAmount: 0 };
+        
+        try {
+          todayRevenueData = await RevenueService.calculateOrdersRevenue(todaysOrders, restaurant.id);
+          yesterdayRevenueData = await RevenueService.calculateOrdersRevenue(yesterdaysOrders, restaurant.id);
+        } catch (error) {
+          console.error('Error calculating revenue data:', error);
+          // Use fallback values
+          todayRevenueData = { actualRevenue: revenueToday, creditAmount: 0 };
+          yesterdayRevenueData = { actualRevenue: revenueYesterday, creditAmount: 0 };
+        }
 
         // Count active tables (tables with active orders)
         const activeTables = tables.filter(table => table.status === 'occupied').length;
@@ -118,16 +141,16 @@ export default function RestaurantDashboard() {
 
         setStats({
           totalOrdersToday: todaysOrders.length,
-          revenueToday,
+          revenueToday: revenueToday,
           actualRevenueToday: todayRevenueData.actualRevenue,
-          creditAmountToday: todayRevenueData.pendingCreditAmount,
-          activeTables,
+          creditAmountToday: todayRevenueData.creditAmount,
+          activeTables: activeTables,
           totalTables: tables.length,
           ordersYesterday: yesterdaysOrders.length,
-          revenueYesterday,
+          revenueYesterday: revenueYesterday,
           actualRevenueYesterday: yesterdayRevenueData.actualRevenue,
-          growth,
-          actualGrowth
+          growth: growth,
+          actualGrowth: actualGrowth
         });
 
       } catch (error) {
@@ -166,50 +189,50 @@ export default function RestaurantDashboard() {
 
   // Calculate percentage changes
   const getOrdersChange = () => {
-    if (!stats || stats.ordersYesterday === 0) return '+0%';
-    const change = ((stats.totalOrdersToday - stats.ordersYesterday) / stats.ordersYesterday) * 100;
+    if (!stats || (stats.ordersYesterday ?? 0) === 0) return '+0%';
+    const change = (((stats.totalOrdersToday ?? 0) - (stats.ordersYesterday ?? 0)) / (stats.ordersYesterday ?? 1)) * 100;
     return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
   };
 
   const getRevenueChange = () => {
-    if (!stats || stats.revenueYesterday === 0) return '+0%';
-    const change = ((stats.revenueToday - stats.revenueYesterday) / stats.revenueYesterday) * 100;
+    if (!stats || (stats.revenueYesterday ?? 0) === 0) return '+0%';
+    const change = (((stats.revenueToday ?? 0) - (stats.revenueYesterday ?? 0)) / (stats.revenueYesterday ?? 1)) * 100;
     return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
   };
 
   const getActualRevenueChange = () => {
-    if (!stats || stats.actualRevenueYesterday === 0) return '+0%';
-    const change = ((stats.actualRevenueToday - stats.actualRevenueYesterday) / stats.actualRevenueYesterday) * 100;
+    if (!stats || (stats.actualRevenueYesterday ?? 0) === 0) return '+0%';
+    const change = (((stats.actualRevenueToday ?? 0) - (stats.actualRevenueYesterday ?? 0)) / (stats.actualRevenueYesterday ?? 1)) * 100;
     return `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
   };
 
   const getTableOccupancy = () => {
-    if (!stats || stats.totalTables === 0) return '0%';
-    return `${Math.round((stats.activeTables / stats.totalTables) * 100)}%`;
+    if (!stats || (stats.totalTables ?? 0) === 0) return '0%';
+    return `${Math.round(((stats.activeTables ?? 0) / (stats.totalTables ?? 1)) * 100)}%`;
   };
 
   const dashboardStats = [
     {
       title: 'Total Orders Today',
-      value: loading ? '...' : stats?.totalOrdersToday.toString() || '0',
+      value: loading ? '...' : (stats?.totalOrdersToday ?? 0).toString(),
       change: loading ? '...' : getOrdersChange(),
       icon: ShoppingBag,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
-      isPositive: !loading && stats ? stats.totalOrdersToday >= stats.ordersYesterday : true,
+      isPositive: !loading && stats ? (stats.totalOrdersToday ?? 0) >= (stats.ordersYesterday ?? 0) : true,
     },
     {
       title: 'Actual Revenue Today',
-      value: loading ? '...' : formatCurrency(stats?.actualRevenueToday || 0),
+      value: loading ? '...' : formatCurrency(stats?.actualRevenueToday ?? 0),
       change: loading ? '...' : getActualRevenueChange(),
       icon: DollarSign,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
-      isPositive: !loading && stats ? stats.actualRevenueToday >= stats.actualRevenueYesterday : true,
+      isPositive: !loading && stats ? (stats.actualRevenueToday ?? 0) >= (stats.actualRevenueYesterday ?? 0) : true,
     },
     {
       title: 'Pending Credits',
-      value: loading ? '...' : formatCurrency(stats?.creditAmountToday || 0),
+      value: loading ? '...' : formatCurrency(stats?.creditAmountToday ?? 0),
       change: loading ? '...' : 'to collect',
       icon: Receipt,
       color: 'text-orange-600',
@@ -218,7 +241,7 @@ export default function RestaurantDashboard() {
     },
     {
       title: 'Active Tables',
-      value: loading ? '...' : `${stats?.activeTables || 0}/${stats?.totalTables || 0}`,
+      value: loading ? '...' : `${stats?.activeTables ?? 0}/${stats?.totalTables ?? 0}`,
       change: loading ? '...' : getTableOccupancy(),
       icon: Users,
       color: 'text-purple-600',
@@ -227,12 +250,12 @@ export default function RestaurantDashboard() {
     },
     {
       title: 'Revenue Growth',
-      value: loading ? '...' : `${stats?.growth.toFixed(1) || '0'}%`,
+      value: loading ? '...' : `${(stats?.growth ?? 0).toFixed(1)}%`,
       change: loading ? '...' : 'vs yesterday',
       icon: TrendingUp,
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
-      isPositive: !loading && stats ? stats.growth >= 0 : true,
+      isPositive: !loading && stats ? (stats.growth ?? 0) >= 0 : true,
     },
   ];
 
@@ -276,6 +299,14 @@ export default function RestaurantDashboard() {
       href: `/${restaurant.slug}/kitchen`,
       color: 'from-purple-500 to-purple-600',
       moduleId: 'kitchen',
+    },
+    {
+      title: 'Customer Portal',
+      description: 'Configure menu portal & QR codes',
+      icon: Smartphone,
+      href: `/${restaurant.slug}/customer-portal`,
+      color: 'from-blue-500 to-indigo-600',
+      moduleId: 'customer-portal',
     },
     {
       title: 'Customer Management',
@@ -341,19 +372,19 @@ export default function RestaurantDashboard() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-gray-600 mt-1 text-sm sm:text-base">
                 Welcome back! Here's an overview of your restaurant operations.
               </p>
             </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-500">Your Restaurant URL</div>
-              <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+            <div className="text-left lg:text-right">
+              <div className="text-xs sm:text-sm text-gray-500">Your Restaurant URL</div>
+              <code className="text-xs sm:text-sm font-mono bg-gray-100 px-2 py-1 rounded break-all">
                 {window.location.origin}/{restaurant.slug}
               </code>
             </div>
@@ -361,27 +392,27 @@ export default function RestaurantDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {dashboardStats.map((stat, index) => {
             const IconComponent = stat.icon;
             return (
-              <div key={index} className="card p-6">
+              <div key={index} className="card p-4 sm:p-6">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">{stat.title}</p>
                     <div className="flex items-center space-x-2 mt-1">
-                      <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                      {loading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+                      <p className="text-lg sm:text-2xl font-bold text-gray-900 truncate">{stat.value}</p>
+                      {loading && <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin text-gray-400 flex-shrink-0" />}
                     </div>
-                    <p className={`text-sm mt-1 ${
+                    <p className={`text-xs sm:text-sm mt-1 ${
                       stat.isPositive ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {stat.change} {stat.title !== 'Active Tables' && stat.title !== 'Revenue Growth' ? 'from yesterday' : ''}
                     </p>
                   </div>
                   
-                  <div className={`w-12 h-12 ${stat.bgColor} rounded-lg flex items-center justify-center`}>
-                    <IconComponent className={`w-6 h-6 ${stat.color}`} />
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 ${stat.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                    <IconComponent className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
                   </div>
                 </div>
               </div>
@@ -389,28 +420,28 @@ export default function RestaurantDashboard() {
           })}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
           {/* Quick Actions */}
           <div className="lg:col-span-2">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">Quick Actions</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Quick Actions</h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {quickActions.map((action, index) => {
                 const IconComponent = action.icon;
                 return (
                   <div
                     key={index}
-                    className="card card-hover p-6 cursor-pointer group"
+                    className="card card-hover p-4 sm:p-6 cursor-pointer group"
                     onClick={() => window.location.href = action.href}
                   >
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-12 h-12 bg-gradient-to-r ${action.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                        <IconComponent className="w-6 h-6 text-white" />
+                    <div className="flex items-center space-x-3 sm:space-x-4">
+                      <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r ${action.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0`}>
+                        <IconComponent className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                       </div>
                       
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{action.title}</h3>
-                        <p className="text-sm text-gray-600">{action.description}</p>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{action.title}</h3>
+                        <p className="text-xs sm:text-sm text-gray-600 line-clamp-2">{action.description}</p>
                       </div>
                     </div>
                   </div>
@@ -421,45 +452,45 @@ export default function RestaurantDashboard() {
 
           {/* Restaurant Info */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">Restaurant Information</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Restaurant Information</h2>
             
-            <div className="card p-6 space-y-4">
+            <div className="card p-4 sm:p-6 space-y-4">
               <div className="text-center pb-4 border-b border-gray-200">
                 <div 
-                  className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-white mb-3"
+                  className="w-12 h-12 sm:w-16 sm:h-16 mx-auto rounded-2xl flex items-center justify-center text-white mb-3"
                   style={{ background: 'var(--gradient-primary)' }}
                 >
-                  <Store className="w-8 h-8" />
+                  <Store className="w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
-                <h3 className="font-semibold text-gray-900">{restaurant.name}</h3>
-                <p className="text-sm text-gray-600">{getBusinessTypeDisplayName(restaurant.businessType)}</p>
+                <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{restaurant.name}</h3>
+                <p className="text-xs sm:text-sm text-gray-600">{getBusinessTypeDisplayName(restaurant.businessType)}</p>
               </div>
               
               <div className="space-y-3">
                 {restaurant.settings.address && (
                   <div className="flex items-start space-x-3">
                     <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                    <span className="text-sm text-gray-600">{restaurant.settings.address}</span>
+                    <span className="text-xs sm:text-sm text-gray-600 break-words">{restaurant.settings.address}</span>
                   </div>
                 )}
                 
                 {restaurant.settings.phone && (
                   <div className="flex items-center space-x-3">
                     <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-sm text-gray-600">{restaurant.settings.phone}</span>
+                    <span className="text-xs sm:text-sm text-gray-600">{restaurant.settings.phone}</span>
                   </div>
                 )}
                 
                 {restaurant.settings.email && (
                   <div className="flex items-center space-x-3">
                     <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-sm text-gray-600">{restaurant.settings.email}</span>
+                    <span className="text-xs sm:text-sm text-gray-600 break-all">{restaurant.settings.email}</span>
                   </div>
                 )}
                 
                 <div className="flex items-center space-x-3">
                   <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-sm text-gray-600">
+                  <span className="text-xs sm:text-sm text-gray-600">
                     Created {new Date(restaurant.createdAt).toLocaleDateString()}
                   </span>
                 </div>
@@ -467,68 +498,13 @@ export default function RestaurantDashboard() {
               
               <div className="pt-4 border-t border-gray-200">
                 <button 
-                  className="w-full btn btn-theme-primary"
+                  className="w-full btn btn-theme-primary text-sm"
                   onClick={() => window.location.href = `/${restaurant.slug}/settings`}
                 >
                   <Settings className="w-4 h-4 mr-2" />
                   Manage Settings
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Welcome Message for New Restaurants */}
-        <div className="mt-8 card p-6 bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
-          <div className="flex items-start space-x-4">
-            <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Store className="w-6 h-6 text-white" />
-            </div>
-            
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Welcome to TenVerse POS!
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Your restaurant is now set up and ready to go. Start by creating your menu, 
-                setting up tables, and adding staff members. Need help getting started?
-              </p>
-              
-              <div className="flex flex-wrap gap-3">
-                <button className="btn btn-primary">
-                  Setup Menu
-                </button>
-                <button className="btn btn-secondary">
-                  Add Tables
-                </button>
-                <button className="btn btn-secondary">
-                  Invite Staff
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Load Sample Data Button */}
-        <div className="mt-8 card p-6 bg-gradient-to-r from-green-50 to-green-100 border-green-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Load Sample Data
-              </h3>
-              <p className="text-sm text-gray-600">
-                Load sample data to test the application
-              </p>
-            </div>
-            <div className="text-right">
-              <button
-                className="btn btn-theme-primary"
-                onClick={handleSeedData}
-                disabled={isSeeding}
-              >
-                {isSeeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4 mr-2" />}
-                {isSeeding ? 'Loading...' : 'Load Sample Data'}
-              </button>
             </div>
           </div>
         </div>

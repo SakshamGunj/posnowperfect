@@ -848,7 +848,7 @@ export default function Customers() {
       {/* Customer Orders Modal */}
       {showOrdersModal && selectedCustomer && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={() => {
               setShowOrdersModal(false);
               setCustomerGamificationHistory(null);
@@ -856,31 +856,31 @@ export default function Customers() {
               setSelectedCustomer(null);
             }}></div>
             
-            <div className="inline-block w-full max-w-4xl my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <div className="flex items-center justify-between">
+            <div className="inline-block w-full max-w-4xl my-4 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl max-h-[95vh] overflow-y-auto">
+              <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                       {selectedCustomer.name || 'Customer'} - Complete Profile
                     </h3>
-                    <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0 text-xs sm:text-sm text-gray-600 mt-1">
                       <div className="flex items-center space-x-1">
-                        <Users className="w-4 h-4" />
+                        <Users className="w-3 h-3 sm:w-4 sm:h-4" />
                         <span>{selectedCustomer.visitCount} visits</span>
                       </div>
                       <div className="flex items-center space-x-1">
-                        <DollarSign className="w-4 h-4" />
+                        <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
                         <span>{formatCurrency(selectedCustomer.totalSpent)} spent</span>
                       </div>
                       {customerOrders.length > 0 && (
                         <div className="flex items-center space-x-1">
-                          <TrendingUp className="w-4 h-4" />
+                          <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
                           <span>{formatCurrency(customerOrders.reduce((sum, order) => sum + order.total, 0) / customerOrders.length)} avg order</span>
                         </div>
                       )}
                       {customerGamificationHistory && (
                         <div className="flex items-center space-x-1">
-                          <Gift className="w-4 h-4" />
+                          <Gift className="w-3 h-3 sm:w-4 sm:h-4" />
                           <span>{customerGamificationHistory.stats.totalSpins} spins</span>
                         </div>
                       )}
@@ -893,41 +893,41 @@ export default function Customers() {
                       setCustomerLoyaltyInfo(null);
                       setSelectedCustomer(null);
                     }}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 hover:text-gray-600 self-start sm:self-center"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>
 
-              <div className="p-6">
+              <div className="p-3 sm:p-6">
                 {/* Loyalty Points Section */}
                 {customerLoyaltyInfo && (
-                  <div className="mb-8">
-                    <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                      <Award className="w-5 h-5 mr-2 text-purple-600" />
+                  <div className="mb-6 sm:mb-8">
+                    <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 flex items-center">
+                      <Award className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-purple-600" />
                       Loyalty Status & Points
                     </h4>
                     
-                    <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-6 rounded-lg border border-purple-200">
+                    <div className="bg-gradient-to-br from-purple-50 to-blue-50 p-3 sm:p-6 rounded-lg border border-purple-200">
                       {/* Current Status */}
-                      <div className="flex items-center justify-between mb-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-3">
                         <div className="flex items-center space-x-3">
-                          <div className="text-3xl">
+                          <div className="text-2xl sm:text-3xl">
                             {customerLoyaltyInfo.loyaltyInfo.currentThreshold?.badgeIcon || '🥉'}
                           </div>
                           <div>
-                            <h5 className="text-xl font-bold text-gray-900">
+                            <h5 className="text-lg sm:text-xl font-bold text-gray-900">
                               {customerLoyaltyInfo.loyaltyInfo.currentThreshold?.name || 'Bronze Member'}
                             </h5>
-                            <p className="text-gray-600">
+                            <p className="text-gray-600 text-sm sm:text-base">
                               {customerLoyaltyInfo.loyaltyInfo.currentPoints} loyalty points
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm text-gray-600">Member since</div>
-                          <div className="font-medium text-gray-900">
+                        <div className="text-left sm:text-right">
+                          <div className="text-xs sm:text-sm text-gray-600">Member since</div>
+                          <div className="font-medium text-gray-900 text-sm sm:text-base">
                             {new Date(customerLoyaltyInfo.loyaltyInfo.memberSince).toLocaleDateString()}
                           </div>
                         </div>
@@ -935,18 +935,18 @@ export default function Customers() {
 
                       {/* Progress to Next Level */}
                       {customerLoyaltyInfo.loyaltyInfo.nextThreshold && (
-                        <div className="mb-6">
+                        <div className="mb-4 sm:mb-6">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-gray-700">
+                            <span className="text-xs sm:text-sm font-medium text-gray-700">
                               Progress to {customerLoyaltyInfo.loyaltyInfo.nextThreshold.name}
                             </span>
-                            <span className="text-sm font-medium text-gray-700">
+                            <span className="text-xs sm:text-sm font-medium text-gray-700">
                               {customerLoyaltyInfo.loyaltyInfo.pointsToNext} points to go
                             </span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div className="w-full bg-gray-200 rounded-full h-2 sm:h-3">
                             <div 
-                              className="bg-gradient-to-r from-purple-500 to-blue-500 h-3 rounded-full transition-all duration-300"
+                              className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 sm:h-3 rounded-full transition-all duration-300"
                               style={{ width: `${customerLoyaltyInfo.loyaltyInfo.progressToNext}%` }}
                             />
                           </div>
@@ -959,11 +959,11 @@ export default function Customers() {
                       {/* Current Level Benefits */}
                       {customerLoyaltyInfo.loyaltyInfo.currentThreshold?.benefits && (
                         <div className="mb-4">
-                          <h6 className="text-sm font-medium text-gray-700 mb-2">Current Level Benefits:</h6>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <h6 className="text-xs sm:text-sm font-medium text-gray-700 mb-2">Current Level Benefits:</h6>
+                          <div className="grid grid-cols-1 gap-2">
                             {customerLoyaltyInfo.loyaltyInfo.currentThreshold.benefits.map((benefit: string, idx: number) => (
-                              <div key={idx} className="flex items-center text-sm text-gray-600">
-                                <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
+                              <div key={idx} className="flex items-center text-xs sm:text-sm text-gray-600">
+                                <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-500 mr-2 flex-shrink-0" />
                                 {benefit}
                               </div>
                             ))}
@@ -972,21 +972,21 @@ export default function Customers() {
                       )}
 
                       {/* Stats Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-                        <div className="text-center p-3 bg-white rounded-lg">
-                          <div className="text-2xl font-bold text-purple-600">
+                      <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-4">
+                        <div className="text-center p-2 sm:p-3 bg-white rounded-lg">
+                          <div className="text-lg sm:text-2xl font-bold text-purple-600">
                             {customerLoyaltyInfo.loyaltyInfo.totalSpins || 0}
                           </div>
                           <div className="text-xs text-gray-600">Gamification Spins</div>
                         </div>
-                        <div className="text-center p-3 bg-white rounded-lg">
-                          <div className="text-2xl font-bold text-blue-600">
+                        <div className="text-center p-2 sm:p-3 bg-white rounded-lg">
+                          <div className="text-lg sm:text-2xl font-bold text-blue-600">
                             {customerLoyaltyInfo.loyaltyInfo.totalPointsEarned}
                           </div>
                           <div className="text-xs text-gray-600">Points Earned</div>
                         </div>
-                        <div className="text-center p-3 bg-white rounded-lg md:col-span-1 col-span-2">
-                          <div className="text-2xl font-bold text-green-600">
+                        <div className="text-center p-2 sm:p-3 bg-white rounded-lg">
+                          <div className="text-lg sm:text-2xl font-bold text-green-600">
                             {customerLoyaltyInfo.loyaltyInfo.currentPoints}
                           </div>
                           <div className="text-xs text-gray-600">Current Balance</div>
@@ -995,12 +995,12 @@ export default function Customers() {
 
                       {/* Next Level Preview */}
                       {customerLoyaltyInfo.loyaltyInfo.nextThreshold && (
-                        <div className="mt-4 p-3 bg-white rounded-lg border border-dashed border-purple-300">
+                        <div className="mt-4 p-2 sm:p-3 bg-white rounded-lg border border-dashed border-purple-300">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-2">
-                              <span className="text-lg">{customerLoyaltyInfo.loyaltyInfo.nextThreshold.badgeIcon}</span>
+                              <span className="text-base sm:text-lg">{customerLoyaltyInfo.loyaltyInfo.nextThreshold.badgeIcon}</span>
                               <div>
-                                <div className="font-medium text-gray-900">
+                                <div className="font-medium text-gray-900 text-sm sm:text-base">
                                   {customerLoyaltyInfo.loyaltyInfo.nextThreshold.name}
                                 </div>
                                 <div className="text-xs text-gray-600">
@@ -1019,30 +1019,30 @@ export default function Customers() {
                 )}
 
                 {/* Gamification History Section */}
-                <div className="mb-8">
-                  <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                    <Gift className="w-5 h-5 mr-2 text-purple-600" />
+                <div className="mb-6 sm:mb-8">
+                  <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 flex items-center">
+                    <Gift className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-purple-600" />
                     Gamification Activity
                   </h4>
                   
                   {loadingGamification ? (
                     <div className="flex items-center justify-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mr-2"></div>
-                      <span className="text-gray-600">Loading gamification history...</span>
+                      <div className="animate-spin rounded-full h-5 w-5 sm:h-6 sm:w-6 border-b-2 border-purple-600 mr-2"></div>
+                      <span className="text-gray-600 text-sm sm:text-base">Loading gamification history...</span>
                     </div>
                   ) : customerGamificationHistory ? (
                     <div className="space-y-4">
                       {/* Gamification Stats */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:bg-purple-100 transition-colors">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4 hover:bg-purple-100 transition-colors">
                           <div className="flex items-center justify-between">
                             <div>
-                          <div className="text-2xl font-bold text-purple-600">
-                            {customerGamificationHistory.stats.totalSpins}
-                          </div>
-                              <div className="text-sm text-purple-600 font-medium">Total Spins</div>
-                        </div>
-                            <div className="text-3xl">🎰</div>
+                              <div className="text-lg sm:text-2xl font-bold text-purple-600">
+                                {customerGamificationHistory.stats.totalSpins}
+                              </div>
+                              <div className="text-xs sm:text-sm text-purple-600 font-medium">Total Spins</div>
+                            </div>
+                            <div className="text-xl sm:text-3xl">🎰</div>
                           </div>
                           <div className="text-xs text-purple-500 mt-1">
                             {customerGamificationHistory.stats.totalSpins > 0 && customerGamificationHistory.stats.totalCoupons > 0 && (
@@ -1050,29 +1050,29 @@ export default function Customers() {
                             )}
                           </div>
                         </div>
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 hover:bg-green-100 transition-colors">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4 hover:bg-green-100 transition-colors">
                           <div className="flex items-center justify-between">
                             <div>
-                          <div className="text-2xl font-bold text-green-600">
-                            {customerGamificationHistory.stats.totalCoupons}
-                          </div>
-                              <div className="text-sm text-green-600 font-medium">Coupons Earned</div>
-                        </div>
-                            <div className="text-3xl">🎟️</div>
+                              <div className="text-lg sm:text-2xl font-bold text-green-600">
+                                {customerGamificationHistory.stats.totalCoupons}
+                              </div>
+                              <div className="text-xs sm:text-sm text-green-600 font-medium">Coupons Earned</div>
+                            </div>
+                            <div className="text-xl sm:text-3xl">🎟️</div>
                           </div>
                           <div className="text-xs text-green-500 mt-1">
                             {customerGamificationHistory.stats.totalCoupons - customerGamificationHistory.stats.redeemedCoupons} unused
                           </div>
                         </div>
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:bg-blue-100 transition-colors">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 hover:bg-blue-100 transition-colors">
                           <div className="flex items-center justify-between">
                             <div>
-                          <div className="text-2xl font-bold text-blue-600">
-                            {customerGamificationHistory.stats.redeemedCoupons}
-                          </div>
-                              <div className="text-sm text-blue-600 font-medium">Coupons Used</div>
-                        </div>
-                            <div className="text-3xl">✅</div>
+                              <div className="text-lg sm:text-2xl font-bold text-blue-600">
+                                {customerGamificationHistory.stats.redeemedCoupons}
+                              </div>
+                              <div className="text-xs sm:text-sm text-blue-600 font-medium">Coupons Used</div>
+                            </div>
+                            <div className="text-xl sm:text-3xl">✅</div>
                           </div>
                           <div className="text-xs text-blue-500 mt-1">
                             {customerGamificationHistory.stats.totalCoupons > 0 && (
@@ -1080,15 +1080,15 @@ export default function Customers() {
                             )}
                           </div>
                         </div>
-                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 hover:bg-orange-100 transition-colors">
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4 hover:bg-orange-100 transition-colors">
                           <div className="flex items-center justify-between">
                             <div>
-                          <div className="text-2xl font-bold text-orange-600">
-                            {formatCurrency(customerGamificationHistory.stats.totalDiscountEarned)}
-                          </div>
-                              <div className="text-sm text-orange-600 font-medium">Total Rewards</div>
+                              <div className="text-lg sm:text-2xl font-bold text-orange-600">
+                                {formatCurrency(customerGamificationHistory.stats.totalDiscountEarned)}
+                              </div>
+                              <div className="text-xs sm:text-sm text-orange-600 font-medium">Total Rewards</div>
                             </div>
-                            <div className="text-3xl">💰</div>
+                            <div className="text-xl sm:text-3xl">💰</div>
                           </div>
                           <div className="text-xs text-orange-500 mt-1">
                             {formatCurrency(customerGamificationHistory.stats.totalDiscountUsed)} used
@@ -1098,20 +1098,20 @@ export default function Customers() {
 
                       {/* Engagement Summary */}
                       {customerGamificationHistory.stats.firstSpinDate && (
-                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 mb-4">
-                          <div className="flex items-center justify-between">
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div>
-                              <h6 className="font-medium text-gray-900 mb-1">Gamification Journey</h6>
-                              <div className="text-sm text-gray-600">
+                              <h6 className="font-medium text-gray-900 mb-1 text-sm sm:text-base">Gamification Journey</h6>
+                              <div className="text-xs sm:text-sm text-gray-600">
                                 <div>Started: {new Date(customerGamificationHistory.stats.firstSpinDate).toLocaleDateString()}</div>
                                 {customerGamificationHistory.stats.lastSpinDate && (
                                   <div>Last Activity: {new Date(customerGamificationHistory.stats.lastSpinDate).toLocaleDateString()}</div>
                                 )}
                               </div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-sm text-gray-600">Engagement Level</div>
-                              <div className="font-bold text-lg">
+                            <div className="text-left sm:text-right">
+                              <div className="text-xs sm:text-sm text-gray-600">Engagement Level</div>
+                              <div className="font-bold text-sm sm:text-lg">
                                 {customerGamificationHistory.stats.totalSpins >= 20 ? (
                                   <span className="text-purple-600">🏆 VIP Player</span>
                                 ) : customerGamificationHistory.stats.totalSpins >= 10 ? (
@@ -1131,8 +1131,8 @@ export default function Customers() {
                       {customerGamificationHistory.spins.length > 0 && (
                         <div>
                           <div className="flex items-center justify-between mb-3">
-                            <h5 className="font-medium text-gray-900">Spin Wheel History</h5>
-                            <span className="text-sm text-gray-500">
+                            <h5 className="font-medium text-gray-900 text-sm sm:text-base">Spin Wheel History</h5>
+                            <span className="text-xs sm:text-sm text-gray-500">
                               {customerGamificationHistory.spins.length} total spins
                             </span>
                           </div>
@@ -1141,46 +1141,46 @@ export default function Customers() {
                               <button
                                 key={spin.id || idx} 
                                 onClick={() => setSelectedSpin(spin)}
-                                className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer border border-transparent hover:border-blue-300 group"
+                                className="w-full flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer border border-transparent hover:border-blue-300 group"
                               >
-                                <div className="flex items-center space-x-3">
-                                  <div className="text-2xl">
+                                <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                                  <div className="text-xl sm:text-2xl flex-shrink-0">
                                     {spin.resultMessage.includes('luck') ? '😔' : 
                                      spin.resultMessage.includes('%') ? '💯' : 
                                      spin.resultMessage.includes('Free') ? '🎁' : 
                                      spin.resultMessage.includes('discount') ? '🏷️' : '🎊'}
                                   </div>
-                                  <div className="flex-1 text-left">
-                                    <div className="font-medium text-gray-900 group-hover:text-blue-700">{spin.resultMessage}</div>
-                                    <div className="text-sm text-gray-500">
+                                  <div className="flex-1 text-left min-w-0">
+                                    <div className="font-medium text-gray-900 group-hover:text-blue-700 text-xs sm:text-sm truncate">{spin.resultMessage}</div>
+                                    <div className="text-xs text-gray-500">
                                       {new Date(spin.spinDate).toLocaleDateString()} at {new Date(spin.spinDate).toLocaleTimeString()}
                                     </div>
                                     {spin.pointsEarned > 0 && (
                                       <div className="text-xs text-purple-600 font-medium">
                                         +{spin.pointsEarned} loyalty points earned
-                                  </div>
+                                      </div>
                                     )}
                                     {spin.couponCode && (
-                                      <div className="text-xs text-blue-600 font-mono">
+                                      <div className="text-xs text-blue-600 font-mono truncate">
                                         Coupon: {spin.couponCode}
-                                </div>
+                                      </div>
                                     )}
                                   </div>
                                 </div>
-                                <div className="flex flex-col items-end space-y-1">
-                                  <Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-500 mb-1" />
+                                <div className="flex flex-col items-end space-y-1 flex-shrink-0">
+                                  <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 group-hover:text-blue-500 mb-1" />
                                   {spin.isClaimed && (
-                                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                    <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-green-100 text-green-800 text-xs rounded-full">
                                       Claimed
                                     </span>
                                   )}
                                   {spin.isRedeemed && (
-                                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                    <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
                                       Redeemed
                                     </span>
                                   )}
                                   {!spin.isClaimed && !spin.resultMessage.includes('luck') && (
-                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                                    <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
                                       Pending
                                     </span>
                                   )}
@@ -1201,7 +1201,7 @@ export default function Customers() {
                                     container.classList.toggle('max-h-96');
                                   }
                                 }}
-                                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium"
                               >
                                 View All Spins ({customerGamificationHistory.spins.length})
                               </button>
@@ -1214,11 +1214,11 @@ export default function Customers() {
                       {customerGamificationHistory.coupons.length > 0 && (
                         <div>
                           <div className="flex items-center justify-between mb-3">
-                            <h5 className="font-medium text-gray-900">Gamification Coupons</h5>
-                            <span className="text-sm text-gray-500">
+                            <h5 className="font-medium text-gray-900 text-sm sm:text-base">Gamification Coupons</h5>
+                            <span className="text-xs sm:text-sm text-gray-500">
                               {customerGamificationHistory.coupons.filter((c: any) => c.usageCount === 0).length} active
                             </span>
-                                  </div>
+                          </div>
                           <div className="space-y-3 max-h-60 overflow-y-auto">
                             {customerGamificationHistory.coupons.map((coupon: any, idx: number) => {
                               const isExpired = new Date(coupon.validity.endDate) < new Date();
@@ -1226,28 +1226,28 @@ export default function Customers() {
                               const isActive = !isExpired && !isUsed;
                               
                               return (
-                                <div key={coupon.id || idx} className={`p-4 rounded-lg border-2 transition-all ${
+                                <div key={coupon.id || idx} className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                                   isActive ? 'bg-green-50 border-green-200 hover:bg-green-100' :
                                   isUsed ? 'bg-blue-50 border-blue-200' :
                                   'bg-gray-50 border-gray-200'
                                 }`}>
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1">
+                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
                                       <div className="flex items-center space-x-2 mb-2">
-                                        <div className="text-lg">
+                                        <div className="text-base sm:text-lg">
                                           {coupon.type === 'percentage' ? '💯' : 
                                            coupon.type === 'fixed_amount' ? '💰' : 
                                            coupon.type === 'free_item' ? '🎁' : '🎟️'}
-                                </div>
-                                        <div className="font-medium text-gray-900">{coupon.name}</div>
-                                        <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                                        </div>
+                                        <div className="font-medium text-gray-900 text-sm sm:text-base truncate">{coupon.name}</div>
+                                        <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs rounded-full font-medium ${
                                           isActive ? 'bg-green-100 text-green-800' :
                                           isUsed ? 'bg-blue-100 text-blue-800' :
                                           'bg-red-100 text-red-800'
-                                }`}>
+                                        }`}>
                                           {isUsed ? 'Used' : isExpired ? 'Expired' : 'Available'}
-                                </span>
-                              </div>
+                                        </span>
+                                      </div>
                                       
                                       <div className="space-y-1">
                                         <div className="text-sm text-gray-600 flex items-center space-x-2">
@@ -1264,7 +1264,7 @@ export default function Customers() {
                                           >
                                             <Copy className="w-4 h-4" />
                                           </button>
-                          </div>
+                                        </div>
                                         
                                         <div className="text-sm text-gray-500">
                                           <div>
@@ -1282,8 +1282,8 @@ export default function Customers() {
                                           {coupon.metadata?.spinWheelName && (
                                             <div className="text-xs text-purple-600">
                                               From: {coupon.metadata.spinWheelName}
-                        </div>
-                      )}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
@@ -1302,7 +1302,6 @@ export default function Customers() {
                         </div>
                       )}
 
-
                     </div>
                   ) : (
                     <div className="text-center py-8 bg-gray-50 rounded-lg">
@@ -1313,70 +1312,62 @@ export default function Customers() {
                   )}
                 </div>
 
-                {/* Order History Section */}
-                {customerOrders.length === 0 ? (
-                  <div className="text-center py-12">
-                    <ShoppingBag className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h4 className="text-lg font-medium text-gray-900 mb-2">No Order History</h4>
-                    <p className="text-gray-600">
-                      This customer hasn't placed any orders yet.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Order Analytics */}
-                    <div>
-                      <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                        <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
-                        Order Analytics ({customerOrders.length} orders)
-                      </h4>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                {/* Order Analytics */}
+                {customerOrders.length > 0 && (
+                  <div className="mb-6 sm:mb-8">
+                    <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 flex items-center">
+                      <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-blue-600" />
+                      Order Analytics ({customerOrders.length} orders)
+                    </h4>
+                    
+                    <div className="space-y-4 sm:space-y-6">
+                      {/* Order Stats */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="text-2xl font-bold text-blue-600">
+                              <div className="text-lg sm:text-2xl font-bold text-blue-600">
                                 {customerOrders.length}
                               </div>
-                              <div className="text-sm text-blue-600 font-medium">Total Orders</div>
+                              <div className="text-xs sm:text-sm text-blue-600 font-medium">Total Orders</div>
                             </div>
-                            <div className="text-2xl">📊</div>
+                            <div className="text-xl sm:text-2xl">📊</div>
                           </div>
                         </div>
                         
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="text-2xl font-bold text-green-600">
+                              <div className="text-lg sm:text-2xl font-bold text-green-600">
                                 {formatCurrency(customerOrders.reduce((sum, order) => sum + order.total, 0))}
                               </div>
-                              <div className="text-sm text-green-600 font-medium">Total Spent</div>
+                              <div className="text-xs sm:text-sm text-green-600 font-medium">Total Spent</div>
                             </div>
-                            <div className="text-2xl">💰</div>
+                            <div className="text-xl sm:text-2xl">💰</div>
                           </div>
                         </div>
                         
-                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="text-2xl font-bold text-purple-600">
+                              <div className="text-lg sm:text-2xl font-bold text-purple-600">
                                 {formatCurrency(customerOrders.reduce((sum, order) => sum + order.total, 0) / customerOrders.length)}
                               </div>
-                              <div className="text-sm text-purple-600 font-medium">Avg Order</div>
+                              <div className="text-xs sm:text-sm text-purple-600 font-medium">Avg Order</div>
                             </div>
-                            <div className="text-2xl">📈</div>
+                            <div className="text-xl sm:text-2xl">📈</div>
                           </div>
                         </div>
                         
-                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="text-2xl font-bold text-orange-600">
+                              <div className="text-lg sm:text-2xl font-bold text-orange-600">
                                 {customerOrders.filter(order => order.status === 'completed').length}
                               </div>
-                              <div className="text-sm text-orange-600 font-medium">Completed</div>
+                              <div className="text-xs sm:text-sm text-orange-600 font-medium">Completed</div>
                             </div>
-                            <div className="text-2xl">✅</div>
+                            <div className="text-xl sm:text-2xl">✅</div>
                           </div>
                         </div>
                       </div>
@@ -1384,35 +1375,35 @@ export default function Customers() {
 
                     {/* Order History */}
                     <div>
-                      <h5 className="font-medium text-gray-900 mb-3">Recent Orders</h5>
-                      <div className="space-y-4 max-h-96 overflow-y-auto">
+                      <h5 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Recent Orders</h5>
+                      <div className="space-y-3 sm:space-y-4 max-h-96 overflow-y-auto">
                         {customerOrders.map((order) => (
-                          <div key={order.id} className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition-shadow">
+                          <div key={order.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-5 hover:shadow-md transition-shadow">
                             {/* Order Header */}
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="text-2xl">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4 gap-3">
+                              <div className="flex items-center space-x-2 sm:space-x-3">
+                                <div className="text-xl sm:text-2xl">
                                   {order.status === 'completed' ? '✅' : 
                                    order.status === 'cancelled' ? '❌' : 
                                    order.status === 'preparing' ? '👨‍🍳' : 
                                    order.status === 'ready' ? '🔔' : '⏳'}
                                 </div>
                                 <div>
-                                  <h6 className="font-semibold text-gray-900 text-lg">
+                                  <h6 className="font-semibold text-gray-900 text-sm sm:text-lg">
                                     Order #{order.orderNumber}
                                   </h6>
-                                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0 text-xs sm:text-sm text-gray-500">
                                     <div className="flex items-center space-x-1">
-                                      <Calendar className="w-4 h-4" />
+                                      <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
                                       <span>{new Date(order.createdAt).toLocaleDateString()}</span>
                                     </div>
                                     <div className="flex items-center space-x-1">
-                                      <Clock className="w-4 h-4" />
+                                      <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
                                       <span>{new Date(order.createdAt).toLocaleTimeString()}</span>
                                     </div>
                                     {order.tableId && (
                                       <div className="flex items-center space-x-1">
-                                        <MapPin className="w-4 h-4" />
+                                        <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
                                         <span>Table {order.tableId}</span>
                                       </div>
                                     )}
@@ -1420,11 +1411,11 @@ export default function Customers() {
                                 </div>
                               </div>
                               
-                              <div className="text-right">
-                                <div className="text-2xl font-bold text-gray-900">
+                              <div className="text-left sm:text-right">
+                                <div className="text-lg sm:text-2xl font-bold text-gray-900">
                                   {formatCurrency(order.total)}
                                 </div>
-                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                                <span className={`inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium ${
                                   order.status === 'completed' 
                                     ? 'bg-green-100 text-green-800'
                                     : order.status === 'cancelled'
@@ -1441,16 +1432,16 @@ export default function Customers() {
                             </div>
                             
                             {/* Order Items */}
-                            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                              <h6 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                                <ShoppingBag className="w-4 h-4 mr-2" />
+                            <div className="bg-gray-50 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+                              <h6 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3 flex items-center">
+                                <ShoppingBag className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                                 Items Ordered ({order.items.length})
                               </h6>
                               <div className="space-y-2">
                                 {order.items.map((item, idx) => (
-                                  <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0">
-                                    <div className="flex-1">
-                                      <div className="font-medium text-gray-900">
+                                  <div key={idx} className="flex justify-between items-start sm:items-center py-2 border-b border-gray-200 last:border-b-0">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-gray-900 text-xs sm:text-sm">
                                         {item.quantity}x {item.name}
                                       </div>
                                       {item.customizations && item.customizations.length > 0 && (
@@ -1464,8 +1455,8 @@ export default function Customers() {
                                         </div>
                                       )}
                                     </div>
-                                    <div className="text-right">
-                                      <div className="font-semibold text-gray-900">
+                                    <div className="text-right flex-shrink-0 ml-2">
+                                      <div className="font-semibold text-gray-900 text-xs sm:text-sm">
                                         {formatCurrency(item.total)}
                                       </div>
                                       <div className="text-xs text-gray-500">
@@ -1478,24 +1469,24 @@ export default function Customers() {
                             </div>
                             
                             {/* Order Summary */}
-                            <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4">
+                            <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-3 sm:p-4">
                               <div className="space-y-2">
-                                <div className="flex justify-between text-sm">
+                                <div className="flex justify-between text-xs sm:text-sm">
                                   <span className="text-gray-600">Subtotal:</span>
                                   <span className="font-medium">{formatCurrency(order.subtotal)}</span>
                                 </div>
-                                <div className="flex justify-between text-sm">
+                                <div className="flex justify-between text-xs sm:text-sm">
                                   <span className="text-gray-600">Tax:</span>
                                   <span className="font-medium">{formatCurrency(order.tax)}</span>
                                 </div>
                                 {order.discount > 0 && (
-                                  <div className="flex justify-between text-sm text-green-600">
+                                  <div className="flex justify-between text-xs sm:text-sm text-green-600">
                                     <span>Discount Applied:</span>
                                     <span className="font-medium">-{formatCurrency(order.discount)}</span>
                                   </div>
                                 )}
                                 <div className="border-t border-gray-300 pt-2 mt-2">
-                                  <div className="flex justify-between text-lg font-bold">
+                                  <div className="flex justify-between text-sm sm:text-lg font-bold">
                                     <span className="text-gray-900">Total:</span>
                                     <span className="text-blue-600">{formatCurrency(order.total)}</span>
                                   </div>
@@ -1505,12 +1496,12 @@ export default function Customers() {
 
                             {/* Order Notes */}
                             {order.notes && (
-                              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <div className="mt-3 sm:mt-4 p-2 sm:p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                                 <div className="flex items-start space-x-2">
                                   <div className="text-yellow-600 mt-0.5">📝</div>
                                   <div>
-                                    <span className="text-sm font-medium text-yellow-800">Order Notes:</span>
-                                    <p className="text-sm text-yellow-700 mt-1">{order.notes}</p>
+                                    <span className="text-xs sm:text-sm font-medium text-yellow-800">Order Notes:</span>
+                                    <p className="text-xs sm:text-sm text-yellow-700 mt-1">{order.notes}</p>
                                   </div>
                                 </div>
                               </div>
@@ -1530,23 +1521,23 @@ export default function Customers() {
       {/* Spin Details Modal */}
       {selectedSpin && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity bg-black bg-opacity-50" onClick={() => setSelectedSpin(null)}></div>
             
-            <div className="inline-block w-full max-w-2xl my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
+            <div className="inline-block w-full max-w-2xl my-4 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
               {/* Header */}
-              <div className="px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
+              <div className="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="text-3xl">
+                  <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                    <div className="text-2xl sm:text-3xl">
                       {selectedSpin.resultMessage.includes('luck') ? '😔' : 
                        selectedSpin.resultMessage.includes('%') ? '💯' : 
                        selectedSpin.resultMessage.includes('Free') ? '🎁' : 
                        selectedSpin.resultMessage.includes('discount') ? '🏷️' : '🎊'}
                     </div>
-                    <div>
-                      <h3 className="text-xl font-bold">Spin Details</h3>
-                      <p className="text-purple-100">{selectedSpin.resultMessage}</p>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-lg sm:text-xl font-bold">Spin Details</h3>
+                      <p className="text-purple-100 text-sm sm:text-base truncate">{selectedSpin.resultMessage}</p>
                     </div>
                   </div>
                   <button

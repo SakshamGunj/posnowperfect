@@ -4,11 +4,9 @@ import {
   getSuppliers 
 } from './marketplaceService';
 import { 
-  Supplier, 
   MarketplaceProduct, 
-  MarketplaceCategory,
-  PricingTier 
-} from '../types';
+  Supplier
+} from '@/types';
 
 // Sample Suppliers
 const sampleSuppliers: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>[] = [

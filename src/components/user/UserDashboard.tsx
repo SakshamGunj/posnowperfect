@@ -1,20 +1,35 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { 
+  ArrowLeft,
+  Gift,
+  Trophy,
+  Star,
+  MapPin,
+  Package,
+  Crown,
+  Target,
+  RefreshCw,
+  XCircle
+} from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import toast from 'react-hot-toast';
+import { useRestaurant } from '@/contexts/RestaurantContext';
+import { RestaurantService } from '@/services/restaurantService';
+import { RestaurantInfo } from '@/types';
+import { GamificationService } from '@/services/gamificationService';
+import { LoyaltyPointsService } from '@/services/loyaltyPointsService';
+import { formatCurrency, formatTime } from '@/lib/utils';
 import {
   Ticket,
   Phone,
   Search,
   CheckCircle,
   Clock,
-  Gift,
   Copy,
   Calendar,
-  Trophy,
   ExternalLink,
   Sparkles,
   X,
-  Star,
   Percent,
   Plus,
   ArrowRight,
@@ -34,22 +49,13 @@ import {
 } from 'lucide-react';
 
 import { CustomerSpin, Restaurant } from '@/types';
-import { GamificationService } from '@/services/gamificationService';
-import { RestaurantService } from '@/services/restaurantService';
 import { OrderService } from '@/services/orderService';
 import { CustomerService } from '@/services/customerService';
-import { LoyaltyPointsService } from '@/services/loyaltyPointsService';
-import { formatCurrency, formatTime, formatDate } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { Order } from '@/types';
 
 interface PhoneSearchForm {
   phone: string;
-}
-
-interface RestaurantInfo {
-  id: string;
-  name: string;
-  slug: string;
 }
 
 interface CustomerDashboardProps {
@@ -308,13 +314,15 @@ export default function CustomerDashboard({
     }
   };
 
+  // Helper function to get order status icon
   const getOrderStatusIcon = (status: string) => {
     switch (status) {
-      case 'placed': return <Clock className="w-4 h-4 text-yellow-600" />;
+      case 'pending': return <Clock className="w-4 h-4 text-yellow-600" />;
       case 'confirmed': return <CheckCircle className="w-4 h-4 text-blue-600" />;
-      case 'preparing': return <Utensils className="w-4 h-4 text-orange-600" />;
+      case 'preparing': return <Clock className="w-4 h-4 text-orange-600" />;
       case 'ready': return <CheckCircle className="w-4 h-4 text-green-600" />;
       case 'completed': return <Package className="w-4 h-4 text-green-600" />;
+      case 'cancelled': return <XCircle className="w-4 h-4 text-red-600" />;
       default: return <Clock className="w-4 h-4 text-gray-600" />;
     }
   };

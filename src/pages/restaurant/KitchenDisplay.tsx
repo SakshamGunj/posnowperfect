@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { OrderService } from '@/services/orderService';
 import { TableService } from '@/services/tableService';
@@ -27,7 +27,15 @@ import {
   Package,
   Smartphone,
   Zap,
-  CreditCard
+  CreditCard,
+  AlertCircle,
+  Settings,
+  Filter,
+  Search,
+  Hash,
+  User,
+  MapPin,
+  Phone
 } from 'lucide-react';
 
 interface KitchenStats {
@@ -385,19 +393,18 @@ export default function KitchenDisplay() {
       }
 
       // For other status updates (preparing, ready, etc.), keep the original functionality
-      const orderToUpdate = [...regularOrders, ...menuPortalOrders].find(order => order.id === orderId);
-      
-      const result = await OrderService.updateOrderStatus(orderId, restaurant.id, newStatus);
-      if (result.success) {
-        // If order is being completed and it's a regular dine-in order (not menu portal), handle table status
-        if (newStatus === 'completed' && orderToUpdate && orderToUpdate.tableId !== 'customer-portal') {
+      const orderToUpdate = orders.find(o => o.id === orderId);
+      if (orderToUpdate) {
+        await OrderService.updateOrderStatus(orderId, newStatus);
+        
+        // Handle table status update if order is completed and has a table
+        if (newStatus === 'completed' && orderToUpdate.tableId && orderToUpdate.tableId !== 'customer-portal') {
           await handleTableStatusAfterOrderCompletion(orderToUpdate.tableId);
         }
         
+        // Refresh orders
         await loadKitchenData();
-        toast.success(`Order status updated to ${newStatus}`);
-      } else {
-        toast.error('Failed to update order status');
+        toast.success(`Order #${orderToUpdate.orderNumber} marked as ${newStatus}`);
       }
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -918,7 +925,17 @@ export default function KitchenDisplay() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center space-x-1 text-blue-600">
                           <Package className="w-4 h-4" />
-                          <span className="font-medium">Online Order</span>
+                          <span className="font-medium">
+                            {(() => {
+                              // Check if this is a table-specific order
+                              const table = tables.find(t => t.id === order.tableId);
+                              if (table) {
+                                return `Table ${table.number} - ${table.area}`;
+                              } else {
+                                return 'Online Order';
+                              }
+                            })()}
+                          </span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <Timer className="w-4 h-4" />
@@ -929,10 +946,23 @@ export default function KitchenDisplay() {
                         </div>
                       </div>
                       
-                      <div className="flex items-center space-x-1 text-sm text-gray-500 mt-1">
+                      {(() => {
+                        const table = tables.find(t => t.id === order.tableId);
+                        return (
+                          <div className="flex items-center justify-between text-sm text-gray-500 mt-1">
+                            <div className="flex items-center space-x-1">
                         <Calendar className="w-4 h-4" />
                         <span>{formatTime(order.createdAt)}</span>
                       </div>
+                            {table && (
+                              <div className="flex items-center space-x-1 text-blue-600">
+                                <Users className="w-4 h-4" />
+                                <span className="font-medium">{table.capacity} seats</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Order Items */}

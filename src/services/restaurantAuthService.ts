@@ -18,7 +18,7 @@ import {
   writeBatch 
 } from 'firebase/firestore';
 import { auth, db, handleFirebaseError } from '@/lib/firebase';
-import { User, Employee } from '@/types';
+import { User } from '@/types';
 import { EmployeeService } from './employeeService';
 
 export interface RestaurantLoginResult {
@@ -450,6 +450,7 @@ export class RestaurantAuthService {
       );
 
       console.log('🔍 Searching for users with PIN...');
+      console.log('🔍 Searching for PIN:', cleanPin.substring(0, 2) + '**');
       let usersSnapshot;
       
       try {
@@ -469,6 +470,34 @@ export class RestaurantAuthService {
       
       if (usersSnapshot.empty) {
         console.log('❌ No users found with PIN');
+        
+        // Check if this PIN exists in pendingUsers (user hasn't completed signup)
+        const pendingUsersQuery = query(
+          collection(db, 'pendingUsers'),
+          where('pin', '==', cleanPin)
+        );
+        
+        try {
+          const pendingUsersSnapshot = await getDocs(pendingUsersQuery);
+          if (!pendingUsersSnapshot.empty) {
+            // Check if any pending user belongs to this restaurant
+            for (const pendingDoc of pendingUsersSnapshot.docs) {
+              const pendingData = pendingDoc.data();
+              if (pendingData.restaurantId) {
+                const restaurantDoc = await getDoc(doc(db, 'restaurants', pendingData.restaurantId));
+                if (restaurantDoc.exists() && restaurantDoc.data()?.slug === restaurantSlug) {
+                  return { 
+                    success: false, 
+                    error: 'Please complete your first-time setup by logging in with your email and password first, then you can use PIN login.' 
+                  };
+                }
+              }
+            }
+          }
+        } catch (pendingError) {
+          console.error('Error checking pending users:', pendingError);
+        }
+        
         return { success: false, error: 'Invalid PIN' };
       }
 

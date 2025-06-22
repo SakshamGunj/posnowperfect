@@ -30,8 +30,7 @@ import {
   Zap,
   Ticket,
   Coins,
-  Calendar,
-  TrendingUp
+  Calendar,  
 } from 'lucide-react';
 
 interface CustomerDashboardProps {
@@ -154,58 +153,53 @@ const CustomerDashboard = ({
         const loyaltyPoints = Math.floor(totalSpent / 10); // Simple calculation: 1 point per ₹10 spent
 
         // Load gamification data
-        let spinData = {
-          totalSpins: 0,
-          totalCoupons: 0,
-          redeemedCoupons: 0,
-          totalDiscountEarned: 0,
-          totalDiscountUsed: 0,
-          availableCoupons: [],
-          spinHistory: []
+        const loadGamificationData = async () => {
+          if (!restaurant || !phoneAuthUser?.phone) return;
+
+          setIsLoading(true);
+          try {
+            const [spinsResult, loyaltyResult] = await Promise.all([
+              GamificationIntegrationService.getCustomerSpins(restaurant.id, phoneAuthUser.phone),
+              LoyaltyPointsService.getCustomerLoyaltyInfo(restaurant.id, phoneAuthUser.phone)
+            ]);
+
+            if (spinsResult.success && spinsResult.data) {
+              const spins = spinsResult.data.spins || [];
+              const coupons = spinsResult.data.coupons || [];
+              
+              setStats({
+                totalOrders: customerOrders.length,
+                totalSpent,
+                averageOrderValue: avgOrderValue,
+                loyaltyPoints,
+                favoriteItems,
+                visitFrequency,
+                lastVisit,
+                spinData: {
+                  totalSpins: spins.length,
+                  totalCoupons: coupons.length,
+                  redeemedCoupons: coupons.filter((c: any) => c.isRedeemed).length,
+                  totalDiscountEarned: coupons.reduce((sum: number, c: any) => 
+                    sum + (c.discountValue || 0), 0),
+                  totalDiscountUsed: coupons.filter((c: any) => c.isRedeemed)
+                    .reduce((sum: number, c: any) => sum + (c.discountValue || 0), 0),
+                  availableCoupons: coupons?.filter((c: any) => !c.isRedeemed) || [] as any[],
+                  spinHistory: spins || [] as any[]
+                }
+              });
+            }
+
+            if (loyaltyResult.success && loyaltyResult.data) {
+              // Handle loyalty data
+            }
+          } catch (error) {
+            console.error('Error loading gamification data:', error);
+          } finally {
+            setIsLoading(false);
+          }
         };
 
-        try {
-          console.log('🎯 Loading gamification data for:', phoneAuthUser.phone, 'at restaurant:', restaurant.id);
-          const gamificationResult = await GamificationIntegrationService.getCustomerGamificationHistory(
-            restaurant.id,
-            phoneAuthUser.phone
-          );
-          
-          console.log('🎯 Gamification result:', gamificationResult);
-          
-          if (gamificationResult.success && gamificationResult.data) {
-            const { stats: gamificationStats, spins, coupons } = gamificationResult.data;
-            console.log('🎯 Gamification stats:', gamificationStats);
-            console.log('🎯 Spins:', spins);
-            console.log('🎯 Coupons:', coupons);
-            
-            spinData = {
-              totalSpins: gamificationStats.totalSpins || 0,
-              totalCoupons: gamificationStats.totalCoupons || 0,
-              redeemedCoupons: gamificationStats.redeemedCoupons || 0,
-              totalDiscountEarned: gamificationStats.totalDiscountEarned || 0,
-              totalDiscountUsed: gamificationStats.totalDiscountUsed || 0,
-              availableCoupons: coupons?.filter((c: any) => !c.isRedeemed) || [],
-              spinHistory: spins || []
-            };
-            console.log('🎯 Final spinData:', spinData);
-          } else {
-            console.log('❌ No gamification data found or request failed');
-          }
-        } catch (error) {
-          console.error('Failed to load gamification data:', error);
-        }
-
-        setStats({
-          totalOrders: customerOrders.length,
-          totalSpent,
-          averageOrderValue: avgOrderValue,
-          loyaltyPoints,
-          favoriteItems,
-          visitFrequency,
-          lastVisit,
-          spinData
-        });
+        await loadGamificationData();
       }
     } catch (error) {
       console.error('Failed to load customer data:', error);
@@ -612,8 +606,6 @@ const CustomerDashboard = ({
                       </div>
                     )}
                   </div>
-
-
 
                   {/* Quick Actions */}
                   <div>

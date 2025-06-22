@@ -198,15 +198,22 @@ export default function UserDashboardPage() {
             
             if (gamificationResult.success && gamificationResult.data) {
               const data = gamificationResult.data;
-              spinData = {
-                totalSpins: data.stats.totalSpins,
-                totalCoupons: data.stats.totalCoupons,
-                redeemedCoupons: data.stats.redeemedCoupons,
-                totalDiscountEarned: data.stats.totalDiscountEarned,
-                totalDiscountUsed: data.stats.totalDiscountUsed,
-                availableCoupons: (data.coupons || []).filter((c: any) => !c.isRedeemed && !c.isExpired) as any[],
-                spinHistory: (data.spins || []) as any[]
-              };
+              if (data.spins || data.coupons) {
+                const spins = data.spins || [];
+                const coupons = data.coupons || [];
+                
+                spinData = {
+                  totalSpins: spins.length,
+                  totalCoupons: coupons.length,
+                  redeemedCoupons: coupons.filter((c: any) => c.isRedeemed).length,
+                  totalDiscountEarned: coupons.reduce((sum: number, c: any) => 
+                    sum + (c.discountValue || 0), 0),
+                  totalDiscountUsed: coupons.filter((c: any) => c.isRedeemed)
+                    .reduce((sum: number, c: any) => sum + (c.discountValue || 0), 0),
+                  availableCoupons: (data.coupons || []).filter((c: any) => !c.isRedeemed && !c.isExpired) as any[],
+                  spinHistory: (data.spins || []) as any[]
+                };
+              }
             }
           } catch (error) {
             console.warn('Failed to load gamification data:', error);
@@ -306,7 +313,7 @@ export default function UserDashboardPage() {
         <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden mb-4 sm:mb-8">
           <div className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 p-4 sm:p-8 text-white">
             <button
-              onClick={() => navigate(`/${restaurant.slug}`)}
+              onClick={() => navigate(-1)}
               className="absolute top-4 left-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all"
             >
               <ArrowLeft className="w-5 h-5" />

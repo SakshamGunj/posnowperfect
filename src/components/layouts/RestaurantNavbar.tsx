@@ -19,14 +19,20 @@ import {
   Grid3X3,
   ChevronDown,
   TrendingUp,
+  Smartphone,
+  Receipt,
+  ShoppingCart,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useRestaurantAuth } from '@/contexts/RestaurantAuthContext';
+import { useEmployeePermissions, useUserRoleDisplay } from '@/hooks/useEmployeePermissions';
 
 export default function RestaurantNavbar() {
   const { restaurant } = useRestaurant();
   const { user, logout } = useRestaurantAuth();
+  const { canAccess } = useEmployeePermissions();
+  const userRoleDisplay = useUserRoleDisplay();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -55,56 +61,95 @@ export default function RestaurantNavbar() {
     },
   ];
 
-  const quickMenuItems = [
+  const allQuickMenuItems = [
     {
       name: 'Menu Management',
       href: `/${restaurant.slug}/menu`,
       icon: ChefHat,
       description: 'Manage menu items & categories',
+      moduleId: 'menu',
     },
     {
       name: 'Inventory',
       href: `/${restaurant.slug}/inventory`,
       icon: Package,
       description: 'Track stock & inventory',
+      moduleId: 'inventory',
     },
     {
       name: 'Customers',
       href: `/${restaurant.slug}/customers`,
       icon: CreditCard,
       description: 'Manage customer database',
+      moduleId: 'customers',
+    },
+    {
+      name: 'Credits',
+      href: `/${restaurant.slug}/credits`,
+      icon: Receipt,
+      description: 'Manage customer credits & payments',
+      moduleId: 'credits',
     },
     {
       name: 'Coupons',
       href: `/${restaurant.slug}/coupons`,
       icon: Gift,
       description: 'Manage coupons & promotions',
+      moduleId: 'coupons',
     },
     {
       name: 'Gamification',
       href: `/${restaurant.slug}/gamification`,
       icon: Grid3X3,
       description: 'Spin wheel & customer games',
+      moduleId: 'gamification',
     },
     {
       name: 'Kitchen Display',
       href: `/${restaurant.slug}/kitchen`,
       icon: Store,
       description: 'View kitchen orders',
+      moduleId: 'kitchen',
+    },
+    {
+      name: 'Customer Portal',
+      href: `/${restaurant.slug}/customer-portal`,
+      icon: Smartphone,
+      description: 'Configure menu portal & QR codes',
+      moduleId: 'customer_portal',
     },
     {
       name: 'Analytics',
       href: `/${restaurant.slug}/analytics`,
       icon: TrendingUp,
       description: 'View performance analytics',
+      moduleId: 'reports',
+    },
+    {
+      name: 'Employee Management',
+      href: `/${restaurant.slug}/employees`,
+      icon: Users,
+      description: 'Manage staff & permissions',
+      moduleId: 'employees',
+    },
+    {
+      name: 'Marketplace',
+      href: `/${restaurant.slug}/marketplace`,
+      icon: ShoppingCart,
+      description: 'Order bulk supplies',
+      moduleId: 'marketplace',
     },
     {
       name: 'Settings',
       href: `/${restaurant.slug}/settings`,
       icon: Settings,
       description: 'Restaurant settings',
+      moduleId: 'settings',
     },
   ];
+
+  // Filter menu items based on permissions
+  const quickMenuItems = allQuickMenuItems.filter(item => canAccess(item.moduleId));
 
   const handleNavigation = (href: string) => {
     navigate(href);
@@ -249,7 +294,7 @@ export default function RestaurantNavbar() {
               <div className="hidden md:flex items-center space-x-3 bg-gray-50 rounded-xl px-3 py-2">
                 <div className="text-right">
                   <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
-                  <p className="text-xs text-gray-500">{user?.role || 'Staff'}</p>
+                  <p className="text-xs text-gray-500">{userRoleDisplay}</p>
                 </div>
                 
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
@@ -289,9 +334,9 @@ export default function RestaurantNavbar() {
           ></div>
           
           {/* Sidebar */}
-          <div className="fixed inset-y-0 right-0 w-80 max-w-[85vw] bg-white shadow-2xl transform transition-transform ease-in-out duration-300">
+          <div className="fixed inset-y-0 right-0 w-80 max-w-[85vw] bg-white shadow-2xl transform transition-transform ease-in-out duration-300 flex flex-col">
             {/* Sidebar Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center space-x-3">
                 <div 
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg"
@@ -314,7 +359,7 @@ export default function RestaurantNavbar() {
             </div>
 
             {/* Navigation Items */}
-            <div className="px-4 py-6 space-y-2">
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-6 space-y-2" style={{ WebkitOverflowScrolling: 'touch' }}>
               {/* Primary Items */}
               <div className="mb-6">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
@@ -373,7 +418,7 @@ export default function RestaurantNavbar() {
             </div>
 
             {/* Mobile Search */}
-            <div className="px-6 py-4 border-t border-gray-200">
+            <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-4 w-4 text-gray-400" />
@@ -387,7 +432,7 @@ export default function RestaurantNavbar() {
             </div>
 
             {/* Mobile User Info */}
-            <div className="px-6 py-4 border-t border-gray-200">
+            <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200">
               <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
@@ -395,7 +440,7 @@ export default function RestaurantNavbar() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
-                    <p className="text-xs text-gray-500">{user?.role || 'Staff'}</p>
+                    <p className="text-xs text-gray-500">{userRoleDisplay}</p>
                   </div>
                 </div>
                 

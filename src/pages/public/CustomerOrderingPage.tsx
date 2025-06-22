@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Restaurant, MenuItem, Order, OrderItem } from '@/types';
 import { RestaurantService } from '@/services/restaurantService';
 import { MenuService } from '@/services/menuService';
 import { OrderService } from '@/services/orderService';
 import { CustomerService } from '@/services/customerService';
+import { TableService } from '@/services/tableService';
 import locationService, { LocationVerificationResult } from '@/services/locationService';
 import { userAuthService } from '@/services/userAuthService';
 import toast from 'react-hot-toast';
@@ -119,13 +119,14 @@ const PhoneEmailButton = () => {
 };
 
 export default function CustomerOrderingPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug, tableId } = useParams<{ slug: string; tableId?: string }>();
   const navigate = useNavigate();
   
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [portalSettings, setPortalSettings] = useState<CustomerPortalSettings | null>(null);
+  const [specificTable, setSpecificTable] = useState<any>(null); // Table info for table-specific orders
   const [isLoading, setIsLoading] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
@@ -324,6 +325,26 @@ export default function CustomerOrderingPage() {
       const menuResult = await MenuService.getMenuItemsForRestaurant(restaurantResult.data.id);
       if (menuResult.success && menuResult.data) {
         setMenuItems(menuResult.data.filter(item => item.isAvailable));
+      }
+
+      // Load specific table information if tableId is provided
+      if (tableId) {
+        console.log('📍 Loading table information for tableId:', tableId);
+        const tableResult = await TableService.getTableById(tableId, restaurantResult.data.id);
+        if (tableResult.success && tableResult.data) {
+          setSpecificTable(tableResult.data);
+          console.log('✅ Table loaded:', tableResult.data);
+          toast.success(`Welcome to Table ${tableResult.data.number} - ${tableResult.data.area}!`, {
+            duration: 3000,
+            style: {
+              background: 'rgba(34, 197, 94, 0.95)',
+              color: '#fff',
+            }
+          });
+        } else {
+          console.error('❌ Failed to load table:', tableResult.error);
+          toast.error('Table not found. Using general menu portal.');
+        }
       }
 
     } catch (error) {
@@ -1156,11 +1177,11 @@ export default function CustomerOrderingPage() {
 
       const result = await OrderService.createOrder(
         restaurant.id,
-        'customer-portal', // tableId for portal orders
+        specificTable ? specificTable.id : 'customer-portal', // Use specific table if available
         'customer-portal', // staffId for portal orders  
         cartItems,
         8.5, // tax rate
-        orderNotes
+        specificTable ? `${orderNotes} | Table: ${specificTable.number} (${specificTable.area})` : orderNotes
       );
       
       if (result.success && result.data) {
@@ -1339,6 +1360,14 @@ export default function CustomerOrderingPage() {
                     <h1 className="text-2xl font-black bg-gradient-to-r from-gray-900 via-blue-900 to-purple-900 bg-clip-text text-transparent font-['Poppins',_sans-serif]">
                       {restaurant.name}
                     </h1>
+                    {specificTable && (
+                      <div className="flex items-center space-x-1 mt-1 mb-2">
+                        <MapPin className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-700">
+                          Table {specificTable.number} - {specificTable.area} ({specificTable.capacity} seats)
+                        </span>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-2 mt-1">
                       {verificationResult && (
                         <div className="flex items-center space-x-1 px-2 py-1 bg-green-100/80 backdrop-blur-sm rounded-full text-xs">

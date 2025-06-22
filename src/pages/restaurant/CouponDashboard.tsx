@@ -276,36 +276,37 @@ export default function CouponDashboard() {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-                <Gift className="w-8 h-8 mr-3 text-pink-600" />
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
+                <Gift className="w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3 text-pink-600" />
                 Coupon Dashboard
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-gray-600 mt-1 text-sm sm:text-base">
                 Manage your restaurant's promotional campaigns and track performance
               </p>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
               <button 
-                className="btn btn-outline flex items-center"
+                className="btn btn-outline flex items-center justify-center text-sm sm:text-base"
                 onClick={() => setShowGamificationSection(!showGamificationSection)}
               >
                 <Target className="w-4 h-4 mr-2" />
-                {showGamificationSection ? 'Hide' : 'Show'} Spin Wheel Coupons
+                <span className="hidden sm:inline">{showGamificationSection ? 'Hide' : 'Show'} Spin Wheel Coupons</span>
+                <span className="sm:hidden">{showGamificationSection ? 'Hide' : 'Show'} Spin Coupons</span>
               </button>
               <button 
-                className="btn btn-outline flex items-center"
+                className="btn btn-outline flex items-center justify-center text-sm sm:text-base"
                 onClick={() => toast.success('Export functionality coming soon!')}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </button>
               <button 
-                className="btn btn-theme-primary flex items-center"
+                className="btn btn-theme-primary flex items-center justify-center text-sm sm:text-base"
                 onClick={() => setShowCreateModal(true)}
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -316,75 +317,75 @@ export default function CouponDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
-          <div className="card p-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-6 mb-6 sm:mb-8">
+          <div className="card p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Coupons</p>
-                <p className="text-2xl font-bold text-gray-900">{coupons.length}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Total Coupons</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{coupons.length}</p>
               </div>
-              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-                <Gift className="w-6 h-6 text-blue-600" />
+              <div className="w-8 h-8 sm:w-12 sm:h-12 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Gift className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600" />
               </div>
             </div>
           </div>
 
-          <div className="card p-6">
+          <div className="card p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Active Coupons</p>
-                <p className="text-2xl font-bold text-gray-900">{coupons.filter(c => c.status === 'active').length}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Active Coupons</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{coupons.filter(c => c.status === 'active').length}</p>
               </div>
-              <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-green-600" />
+              <div className="w-8 h-8 sm:w-12 sm:h-12 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6 text-green-600" />
               </div>
             </div>
           </div>
 
-          <div className="card p-6">
+          <div className="card p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Usage</p>
-                <p className="text-2xl font-bold text-gray-900">{coupons.reduce((sum, c) => sum + c.usageCount, 0)}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Total Usage</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{coupons.reduce((sum, c) => sum + c.usageCount, 0)}</p>
               </div>
-              <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center">
-                <Users className="w-6 h-6 text-purple-600" />
+              <div className="w-8 h-8 sm:w-12 sm:h-12 bg-purple-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Users className="w-4 h-4 sm:w-6 sm:h-6 text-purple-600" />
               </div>
             </div>
           </div>
 
-          <div className="card p-6">
+          <div className="card p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Expired</p>
-                <p className="text-2xl font-bold text-gray-900">{coupons.filter(c => c.status === 'expired').length}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Expired</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{coupons.filter(c => c.status === 'expired').length}</p>
               </div>
-              <div className="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center">
-                <Clock className="w-6 h-6 text-red-600" />
+              <div className="w-8 h-8 sm:w-12 sm:h-12 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Clock className="w-4 h-4 sm:w-6 sm:h-6 text-red-600" />
               </div>
             </div>
           </div>
 
-          <div className="card p-6">
+          <div className="card p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Savings</p>
-                <p className="text-2xl font-bold text-gray-900">₹0</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Total Savings</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">₹0</p>
               </div>
-              <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-orange-600" />
+              <div className="w-8 h-8 sm:w-12 sm:h-12 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <DollarSign className="w-4 h-4 sm:w-6 sm:h-6 text-orange-600" />
               </div>
             </div>
           </div>
 
-          <div className="card p-6">
+          <div className="card p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Draft Coupons</p>
-                <p className="text-2xl font-bold text-gray-900">{coupons.filter(c => c.status === 'draft').length}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Draft Coupons</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{coupons.filter(c => c.status === 'draft').length}</p>
               </div>
-              <div className="w-12 h-12 bg-teal-50 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-teal-600" />
+              <div className="w-8 h-8 sm:w-12 sm:h-12 bg-teal-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="w-4 h-4 sm:w-6 sm:h-6 text-teal-600" />
               </div>
             </div>
           </div>
@@ -392,8 +393,8 @@ export default function CouponDashboard() {
 
         {/* Gamification Coupons Section */}
         {showGamificationSection && (
-          <div className="card p-6 mb-8">
-            <div className="flex items-center justify-between mb-6">
+          <div className="card p-4 sm:p-6 mb-6 sm:mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 flex items-center">
                   <Target className="w-5 h-5 mr-2 text-purple-600" />
@@ -404,21 +405,22 @@ export default function CouponDashboard() {
             </div>
 
             {/* Search Bar */}
-            <div className="flex items-center space-x-4 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6">
               <div className="flex-1 relative">
                 <input
                   type="text"
                   placeholder="Search by coupon code, customer name, or phone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base"
                   onKeyPress={(e) => e.key === 'Enter' && handleSearchGamificationCoupons()}
                 />
               </div>
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
               <button
                 onClick={handleSearchGamificationCoupons}
                 disabled={isSearching}
-                className="btn btn-theme-primary flex items-center"
+                  className="btn btn-theme-primary flex items-center justify-center text-sm sm:text-base"
               >
                 {isSearching ? (
                   <>
@@ -439,7 +441,7 @@ export default function CouponDashboard() {
                     handleSearchGamificationCoupons();
                   }}
                   disabled={isSearching}
-                  className="btn btn-outline flex items-center"
+                  className="btn btn-outline flex items-center justify-center text-sm sm:text-base"
                 >
                   Show All
                 </button>
@@ -501,25 +503,27 @@ export default function CouponDashboard() {
                       toast.error('Error creating test coupon');
                     }
                   }}
-                  className="btn btn-secondary flex items-center"
+                  className="btn btn-secondary flex items-center justify-center text-sm sm:text-base"
                 >
-                  🧪 Create Test Coupon
+                  <span className="hidden sm:inline">🧪 Create Test Coupon</span>
+                  <span className="sm:hidden">🧪 Test</span>
                 </button>
+              </div>
             </div>
 
             {/* Search Results */}
             {searchResults.length > 0 ? (
               <div className="space-y-4">
                 <h3 className="font-medium text-gray-900">Search Results ({searchResults.length})</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {searchResults.map((coupon) => (
                     <div key={coupon.id} className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow">
                       <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{coupon.name}</h4>
-                          <p className="text-sm text-gray-600 mt-1">{coupon.description}</p>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-gray-900 truncate">{coupon.name}</h4>
+                          <p className="text-sm text-gray-600 mt-1 line-clamp-2">{coupon.description}</p>
                         </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${
                           coupon.usageCount > 0 
                             ? 'bg-red-100 text-red-800' 
                             : 'bg-green-100 text-green-800'
@@ -531,7 +535,7 @@ export default function CouponDashboard() {
                       <div className="bg-gray-50 rounded-lg p-3 mb-3">
                 <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-600">Coupon Code:</span>
-                          <code className="bg-white px-2 py-1 rounded text-sm font-mono border">
+                          <code className="bg-white px-2 py-1 rounded text-sm font-mono border truncate max-w-24">
                             {coupon.code}
                   </code>
                 </div>
@@ -540,7 +544,7 @@ export default function CouponDashboard() {
                       <div className="space-y-2 mb-4">
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Customer:</span>
-                          <span className="font-medium">{coupon.metadata?.userName}</span>
+                          <span className="font-medium truncate ml-2">{coupon.metadata?.userName}</span>
                 </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Phone:</span>
@@ -548,13 +552,13 @@ export default function CouponDashboard() {
                 </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Spin Date:</span>
-                          <span className="font-medium">
+                          <span className="font-medium text-xs sm:text-sm">
                             {coupon.metadata?.spinDate ? new Date(coupon.metadata.spinDate).toLocaleDateString() : 'N/A'}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Expires:</span>
-                          <span className="font-medium">
+                          <span className="font-medium text-xs sm:text-sm">
                             {new Date(coupon.validity.endDate).toLocaleDateString()}
                           </span>
               </div>
@@ -563,7 +567,7 @@ export default function CouponDashboard() {
                       <button
                         onClick={() => handleRedeemCoupon(coupon.code)}
                         disabled={coupon.usageCount > 0 || redeemingCoupon === coupon.code}
-                        className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
+                        className={`w-full py-2 px-4 rounded-lg font-medium transition-colors text-sm ${
                           coupon.usageCount > 0
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                             : 'bg-purple-600 text-white hover:bg-purple-700'
@@ -586,22 +590,22 @@ export default function CouponDashboard() {
                 </div>
             ) : searchTerm && !isSearching ? (
               <div className="text-center py-8">
-                <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No coupons found</h3>
-                <p className="text-gray-500">Try searching with a different coupon code, name, or phone number.</p>
+                <Target className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No coupons found</h3>
+                <p className="text-gray-500 text-sm sm:text-base">Try searching with a different coupon code, name, or phone number.</p>
                 </div>
             ) : (
               <div className="text-center py-8">
-                <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Search for Spin Wheel Coupons</h3>
-                <p className="text-gray-500">Enter a coupon code, customer name, or phone number to find and redeem spin wheel coupons.</p>
+                <Target className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Search for Spin Wheel Coupons</h3>
+                <p className="text-gray-500 text-sm sm:text-base">Enter a coupon code, customer name, or phone number to find and redeem spin wheel coupons.</p>
               </div>
             )}
             </div>
         )}
 
         {/* Your Coupons */}
-        <div className="card p-6">
+        <div className="card p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Coupons</h2>
           
           {loadingCoupons ? (
@@ -610,12 +614,12 @@ export default function CouponDashboard() {
               <span className="ml-2 text-gray-600">Loading coupons...</span>
               </div>
           ) : coupons.length === 0 ? (
-            <div className="text-center py-12">
-              <Gift className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No coupons yet</h3>
-              <p className="text-gray-500 mb-4">Create your first coupon to start offering promotions to your customers.</p>
+            <div className="text-center py-8 sm:py-12">
+              <Gift className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No coupons yet</h3>
+              <p className="text-gray-500 mb-4 text-sm sm:text-base">Create your first coupon to start offering promotions to your customers.</p>
               <button 
-                className="btn btn-theme-primary"
+                className="btn btn-theme-primary text-sm sm:text-base"
                 onClick={() => setShowCreateModal(true)}
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -623,7 +627,7 @@ export default function CouponDashboard() {
               </button>
                 </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {coupons.map((coupon, index) => {
                 const getColorByIndex = (index: number) => {
                   const colors = [
@@ -639,10 +643,10 @@ export default function CouponDashboard() {
 
                 const getIconByType = (type: CouponType) => {
                   switch(type) {
-                    case 'percentage_discount': return <Percent className="w-8 h-8" />;
-                    case 'fixed_amount': return <DollarSign className="w-8 h-8" />;
-                    case 'buy_x_get_y': return <Gift className="w-8 h-8" />;
-                    default: return <Gift className="w-8 h-8" />;
+                    case 'percentage_discount': return <Percent className="w-6 h-6 sm:w-8 sm:h-8" />;
+                    case 'fixed_amount': return <DollarSign className="w-6 h-6 sm:w-8 sm:h-8" />;
+                    case 'buy_x_get_y': return <Gift className="w-6 h-6 sm:w-8 sm:h-8" />;
+                    default: return <Gift className="w-6 h-6 sm:w-8 sm:h-8" />;
                   }
                 };
 
@@ -660,25 +664,25 @@ export default function CouponDashboard() {
                 const usagePercentage = usageLimit > 0 ? (coupon.usageCount / usageLimit) * 100 : 0;
 
                 return (
-                  <div key={coupon.id} className={`bg-gradient-to-r ${getColorByIndex(index)} rounded-xl p-6 text-white`}>
+                  <div key={coupon.id} className={`bg-gradient-to-r ${getColorByIndex(index)} rounded-xl p-4 sm:p-6 text-white`}>
               <div className="flex items-center justify-between mb-4">
                       {getIconByType(coupon.type)}
-                      <span className={`px-2 py-1 rounded-full text-sm ${getStatusColor(coupon.status)}`}>
+                      <span className={`px-2 py-1 rounded-full text-xs sm:text-sm ${getStatusColor(coupon.status)}`}>
                         {coupon.status.charAt(0).toUpperCase() + coupon.status.slice(1)}
                       </span>
               </div>
-                    <h3 className="text-xl font-bold mb-2">{coupon.name}</h3>
-                    <p className="opacity-90 mb-4">{coupon.description}</p>
+                    <h3 className="text-lg sm:text-xl font-bold mb-2 truncate">{coupon.name}</h3>
+                    <p className="opacity-90 mb-4 text-sm sm:text-base line-clamp-2">{coupon.description}</p>
               <div className="bg-white/20 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Code:</span>
-                        <code className="bg-white text-gray-800 px-2 py-1 rounded text-sm font-mono">
+                        <code className="bg-white text-gray-800 px-2 py-1 rounded text-xs sm:text-sm font-mono truncate max-w-20">
                           {coupon.code}
                   </code>
                 </div>
               </div>
                     {usageLimit > 0 && (
-              <div className="mt-4 text-sm">
+                      <div className="mt-4 text-xs sm:text-sm">
                 <div className="flex justify-between">
                           <span>Used: {coupon.usageCount}/{usageLimit}</span>
                           <span>{Math.round(usagePercentage)}% usage</span>
@@ -694,29 +698,29 @@ export default function CouponDashboard() {
           </div>
           )}
 
-          <div className="mt-8 text-center">
-            <p className="text-gray-500 mb-4">
+          <div className="mt-6 sm:mt-8 text-center">
+            <p className="text-gray-500 mb-4 text-sm sm:text-base">
               🎉 Coupon Dashboard is now live! Features include:
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-              <div className="bg-gray-50 rounded-lg p-4">
-                <Percent className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-                <p className="font-medium">Percentage Discounts</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-sm">
+              <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+                <Percent className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 mx-auto mb-2" />
+                <p className="font-medium text-xs sm:text-sm">Percentage Discounts</p>
                 <p className="text-gray-500 text-xs">10%, 20%, 50% off</p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <DollarSign className="w-6 h-6 text-green-600 mx-auto mb-2" />
-                <p className="font-medium">Fixed Amount Off</p>
+              <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mx-auto mb-2" />
+                <p className="font-medium text-xs sm:text-sm">Fixed Amount Off</p>
                 <p className="text-gray-500 text-xs">₹50, ₹100, ₹200 off</p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <Gift className="w-6 h-6 text-purple-600 mx-auto mb-2" />
-                <p className="font-medium">BOGO Deals</p>
+              <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+                <Gift className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 mx-auto mb-2" />
+                <p className="font-medium text-xs sm:text-sm">BOGO Deals</p>
                 <p className="text-gray-500 text-xs">Buy X Get Y Free</p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <BarChart3 className="w-6 h-6 text-orange-600 mx-auto mb-2" />
-                <p className="font-medium">Smart Analytics</p>
+              <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+                <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600 mx-auto mb-2" />
+                <p className="font-medium text-xs sm:text-sm">Smart Analytics</p>
                 <p className="text-gray-500 text-xs">Usage tracking & insights</p>
               </div>
             </div>
@@ -729,21 +733,21 @@ export default function CouponDashboard() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 overflow-y-auto"
             onClick={() => setShowCreateModal(false)}
           >
-            <div className="min-h-full flex items-center justify-center p-4">
+            <div className="min-h-full flex items-center justify-center p-2 sm:p-4">
               <div 
-                className="bg-white rounded-xl shadow-2xl max-w-2xl w-full my-8"
+                className="bg-white rounded-xl shadow-2xl max-w-2xl w-full my-4 sm:my-8 max-h-[95vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
-              <div className="p-6">
+                <div className="p-4 sm:p-6">
                 {/* Modal Header */}
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                      <Plus className="w-6 h-6 text-blue-600" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-3 sm:mr-4">
+                        <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-semibold text-gray-900">Create New Coupon</h3>
-                      <p className="text-sm text-gray-500">Set up a promotional offer for your customers</p>
+                        <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Create New Coupon</h3>
+                        <p className="text-xs sm:text-sm text-gray-500">Set up a promotional offer for your customers</p>
                     </div>
                   </div>
                   <button
@@ -757,10 +761,10 @@ export default function CouponDashboard() {
                   {/* Quick Templates */}
                   {!showCustomForm && (
                 <div className="mb-6">
-                  <h4 className="text-lg font-medium text-gray-900 mb-4">Quick Templates</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Quick Templates</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <button 
-                      className="text-left p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                          className="text-left p-3 sm:p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
                       onClick={() => {
                             setFormData({
                               ...formData,
@@ -774,15 +778,15 @@ export default function CouponDashboard() {
                       }}
                     >
                       <div className="flex items-center mb-2">
-                        <Percent className="w-5 h-5 text-blue-600 mr-2" />
-                        <span className="font-medium">Welcome Discount</span>
+                            <Percent className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 mr-2" />
+                            <span className="font-medium text-sm sm:text-base">Welcome Discount</span>
                       </div>
-                      <p className="text-sm text-gray-600">20% off for new customers</p>
+                          <p className="text-xs sm:text-sm text-gray-600">20% off for new customers</p>
                           <div className="mt-2 text-xs text-blue-600">Click to customize</div>
                     </button>
 
                     <button 
-                      className="text-left p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors"
+                          className="text-left p-3 sm:p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors"
                       onClick={() => {
                             setFormData({
                               ...formData,
@@ -797,15 +801,15 @@ export default function CouponDashboard() {
                       }}
                     >
                       <div className="flex items-center mb-2">
-                        <DollarSign className="w-5 h-5 text-green-600 mr-2" />
-                        <span className="font-medium">Fixed Amount Off</span>
+                            <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 mr-2" />
+                            <span className="font-medium text-sm sm:text-base">Fixed Amount Off</span>
                       </div>
-                      <p className="text-sm text-gray-600">₹100 off on orders above ₹500</p>
+                          <p className="text-xs sm:text-sm text-gray-600">₹100 off on orders above ₹500</p>
                           <div className="mt-2 text-xs text-green-600">Click to customize</div>
                     </button>
 
                     <button 
-                      className="text-left p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                          className="text-left p-3 sm:p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors"
                       onClick={() => {
                             setFormData({
                               ...formData,
@@ -821,22 +825,22 @@ export default function CouponDashboard() {
                       }}
                     >
                       <div className="flex items-center mb-2">
-                        <Gift className="w-5 h-5 text-purple-600 mr-2" />
-                        <span className="font-medium">Buy 1 Get 1 Free</span>
+                            <Gift className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 mr-2" />
+                            <span className="font-medium text-sm sm:text-base">Buy 1 Get 1 Free</span>
                       </div>
-                      <p className="text-sm text-gray-600">Free item on qualifying purchase</p>
+                          <p className="text-xs sm:text-sm text-gray-600">Free item on qualifying purchase</p>
                           <div className="mt-2 text-xs text-purple-600">Click to customize</div>
                     </button>
 
                     <button 
-                      className="text-left p-4 border border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors"
+                          className="text-left p-3 sm:p-4 border border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors"
                           onClick={() => setShowCustomForm(true)}
                     >
                       <div className="flex items-center mb-2">
-                            <Target className="w-5 h-5 text-orange-600 mr-2" />
-                        <span className="font-medium">Custom Coupon</span>
+                            <Target className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 mr-2" />
+                            <span className="font-medium text-sm sm:text-base">Custom Coupon</span>
                       </div>
-                          <p className="text-sm text-gray-600">Create from scratch with all options</p>
+                          <p className="text-xs sm:text-sm text-gray-600">Create from scratch with all options</p>
                           <div className="mt-2 text-xs text-orange-600">Full customization</div>
                     </button>
             </div>
@@ -848,25 +852,25 @@ export default function CouponDashboard() {
                     <form onSubmit={handleSubmit} className="space-y-6">
                       {/* Basic Information */}
                         <div className="space-y-4">
-                        <h5 className="text-md font-medium text-gray-900">Basic Information</h5>
+                        <h5 className="text-sm sm:text-md font-medium text-gray-900">Basic Information</h5>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                               Coupon Name *
                             </label>
                             <input
                               type="text"
                               value={formData.name}
                               onChange={(e) => handleInputChange('name', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                               placeholder="e.g., Welcome Discount"
                               required
                             />
                           </div>
                           
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                               Coupon Code *
                             </label>
                             <div className="flex">
@@ -874,44 +878,45 @@ export default function CouponDashboard() {
                                 type="text"
                                 value={formData.code}
                                 onChange={(e) => handleInputChange('code', e.target.value.toUpperCase())}
-                                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                 placeholder="WELCOME20"
                                 required
                               />
                               <button
                                 type="button"
                                 onClick={generateCouponCode}
-                                className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg hover:bg-gray-200 text-sm"
+                                className="px-2 sm:px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg hover:bg-gray-200 text-xs sm:text-sm"
                               >
-                                Generate
+                                <span className="hidden sm:inline">Generate</span>
+                                <span className="sm:hidden">Gen</span>
                               </button>
                             </div>
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                             Description *
                           </label>
                           <textarea
                             value={formData.description}
                             onChange={(e) => handleInputChange('description', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                             rows={2}
                             placeholder="Brief description of the offer"
                             required
                           />
                       </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                               Discount Type
                             </label>
                             <select
                               value={formData.type}
                               onChange={(e) => handleInputChange('type', e.target.value as CouponType)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                             >
                               <option value="percentage_discount">Percentage Discount</option>
                               <option value="fixed_amount">Fixed Amount Off</option>
@@ -920,7 +925,7 @@ export default function CouponDashboard() {
                           </div>
                           
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                               {formData.type === 'percentage_discount' ? 'Percentage (%)' : 
                                formData.type === 'fixed_amount' ? 'Amount (₹)' : 'Value'}
                               </label>
@@ -928,7 +933,7 @@ export default function CouponDashboard() {
                                 type="number"
                                 value={formData.value}
                                 onChange={(e) => handleInputChange('value', parseFloat(e.target.value) || 0)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                 min="0"
                               max={formData.type === 'percentage_discount' ? 100 : undefined}
                               />
@@ -937,21 +942,21 @@ export default function CouponDashboard() {
                   </div>
 
                   {/* Form Actions */}
-                      <div className="flex items-center justify-end space-x-3 pt-4 border-t">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t">
                     <button 
                       type="button"
                           onClick={() => {
                             setShowCustomForm(false);
                             setShowCreateModal(false);
                           }}
-                          className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                          className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm sm:text-base"
                     >
                       Cancel
                     </button>
                     <button 
                       type="submit"
                       disabled={loading}
-                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base"
                     >
                       {loading ? (
                         <>

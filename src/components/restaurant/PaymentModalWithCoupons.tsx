@@ -227,7 +227,7 @@ export default function PaymentModalWithCoupons({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+      <div className="flex items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         <div 
           className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" 
           onClick={() => {
@@ -236,29 +236,29 @@ export default function PaymentModalWithCoupons({
           }}
         ></div>
         
-        <div className="inline-block w-full max-w-2xl my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
+        <div className="inline-block w-full max-w-2xl my-4 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl max-h-[95vh] overflow-y-auto">
           {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-gray-900">Process Payment</h3>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Process Payment</h3>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">
               Table {table.number} - Enhanced with Coupon Support
             </p>
           </div>
 
-          <div className="px-6 py-4 max-h-96 overflow-y-auto space-y-6">
+          <div className="px-3 sm:px-6 py-3 sm:py-4 space-y-4 sm:space-y-6">
             {/* Order Summary */}
             <div>
-              <h4 className="font-medium text-gray-900 mb-3">Order Summary</h4>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Order Summary</h4>
+              <div className="bg-gray-50 rounded-lg p-3 sm:p-4 space-y-2">
                 {cartItems.map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm">
-                    <span>{item.quantity}x {item.name}</span>
-                    <span>{formatCurrency(item.total)}</span>
+                  <div key={index} className="flex justify-between text-xs sm:text-sm">
+                    <span className="truncate mr-2">{item.quantity}x {item.name}</span>
+                    <span className="whitespace-nowrap">{formatCurrency(item.total)}</span>
                   </div>
                 ))}
               </div>
@@ -266,7 +266,7 @@ export default function PaymentModalWithCoupons({
 
             {/* Customer Selection */}
             <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+              <h4 className="font-medium text-gray-900 mb-3 flex items-center text-sm sm:text-base">
                 <User className="w-4 h-4 mr-2 text-purple-600" />
                 Customer
               </h4>
@@ -278,20 +278,20 @@ export default function PaymentModalWithCoupons({
                   onChange={(e) => handleCustomerSearch(e.target.value)}
                   onFocus={() => setShowCustomerDropdown(true)}
                   placeholder="Search customer by name, phone, or email..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
                 />
                 
                 {selectedCustomer && (
-                  <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-purple-900">{selectedCustomer.name}</div>
-                      <div className="text-sm text-purple-600">
+                  <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-purple-900 text-sm sm:text-base">{selectedCustomer.name}</div>
+                      <div className="text-xs sm:text-sm text-purple-600">
                         {selectedCustomer.phone} • {selectedCustomer.visitCount} visits • Total spent: {formatCurrency(selectedCustomer.totalSpent)}
                       </div>
                     </div>
                     <button
                       onClick={clearCustomer}
-                      className="text-purple-600 hover:text-purple-800 p-1 rounded"
+                      className="text-purple-600 hover:text-purple-800 p-1 rounded self-start sm:self-center"
                       title="Remove customer"
                     >
                       <X className="w-4 h-4" />
@@ -308,14 +308,14 @@ export default function PaymentModalWithCoupons({
                           onClick={() => selectCustomer(customer)}
                           className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
                         >
-                          <div className="font-medium">{customer.name || 'Unknown'}</div>
-                          <div className="text-sm text-gray-600">
+                          <div className="font-medium text-sm">{customer.name || 'Unknown'}</div>
+                          <div className="text-xs text-gray-600">
                             {customer.phone} • {customer.visitCount} visits
                           </div>
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-gray-500 text-sm">No customers found</div>
+                      <div className="px-3 py-2 text-gray-500 text-xs sm:text-sm">No customers found</div>
                     )}
                   </div>
                 )}
@@ -324,17 +324,17 @@ export default function PaymentModalWithCoupons({
 
             {/* Manual Discount Section */}
             <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+              <h4 className="font-medium text-gray-900 mb-3 flex items-center text-sm sm:text-base">
                 <Percent className="w-4 h-4 mr-2 text-orange-600" />
                 Manual Discount
               </h4>
               
               <div className="space-y-3">
-                <div className="flex space-x-2">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
                   <select
                     value={manualDiscount.type}
                     onChange={(e) => setManualDiscount(prev => ({ ...prev, type: e.target.value as 'percentage' | 'fixed' }))}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                   >
                     <option value="percentage">Percentage (%)</option>
                     <option value="fixed">Fixed Amount (₹)</option>
@@ -348,7 +348,7 @@ export default function PaymentModalWithCoupons({
                     min="0"
                     max={manualDiscount.type === 'percentage' ? 100 : originalSubtotal}
                     step={manualDiscount.type === 'percentage' ? 1 : 0.01}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                   />
                 </div>
                 
@@ -357,12 +357,12 @@ export default function PaymentModalWithCoupons({
                   value={manualDiscount.reason}
                   onChange={(e) => setManualDiscount(prev => ({ ...prev, reason: e.target.value }))}
                   placeholder="Discount reason (optional)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                 />
                 
                 {manualDiscountAmount > 0 && (
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                    <div className="text-sm text-orange-700">
+                    <div className="text-xs sm:text-sm text-orange-700">
                       Manual discount: {formatCurrency(manualDiscountAmount)}
                       {manualDiscount.reason && (
                         <span className="block text-orange-600">Reason: {manualDiscount.reason}</span>
@@ -375,27 +375,27 @@ export default function PaymentModalWithCoupons({
 
             {/* Coupon Section */}
             <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+              <h4 className="font-medium text-gray-900 mb-3 flex items-center text-sm sm:text-base">
                 <Tag className="w-4 h-4 mr-2 text-blue-600" />
                 Apply Coupon
               </h4>
 
               {appliedCoupon ? (
                 // Applied Coupon Display
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <Gift className="w-5 h-5 text-green-600" />
-                      <div>
-                        <div className="font-medium text-green-800">{appliedCoupon.coupon.name}</div>
-                        <div className="text-sm text-green-600">Code: {appliedCoupon.coupon.code}</div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-start space-x-3 min-w-0 flex-1">
+                      <Gift className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-green-800 text-sm sm:text-base">{appliedCoupon.coupon.name}</div>
+                        <div className="text-xs sm:text-sm text-green-600">Code: {appliedCoupon.coupon.code}</div>
                         {couponDiscountAmount > 0 && (
-                          <div className="text-sm text-green-600">
+                          <div className="text-xs sm:text-sm text-green-600">
                             Discount: {formatCurrency(couponDiscountAmount)}
                           </div>
                         )}
                         {freeItems.length > 0 && (
-                          <div className="text-sm text-green-600">
+                          <div className="text-xs sm:text-sm text-green-600">
                             Free: {freeItems.map(item => `${item.quantity}x ${item.name}`).join(', ')}
                           </div>
                         )}
@@ -403,7 +403,7 @@ export default function PaymentModalWithCoupons({
                     </div>
                     <button
                       onClick={handleRemoveCoupon}
-                      className="text-green-600 hover:text-green-800 p-1 rounded"
+                      className="text-green-600 hover:text-green-800 p-1 rounded self-start sm:self-center flex-shrink-0"
                       title="Remove coupon"
                     >
                       <X className="w-4 h-4" />
@@ -413,28 +413,28 @@ export default function PaymentModalWithCoupons({
               ) : (
                 // Coupon Input
                 <div className="space-y-3">
-                  <div className="flex space-x-2">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
                     <input
                       type="text"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                       placeholder="Enter coupon code (e.g., SAVE20)"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                     />
                     <button
                       type="button"
                       onClick={handleApplyCoupon}
                       disabled={!couponCode.trim() || isValidatingCoupon}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
                     >
                       {isValidatingCoupon ? 'Validating...' : 'Apply'}
                     </button>
                   </div>
 
                   {couponError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center space-x-2">
-                      <AlertCircle className="w-4 h-4 text-red-600" />
-                      <span className="text-sm text-red-700">{couponError}</span>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start space-x-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                      <span className="text-xs sm:text-sm text-red-700">{couponError}</span>
                     </div>
                   )}
                 </div>
@@ -444,58 +444,58 @@ export default function PaymentModalWithCoupons({
             {/* Pricing Breakdown */}
             <div className="border-t pt-4">
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs sm:text-sm">
                   <span>Subtotal:</span>
                   <span className={appliedCoupon ? 'line-through text-gray-500' : ''}>{formatCurrency(originalSubtotal)}</span>
                 </div>
                 
                 {couponDiscountAmount > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
+                  <div className="flex justify-between text-xs sm:text-sm text-green-600">
                     <span>Coupon Discount:</span>
                     <span>-{formatCurrency(couponDiscountAmount)}</span>
                   </div>
                 )}
                 
                 {manualDiscountAmount > 0 && (
-                  <div className="flex justify-between text-sm text-orange-600">
+                  <div className="flex justify-between text-xs sm:text-sm text-orange-600">
                     <span>Manual Discount ({manualDiscount.type === 'percentage' ? `${manualDiscount.value}%` : 'Fixed'}):</span>
                     <span>-{formatCurrency(manualDiscountAmount)}</span>
                   </div>
                 )}
                 
                 {totalDiscountAmount > 0 && (
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-xs sm:text-sm">
                     <span>Discounted Subtotal:</span>
                     <span>{formatCurrency(discountedSubtotal)}</span>
                   </div>
                 )}
                 
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs sm:text-sm">
                   <span>Tax ({restaurant?.settings?.taxRate || 8.5}%):</span>
                   <span>{formatCurrency(discountedTax)}</span>
                 </div>
                 
                 {freeItems.length > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
+                  <div className="flex justify-between text-xs sm:text-sm text-green-600">
                     <span>Free Items Value:</span>
                     <span>{formatCurrency(freeItemsValue)} (FREE)</span>
                   </div>
                 )}
                 
                 {tip > 0 && (
-                  <div className="flex justify-between text-sm text-blue-600">
+                  <div className="flex justify-between text-xs sm:text-sm text-blue-600">
                     <span>Tip/Gratuity:</span>
                     <span>+{formatCurrency(tip)}</span>
                   </div>
                 )}
                 
-                <div className="flex justify-between text-lg font-bold border-t pt-2">
+                <div className="flex justify-between text-base sm:text-lg font-bold border-t pt-2">
                   <span>Final Total:</span>
                   <span>{formatCurrency(finalTotal)}</span>
                 </div>
                 
                 {totalSavings > 0 && (
-                  <div className="flex justify-between text-sm text-green-600 font-medium">
+                  <div className="flex justify-between text-xs sm:text-sm text-green-600 font-medium">
                     <span>Total Savings:</span>
                     <span>{formatCurrency(totalSavings)}</span>
                   </div>
@@ -505,20 +505,20 @@ export default function PaymentModalWithCoupons({
 
             {/* Tip/Gratuity Section */}
             <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+              <h4 className="font-medium text-gray-900 mb-3 flex items-center text-sm sm:text-base">
                 <DollarSign className="w-4 h-4 mr-2 text-green-600" />
                 Tip / Gratuity
               </h4>
               
               <div className="space-y-3">
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[10, 15, 20, 25].map((percentage) => {
                     const tipAmount = (subtotalWithTax * percentage) / 100;
                     return (
                       <button
                         key={percentage}
                         onClick={() => handleTipSelect(tipAmount)}
-                        className={`p-2 border rounded-lg text-center text-sm ${
+                        className={`p-2 border rounded-lg text-center text-xs sm:text-sm ${
                           Math.abs(tip - tipAmount) < 0.01
                             ? 'border-green-500 bg-green-50 text-green-700'
                             : 'border-gray-300 hover:border-gray-400'
@@ -531,7 +531,7 @@ export default function PaymentModalWithCoupons({
                   })}
                 </div>
                 
-                <div className="flex space-x-2">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
                   <input
                     type="number"
                     value={customTip}
@@ -539,11 +539,11 @@ export default function PaymentModalWithCoupons({
                     placeholder="Custom tip amount"
                     min="0"
                     step="0.01"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
                   />
                   <button
                     onClick={() => handleTipSelect(0)}
-                    className={`px-4 py-2 border rounded-lg text-sm ${
+                    className={`px-4 py-2 border rounded-lg text-xs sm:text-sm whitespace-nowrap ${
                       tip === 0
                         ? 'border-gray-500 bg-gray-50 text-gray-700'
                         : 'border-gray-300 hover:border-gray-400'
@@ -557,8 +557,8 @@ export default function PaymentModalWithCoupons({
 
             {/* Payment Method Selection */}
             <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3">Payment Method</h4>
-              <div className="grid grid-cols-3 gap-3">
+              <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Payment Method</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                 {['cash', 'upi', 'bank'].map((method) => (
                   <button
                     key={method}
@@ -568,7 +568,7 @@ export default function PaymentModalWithCoupons({
                         setAmountReceived(finalTotal.toString());
                       }
                     }}
-                    className={`p-3 border rounded-lg text-center capitalize ${
+                    className={`p-3 border rounded-lg text-center capitalize text-sm ${
                       paymentMethod === method
                         ? 'border-blue-500 bg-blue-50 text-blue-700'
                         : 'border-gray-300 hover:border-gray-400'
@@ -582,7 +582,7 @@ export default function PaymentModalWithCoupons({
 
             {/* Amount Received - Show for all payment methods */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                   Amount Received
                 </label>
                 <input
@@ -591,16 +591,16 @@ export default function PaymentModalWithCoupons({
                 onChange={(e) => setAmountReceived(e.target.value)}
                 min="0"
                   step="0.01"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                   placeholder={finalTotal.toString()}
                 />
               {parseFloat(amountReceived) > finalTotal && (
-                  <div className="mt-2 text-sm text-gray-600">
+                  <div className="mt-2 text-xs sm:text-sm text-gray-600">
                   Change: {formatCurrency(parseFloat(amountReceived) - finalTotal)}
                 </div>
               )}
               {isCredit && (
-                <div className="mt-2 text-sm text-orange-600 font-medium">
+                <div className="mt-2 text-xs sm:text-sm text-orange-600 font-medium">
                   Credit Amount: {formatCurrency(creditAmount)}
                 </div>
               )}
@@ -608,14 +608,14 @@ export default function PaymentModalWithCoupons({
 
             {/* Credit Customer Details - Show when amount is less than total */}
             {isCredit && (
-              <div className="border border-orange-200 rounded-lg p-4 bg-orange-50">
-                <h4 className="font-medium text-orange-900 mb-3 flex items-center">
+              <div className="border border-orange-200 rounded-lg p-3 sm:p-4 bg-orange-50">
+                <h4 className="font-medium text-orange-900 mb-3 flex items-center text-sm sm:text-base">
                   <CreditCard className="w-4 h-4 mr-2" />
                   Credit Customer Details
                 </h4>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-orange-700 mb-1">
+                    <label className="block text-xs sm:text-sm font-medium text-orange-700 mb-1">
                       Customer Name *
                     </label>
                     <input
@@ -623,12 +623,12 @@ export default function PaymentModalWithCoupons({
                       value={creditCustomerName}
                       onChange={(e) => setCreditCustomerName(e.target.value)}
                       placeholder="Enter customer name"
-                      className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-orange-700 mb-1">
+                    <label className="block text-xs sm:text-sm font-medium text-orange-700 mb-1">
                       Phone Number (Optional)
                     </label>
                     <input
@@ -636,11 +636,11 @@ export default function PaymentModalWithCoupons({
                       value={creditCustomerPhone}
                       onChange={(e) => setCreditCustomerPhone(e.target.value)}
                       placeholder="Enter phone number"
-                      className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                     />
                   </div>
                   <div className="bg-orange-100 border border-orange-200 rounded p-3">
-                    <p className="text-sm text-orange-800">
+                    <p className="text-xs sm:text-sm text-orange-800">
                       <strong>Credit Summary:</strong><br />
                       Total Bill: {formatCurrency(finalTotal)}<br />
                       Amount Received: {formatCurrency(parseFloat(amountReceived))}<br />
@@ -653,28 +653,35 @@ export default function PaymentModalWithCoupons({
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
-            <div className="text-sm text-gray-600">
+          <div className="px-3 sm:px-6 py-3 sm:py-4 border-t border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+              <div className="text-xs sm:text-sm text-gray-600">
               {appliedCoupon && (
                 <span className="text-green-600 font-medium">
                   🎉 Coupon applied! You saved {formatCurrency(totalSavings)}
                 </span>
               )}
             </div>
-            <div className="flex space-x-3">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm sm:text-base"
               >
                 Cancel
               </button>
               <button
                 onClick={handlePayment}
                 disabled={isProcessing || (isCredit && !creditCustomerName.trim())}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
+                  <span className="block sm:hidden">
+                    {isProcessing ? 'Processing...' : isCredit ? `Pay ${formatCurrency(parseFloat(amountReceived))}` : `Pay ${formatCurrency(finalTotal)}`}
+                  </span>
+                  <span className="hidden sm:block">
                 {isProcessing ? 'Processing...' : isCredit ? `Pay ${formatCurrency(parseFloat(amountReceived))} (Credit: ${formatCurrency(creditAmount)})` : `Pay ${formatCurrency(finalTotal)}`}
+                  </span>
               </button>
+              </div>
             </div>
           </div>
         </div>

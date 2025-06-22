@@ -11,7 +11,13 @@ import {
   Search,
   Filter,
   Database,
-  Loader2
+  Loader2,
+  Clock,
+  CheckCircle,
+  TrendingUp,
+  Plus,
+  Eye,
+  ArrowRight
 } from 'lucide-react';
 import MarketplaceBrowse from '@/components/marketplace/MarketplaceBrowse';
 import MarketplaceOrders from '@/components/marketplace/MarketplaceOrders';

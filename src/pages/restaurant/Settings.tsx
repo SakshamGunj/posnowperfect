@@ -17,6 +17,8 @@ import {
   Globe,
   Hash,
   Building,
+  QrCode,
+  CreditCard,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -38,6 +40,8 @@ interface BusinessInfoForm {
   pincode?: string;
   country?: string;
   website?: string;
+  upiId?: string;
+  enableQRCode: boolean;
 }
 
 interface TableAreaForm {
@@ -229,6 +233,8 @@ export default function Settings() {
       pincode: restaurant.settings.businessInfo?.pincode || '',
       country: restaurant.settings.businessInfo?.country || 'India',
       website: restaurant.settings.businessInfo?.website || '',
+      upiId: restaurant.settings.upiSettings?.upiId || '',
+      enableQRCode: restaurant.settings.upiSettings?.enableQRCode || false,
     });
   };
 
@@ -254,6 +260,11 @@ export default function Settings() {
           pincode: data.pincode,
           country: data.country,
           website: data.website,
+        },
+        upiSettings: {
+          ...restaurant.settings.upiSettings,
+          upiId: data.upiId,
+          enableQRCode: data.enableQRCode,
         },
       };
 
@@ -716,6 +727,46 @@ export default function Settings() {
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="India"
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* UPI Payment Settings */}
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">UPI Payment Settings</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      UPI ID
+                    </label>
+                    <div className="relative">
+                      <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        {...registerBusiness('upiId')}
+                        type="text"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="restaurant@paytm or 9876543210@ybl"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Enter your UPI ID for customer payments (e.g., yourname@paytm, phone@ybl)</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      QR Code Display
+                    </label>
+                    <div className="flex items-center space-x-3 mt-3">
+                      <input
+                        {...registerBusiness('enableQRCode')}
+                        type="checkbox"
+                        className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                      />
+                      <div className="flex items-center space-x-2">
+                        <QrCode className="w-5 h-5 text-gray-400" />
+                        <span className="text-sm text-gray-700">Show UPI QR code on bills and receipts</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">When enabled, customers can scan the QR code to pay directly via UPI</p>
                   </div>
                 </div>
               </div>

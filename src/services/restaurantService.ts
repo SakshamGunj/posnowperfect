@@ -51,15 +51,16 @@ interface QueryInfo {
 const activeQueries = new Map<string, QueryInfo>();
 const QUERY_DEBOUNCE_TIME = 50; // 50ms debounce time
 
-// Generate secure password
-const generateSecurePassword = (): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  let password = '';
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+// Utility function to generate secure passwords
+/* const generateSecurePassword = (): string => {
+  const length = 12;
+  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+  let password = "";
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length));
   }
   return password;
-};
+}; */
 
 export class RestaurantService {
   // Admin-only: Create new restaurant with owner (called by super admin)
@@ -115,6 +116,15 @@ export class RestaurantService {
           currency: formData.settings?.currency || 'INR',
           timezone: formData.settings?.timezone || 'Asia/Kolkata',
           
+          // Additional settings for compatibility
+          allowOnlineOrdering: true,
+          allowTableReservation: true,
+          autoAcceptOrders: false,
+          requireCustomerPhone: false,
+          enableLoyaltyProgram: false,
+          defaultTax: formData.settings?.taxRate || 18,
+          defaultDiscount: 0,
+          
           businessInfo: {
             gstin: '',
             fssaiNumber: '',
@@ -136,6 +146,11 @@ export class RestaurantService {
             kitchenDisplay: true,
             customerManagement: true,
             reporting: true,
+          },
+          
+          upiSettings: {
+            upiId: '',
+            enableQRCode: false,
           },
         },
         createdAt: new Date(),
@@ -330,6 +345,15 @@ export class RestaurantService {
           currency: 'INR',
           timezone: 'Asia/Kolkata',
           
+          // Additional settings for compatibility
+          allowOnlineOrdering: true,
+          allowTableReservation: true,
+          autoAcceptOrders: false,
+          requireCustomerPhone: false,
+          enableLoyaltyProgram: false,
+          defaultTax: 18,
+          defaultDiscount: 0,
+          
           businessInfo: {
             gstin: '',
             fssaiNumber: '',
@@ -351,6 +375,11 @@ export class RestaurantService {
             kitchenDisplay: true,
             customerManagement: true,
             reporting: true,
+          },
+          
+          upiSettings: {
+            upiId: '',
+            enableQRCode: false,
           },
         },
         createdAt: new Date(),

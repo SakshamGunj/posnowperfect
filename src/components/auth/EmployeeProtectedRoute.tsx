@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useEmployeePermissions } from '@/hooks/useEmployeePermissions';
 import { Shield, AlertTriangle } from 'lucide-react';
@@ -17,7 +17,6 @@ export default function EmployeeProtectedRoute({
 }: EmployeeProtectedRouteProps) {
   const { restaurant } = useRestaurant();
   const { canAccess, isOwner } = useEmployeePermissions();
-  const location = useLocation();
 
   // If no restaurant, redirect to login
   if (!restaurant) {

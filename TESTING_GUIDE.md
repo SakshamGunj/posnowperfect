@@ -304,4 +304,204 @@ Once all tests pass, your TenVerse POS system is ready for production deployment
 1. Deploy to production Firebase project
 2. Set up custom domain
 3. Configure production environment variables
-4. Monitor system performance and usage 
+4. Monitor system performance and usage
+
+# Testing Guide: Table-Specific Menu Portal
+
+## 🚀 **Quick Start Testing**
+
+### **Step 1: Access the Application**
+1. Open your browser and go to: `http://localhost:5174`
+2. You'll be redirected to admin login
+3. Login with your admin credentials
+
+### **Step 2: Navigate to Customer Portal**
+You now have **3 ways** to access the Customer Portal:
+
+**Option A: From Dashboard**
+1. Go to restaurant dashboard
+2. Look for "Customer Portal" card in Quick Actions section
+3. Click on it
+
+**Option B: From Navigation Menu**
+1. Click "Quick Menu" in the top navigation
+2. Find "Customer Portal" in the dropdown
+3. Click "Configure menu portal & QR codes"
+
+**Option C: Direct URL**
+- Go to: `http://localhost:5174/restaurant-slug/customer-portal`
+
+---
+
+## 🧪 **Testing Scenarios**
+
+### **Scenario 1: Single Portal Link (Current Functionality)**
+
+1. **Setup:**
+   - Go to Customer Portal
+   - Select "Single Portal Link" radio button
+   - Copy the general portal URL
+
+2. **Test:**
+   - Open the URL in new tab/incognito window
+   - Should show: `http://localhost:5174/restaurant-slug/menu-portal`
+   - Verify NO table information in header
+   - Place an order
+
+3. **Expected Result:**
+   - Order appears in KDS as "Online Order"
+   - No table-specific information
+
+### **Scenario 2: Table-Specific Links (New Functionality)**
+
+1. **Setup:**
+   - Go to Customer Portal
+   - Select "Table-Specific Links" radio button
+   - You should see tables organized by area/floor
+
+2. **Test Each Table:**
+   - Click "Copy" button for Table 1
+   - Open the URL in new tab: `http://localhost:5174/restaurant-slug/menu-portal/table-id`
+   - Verify table information appears in header: "Table 1 - Main Dining (4 seats)"
+   - Place an order
+
+3. **Expected Result:**
+   - Order appears in KDS with table information: "Table 1 - Main Dining"
+   - Shows table capacity and area
+
+### **Scenario 3: QR Code Generation**
+
+1. **Single Portal:**
+   - Download general QR code
+   - Scan with phone → should go to general portal
+
+2. **Table-Specific:**
+   - Download QR code for specific table
+   - Scan with phone → should go to table-specific portal
+   - Verify table info appears
+
+### **Scenario 4: Kitchen Display Verification**
+
+1. **Place Orders:**
+   - Order from general portal
+   - Order from Table 1 specific link
+   - Order from Table 2 specific link
+
+2. **Check KDS:**
+   - Go to Kitchen Display (`/restaurant-slug/kitchen`)
+   - Verify orders show correctly:
+     - General: "Online Order"
+     - Table 1: "Table 1 - Main Dining" 
+     - Table 2: "Table 2 - Main Dining"
+
+---
+
+## 🔍 **What to Look For**
+
+### **✅ Success Indicators:**
+
+1. **Portal Type Selection:**
+   - Radio buttons work properly
+   - UI switches between single and table-specific views
+
+2. **Table-Specific URLs:**
+   - Each table has unique URL with tableId
+   - Copy buttons work
+   - URLs open correctly
+
+3. **Customer Experience:**
+   - Table info displays in header when using table-specific link
+   - No table info for general portal
+   - Ordering process works the same
+
+4. **Kitchen Display:**
+   - Clear differentiation between order types
+   - Table information visible for table-specific orders
+   - Proper order organization
+
+### **❌ Issues to Watch For:**
+
+1. **Navigation Issues:**
+   - Customer Portal not appearing in menus
+   - Broken links or 404 errors
+
+2. **Table Loading:**
+   - "No tables found" message when tables exist
+   - Tables not organized by area properly
+
+3. **URL Generation:**
+   - Malformed URLs
+   - Copy function not working
+
+4. **Order Association:**
+   - Orders not showing correct table information
+   - Table info missing in KDS
+
+---
+
+## 🛠️ **Troubleshooting**
+
+### **If Customer Portal doesn't appear in navigation:**
+- Check if user has proper permissions
+- Refresh the page
+- Clear browser cache
+
+### **If tables don't load:**
+- Ensure tables exist in Tables section
+- Check tables are marked as "active"
+- Verify restaurant has tables created
+
+### **If URLs don't work:**
+- Check browser console for errors
+- Verify restaurant slug is correct
+- Ensure development server is running
+
+### **If orders don't show table info:**
+- Check that order was placed via table-specific URL
+- Verify tableId is being passed correctly
+- Check KDS is loading latest orders
+
+---
+
+## 📱 **Mobile Testing**
+
+1. **Test on Mobile Device:**
+   - Copy table-specific URL to phone
+   - Verify responsive design works
+   - Test ordering process on mobile
+
+2. **QR Code Testing:**
+   - Download QR codes
+   - Scan with phone camera or QR app
+   - Verify correct redirection
+
+---
+
+## 🎯 **Quick Validation Checklist**
+
+- [ ] Customer Portal appears in dashboard quick actions
+- [ ] Customer Portal appears in navigation quick menu
+- [ ] Portal type selection works (Single vs Table-Specific)
+- [ ] Tables load and display by area
+- [ ] Table-specific URLs generate correctly
+- [ ] Copy and download buttons work
+- [ ] Table info shows in customer portal header
+- [ ] Orders create with correct table association
+- [ ] KDS shows table information for table-specific orders
+- [ ] General portal still works as before
+- [ ] QR codes generate and work properly
+- [ ] Mobile responsive design works
+
+---
+
+## 📞 **Need Help?**
+
+If you encounter any issues:
+
+1. **Check Browser Console** for JavaScript errors
+2. **Check Network Tab** for failed API calls  
+3. **Verify Database** has tables created
+4. **Clear Cache** and try again
+5. **Test in Incognito Mode** to rule out cache issues
+
+The implementation maintains backward compatibility, so existing functionality should continue working while new table-specific features are available when selected. 

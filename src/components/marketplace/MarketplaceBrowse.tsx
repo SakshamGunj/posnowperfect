@@ -1,25 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Search, 
-  Filter, 
-  SlidersHorizontal, 
-  Grid3X3, 
-  List, 
-  Star, 
-  MapPin, 
-  Clock, 
+import {
+  Search,
   ShoppingCart,
   Plus,
   Minus,
-  Eye,
-  Heart,
-  TrendingUp,
-  Award,
-  Zap,
-  Database,
-  Loader2,
-  Store,
-  Package
+  Star,
+  MapPin,
+  Package2,
+  Truck,
+  DollarSign
 } from 'lucide-react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { 

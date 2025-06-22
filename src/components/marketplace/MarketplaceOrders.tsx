@@ -1,22 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Package, 
-  Search, 
-  Filter, 
-  Eye, 
-  MapPin, 
-  Calendar, 
-  Clock, 
-  DollarSign,
-  Truck,
+import {
+  Package,
   CheckCircle,
   XCircle,
-  AlertCircle,
-  ExternalLink,
-  Phone,
-  Mail,
-  FileText,
-  Download
+  Clock,
+  Truck,
+  Eye,
+  ChevronDown,
+  Search
 } from 'lucide-react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { 

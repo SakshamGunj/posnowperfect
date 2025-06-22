@@ -16,6 +16,7 @@
     "@emailjs/browser": "^4.4.1",
     "@headlessui/react": "^1.7.17",
     "@types/bcryptjs": "^2.4.6",
+    "@types/papaparse": "^5.3.16",
     "bcryptjs": "^3.0.2",
     "clsx": "^2.0.0",
     "date-fns": "^2.30.0",
@@ -24,6 +25,8 @@
     "jspdf": "^3.0.1",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.294.0",
+    "papaparse": "^5.5.3",
+    "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.48.2",
@@ -34,6 +37,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@types/uuid": "^9.0.7",

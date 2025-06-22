@@ -12,7 +12,7 @@ export interface Restaurant {
   settings: RestaurantSettings;
   createdAt: Date;
   updatedAt: Date;
-  createdBy: string; // Admin who created this restaurant
+  createdBy?: string; // Admin who created this restaurant
 }
 
 export interface RestaurantSettings {
@@ -23,8 +23,17 @@ export interface RestaurantSettings {
   currency: string;
   timezone: string;
   
+  // Additional settings for compatibility
+  allowOnlineOrdering: boolean;
+  allowTableReservation: boolean;
+  autoAcceptOrders: boolean;
+  requireCustomerPhone: boolean;
+  enableLoyaltyProgram: boolean;
+  defaultTax: number;
+  defaultDiscount: number;
+  
   // Business registration details for bills/receipts
-  businessInfo: {
+  businessInfo?: {
     gstin?: string; // GST Identification Number (India)
     fssaiNumber?: string; // Food Safety and Standards Authority of India License
     businessAddress?: string; // Full business address for bills
@@ -33,6 +42,12 @@ export interface RestaurantSettings {
     pincode?: string;
     country?: string;
     website?: string;
+  };
+  
+  // UPI Payment settings
+  upiSettings?: {
+    upiId?: string; // UPI ID for payments (e.g., restaurant@paytm)
+    enableQRCode: boolean; // Whether to show QR code in bills
   };
   
   theme: {
@@ -194,6 +209,7 @@ export interface Order {
   orderNumber: string;
   tableId?: string;
   customerId?: string;
+  customerName?: string;
   type: OrderType;
   status: OrderStatus;
   items: OrderItem[];
@@ -202,8 +218,15 @@ export interface Order {
   discount: number;
   total: number;
   paymentStatus: 'pending' | 'paid' | 'partial';
+  paymentMethod?: string;
   notes?: string;
   staffId: string;
+  preparation?: {
+    estimatedTime?: number;
+    actualTime?: number;
+    startedAt?: Date;
+    completedAt?: Date;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -770,13 +793,19 @@ export interface PricingTier {
 }
 
 export interface MarketplaceCartItem {
+  id: string;
   productId: string;
-  product: MarketplaceProduct;
-  quantity: number;
-  selectedTier: PricingTier;
+  productName: string;
+  productImage: string;
+  category: MarketplaceCategory;
+  supplierId: string;
+  supplierName: string;
+  unit: string;
   unitPrice: number;
+  quantity: number;
+  appliedDiscount: number;
   totalPrice: number;
-  notes?: string;
+  product: MarketplaceProduct;
 }
 
 export interface MarketplaceOrder {
@@ -840,7 +869,7 @@ export interface MarketplaceOrder {
   updatedAt: Date;
   
   // Status history
-  statusHistory: OrderStatusHistory[];
+  statusHistory?: OrderStatusHistory[];
 }
 
 export interface MarketplaceOrderItem {
@@ -980,4 +1009,15 @@ export interface MarketplaceAnalytics {
     bulkDiscountSavings: number;
     contractSavings: number;
   };
+}
+
+// Add the missing Address type
+export interface Address {
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  latitude?: number;
+  longitude?: number;
 } 

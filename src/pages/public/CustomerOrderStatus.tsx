@@ -20,14 +20,11 @@ import {
 
 export default function CustomerOrderStatus() {
   const { slug } = useParams<{ slug: string }>();
-  const [searchParams] = useSearchParams();
-  const orderId = searchParams.get('order');
-  const phone = searchParams.get('phone');
-
-  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const searchParams = new URLSearchParams(window.location.search);
+  const orderNumber = searchParams.get('orderNumber');
   const [order, setOrder] = useState<Order | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
 
   useEffect(() => {
     loadData();
@@ -40,13 +37,13 @@ export default function CustomerOrderStatus() {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [orderId, slug]);
+  }, [orderNumber, slug]);
 
   const loadData = async () => {
     if (!slug) return;
 
     try {
-      setIsLoading(true);
+      setLoading(true);
 
       // Load restaurant
       const restaurantResult = await RestaurantService.getRestaurantBySlug(slug);
@@ -56,15 +53,15 @@ export default function CustomerOrderStatus() {
       }
       setRestaurant(restaurantResult.data);
 
-      // Load order if orderId provided
-      if (orderId) {
-        await loadOrder(restaurantResult.data.id, orderId);
+      // Load order if orderNumber provided
+      if (orderNumber) {
+        await loadOrder(restaurantResult.data.id, orderNumber);
       }
     } catch (error) {
       console.error('Failed to load data:', error);
       toast.error('Failed to load order information');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -92,13 +89,10 @@ export default function CustomerOrderStatus() {
     if (!restaurant || !order) return;
 
     try {
-      setIsRefreshing(true);
       await loadOrder(restaurant.id, order.id);
       toast.success('Order status updated');
     } catch (error) {
       console.error('Failed to refresh order:', error);
-    } finally {
-      setIsRefreshing(false);
     }
   };
 

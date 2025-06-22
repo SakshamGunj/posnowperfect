@@ -90,21 +90,21 @@ export default function CouponSection({
       {appliedCoupon ? (
         // Applied Coupon Display
         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Tag className="w-4 h-4 text-green-600" />
-              <div>
-                <div className="font-medium text-green-800">{appliedCoupon.coupon.name}</div>
-                <div className="text-sm text-green-600">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start space-x-2 min-w-0 flex-1">
+              <Tag className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-green-800 text-sm sm:text-base">{appliedCoupon.coupon.name}</div>
+                <div className="text-xs sm:text-sm text-green-600">
                   Code: {appliedCoupon.coupon.code}
                 </div>
                 {appliedCoupon.discountAmount > 0 && (
-                  <div className="text-sm text-green-600">
+                  <div className="text-xs sm:text-sm text-green-600">
                     Discount: {formatCurrency(appliedCoupon.discountAmount)}
                   </div>
                 )}
                 {appliedCoupon.freeItems.length > 0 && (
-                  <div className="text-sm text-green-600">
+                  <div className="text-xs sm:text-sm text-green-600">
                     Free items: {appliedCoupon.freeItems.map((item: any) => `${item.quantity}x ${item.name}`).join(', ')}
                   </div>
                 )}
@@ -112,7 +112,7 @@ export default function CouponSection({
             </div>
             <button
               onClick={handleRemoveCoupon}
-              className="text-green-600 hover:text-green-800 p-1"
+              className="text-green-600 hover:text-green-800 p-1 self-start sm:self-center flex-shrink-0"
               title="Remove coupon"
             >
               <X className="w-4 h-4" />
@@ -122,7 +122,7 @@ export default function CouponSection({
       ) : (
         // Coupon Input
         <div className="space-y-2">
-          <div className="flex space-x-2">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
             <div className="flex-1">
               <input
                 type="text"
@@ -130,7 +130,7 @@ export default function CouponSection({
                 onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                 onKeyPress={handleKeyPress}
                 placeholder="Enter coupon code (e.g., SAVE20)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase text-sm sm:text-base"
                 disabled={isValidating}
               />
             </div>
@@ -138,7 +138,7 @@ export default function CouponSection({
               type="button"
               onClick={handleApplyCoupon}
               disabled={!couponCode.trim() || isValidating}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base whitespace-nowrap"
             >
               {isValidating ? (
                 <>
@@ -155,9 +155,9 @@ export default function CouponSection({
           </div>
 
           {validationError && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-2 flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
-              <span className="text-sm text-red-700">{validationError}</span>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-2 flex items-start space-x-2">
+              <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+              <span className="text-xs sm:text-sm text-red-700">{validationError}</span>
             </div>
           )}
 

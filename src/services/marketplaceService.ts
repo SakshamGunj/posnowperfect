@@ -1,35 +1,28 @@
 import { 
-  MarketplaceProduct, 
-  Supplier, 
-  MarketplaceOrder, 
-  MarketplaceOrderItem,
-  MarketplaceCartItem,
-  MarketplaceCategory,
-  MarketplaceOrderStatus,
-  PaymentStatus,
-  SupplierReview,
-  MarketplaceContract,
-  MarketplaceNotification,
-  MarketplaceAnalytics,
-  OrderStatusHistory,
-  PricingTier
-} from '../types';
-import { 
   collection, 
-  addDoc, 
-  getDocs, 
   doc, 
   getDoc, 
+  getDocs, 
+  addDoc, 
   updateDoc, 
-  deleteDoc, 
   query, 
   where, 
   orderBy, 
   limit,
-  Timestamp,
-  writeBatch
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { 
+  MarketplaceProduct, 
+  MarketplaceOrder, 
+  MarketplaceOrderItem, 
+  Supplier, 
+  MarketplaceOrderStatus,
+  MarketplaceCategory,
+  PricingTier,
+  SupplierReview,
+  MarketplaceAnalytics
+} from '@/types';
 
 // Collections
 const SUPPLIERS_COLLECTION = 'marketplace_suppliers';
@@ -564,16 +557,19 @@ export const processCheckout = async (
     // Create separate orders for each supplier
     for (const [supplierId, { supplier, items }] of Object.entries(itemsBySupplier)) {
       const orderItems: MarketplaceOrderItem[] = items.map(item => ({
-        id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        id: generateOrderItemId(),
         productId: item.productId,
         productName: item.product.name,
-        productImage: item.product.images[0],
+        productImage: item.product.images[0] || '',
         category: item.product.category,
         unit: item.product.unit,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         totalPrice: item.totalPrice,
-        specifications: item.product.specifications
+        specifications: {
+          ...item.product.specifications,
+          certifications: item.product.specifications.certifications?.join(', ') || ''
+        }
       }));
       
       // Calculate totals for this supplier's order
@@ -912,4 +908,9 @@ export const validateOrderMinimums = (cartItems: MarketplaceCartItem[]): { isVal
     isValid: errors.length === 0,
     errors
   };
+};
+
+// Helper function to generate unique order item IDs
+const generateOrderItemId = (): string => {
+  return `item_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 }; 

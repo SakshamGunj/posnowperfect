@@ -30,7 +30,7 @@ import { useEmployeePermissions, useUserRoleDisplay } from '@/hooks/useEmployeeP
 export default function ImprovedRestaurantNavbar() {
   const { restaurant } = useRestaurant();
   const { user, logout } = useRestaurantAuth();
-  const { canAccess, isOwner } = useEmployeePermissions();
+  const { canAccess } = useEmployeePermissions();
   const userRoleDisplay = useUserRoleDisplay();
   const navigate = useNavigate();
   const location = useLocation();
@@ -326,9 +326,9 @@ export default function ImprovedRestaurantNavbar() {
           ></div>
           
           {/* Sidebar */}
-          <div className="fixed inset-y-0 right-0 w-80 max-w-[85vw] bg-white shadow-2xl transform transition-transform ease-in-out duration-300">
+          <div className="fixed inset-y-0 right-0 w-80 max-w-[85vw] bg-white shadow-2xl transform transition-transform ease-in-out duration-300 flex flex-col">
             {/* Sidebar Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center space-x-3">
                 <div 
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg"
@@ -351,7 +351,7 @@ export default function ImprovedRestaurantNavbar() {
             </div>
 
             {/* Navigation Items */}
-            <div className="px-4 py-6 space-y-2">
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-6 space-y-2" style={{ WebkitOverflowScrolling: 'touch' }}>
               {/* Primary Items */}
               <div className="mb-6">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
@@ -410,7 +410,7 @@ export default function ImprovedRestaurantNavbar() {
             </div>
 
             {/* Mobile Search */}
-            <div className="px-6 py-4 border-t border-gray-200">
+            <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-4 w-4 text-gray-400" />
@@ -424,7 +424,7 @@ export default function ImprovedRestaurantNavbar() {
             </div>
 
             {/* Mobile User Info */}
-            <div className="px-6 py-4 border-t border-gray-200">
+            <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200">
               <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">

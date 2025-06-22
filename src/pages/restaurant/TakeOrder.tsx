@@ -29,6 +29,7 @@ import { CouponService } from '@/services/couponService';
 import { CreditService } from '@/services/creditService';
 import { MenuItem, Category, Table, Order, PaymentMethod, Discount, SelectedVariant } from '@/types';
 import { formatCurrency } from '@/lib/utils';
+import { generateUPIPaymentString, generateQRCodeDataURL } from '@/utils/upiUtils';
 import VariantSelectionModal from '@/components/restaurant/VariantSelectionModal';
 import PaymentModalWithCoupons from '@/components/restaurant/PaymentModalWithCoupons';
 import TableManagementModal from '@/components/restaurant/TableManagementModal';
@@ -707,8 +708,8 @@ export default function TakeOrder() {
         toast.success(successMessage);
         
         // Automatically open print dialog for combined bill
-        setTimeout(() => {
-          handlePrintCombinedBill(allOrders, data);
+        setTimeout(async () => {
+          await handlePrintCombinedBill(allOrders, data);
         }, 500);
       } else {
         toast.error('Failed to complete payment for some orders');
@@ -719,25 +720,6 @@ export default function TakeOrder() {
     } finally {
       setIsProcessingPayment(false);
     }
-  };
-
-  const handlePrintCombinedBill = (orders: Order[], paymentData: any) => {
-    if (!orders.length || !restaurant || !table) return;
-
-    // Create combined bill content
-    const billContent = generateCombinedBillContent(orders, restaurant, table, paymentData);
-    
-    // Open print dialog
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(billContent);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
-    }
-    
-    toast.success('Combined bill sent to printer');
   };
 
   const clearCart = () => {
@@ -752,6 +734,52 @@ export default function TakeOrder() {
     }
     
     toast.success('Order cleared');
+  };
+
+  const handlePrintCombinedBill = async (orders: Order[], paymentData: any) => {
+    if (!orders.length || !restaurant || !table) return;
+
+    try {
+      // Show loading toast
+      const toastId = toast.loading('Generating bill with QR code...');
+      
+      // Create combined bill content (now async for QR code generation)
+      console.log('🏷️ Starting bill generation with QR code...');
+      const billContent = await generateCombinedBillContent(orders, restaurant, table, paymentData);
+      
+      // Dismiss loading toast
+      toast.dismiss(toastId);
+      
+      // Small delay to ensure QR code is fully processed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Open print dialog
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(billContent);
+        printWindow.document.close();
+        
+        // Wait a bit more for images to load
+        printWindow.addEventListener('load', () => {
+          setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+          }, 1000);
+        });
+        
+        // Fallback for immediate print
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+          printWindow.close();
+        }, 2000);
+      }
+      
+      toast.success('Combined bill sent to printer');
+    } catch (error) {
+      console.error('❌ Error generating bill:', error);
+      toast.error('Failed to generate bill');
+    }
   };
 
   // Voice Command Handlers
@@ -2674,7 +2702,7 @@ function generateKOTContent(order: Order, restaurant: any, table: Table): string
 
 // Bill Generation Function
 
-function generateCombinedBillContent(orders: Order[], restaurant: any, table: Table, paymentData: any): string {
+async function generateCombinedBillContent(orders: Order[], restaurant: any, table: Table, paymentData: any): Promise<string> {
   const combinedSubtotal = orders.reduce((total, order) => total + order.subtotal, 0);
   let discountAmount = 0;
   let couponInfo = null;
@@ -2725,6 +2753,43 @@ function generateCombinedBillContent(orders: Order[], restaurant: any, table: Ta
   });
 
   const combinedItems = Object.values(allItems);
+
+  // Generate UPI QR code if UPI settings are configured
+  let upiQRCodeDataURL = '';
+  const upiSettings = restaurant?.settings?.upiSettings;
+  if (upiSettings?.enableQRCode && upiSettings?.upiId) {
+    try {
+      console.log('🏷️ Generating UPI QR code for bill:', {
+        upiId: upiSettings.upiId,
+        amount: finalAmount,
+        restaurant: restaurant.name
+      });
+      
+      const upiPaymentString = generateUPIPaymentString(
+        upiSettings.upiId,
+        finalAmount,
+        restaurant.name,
+        `Payment for Table ${table.number} - ${restaurant.name}`
+      );
+      
+      console.log('🔗 UPI Payment String:', upiPaymentString);
+      
+      upiQRCodeDataURL = await generateQRCodeDataURL(upiPaymentString);
+      
+      if (upiQRCodeDataURL) {
+        console.log('✅ UPI QR Code generated successfully');
+      } else {
+        console.error('❌ Failed to generate UPI QR Code');
+      }
+    } catch (error) {
+      console.error('❌ Error generating UPI QR Code:', error);
+    }
+  } else {
+    console.log('ℹ️ UPI QR Code not enabled or UPI ID not configured:', {
+      enableQRCode: upiSettings?.enableQRCode,
+      hasUpiId: !!upiSettings?.upiId
+    });
+  }
 
   return `
     <!DOCTYPE html>
@@ -2964,6 +3029,45 @@ function generateCombinedBillContent(orders: Order[], restaurant: any, table: Ta
           font-weight: bold;
         }
         
+        .upi-section {
+          margin: 5px 0;
+          padding: 8px;
+          border: 2px solid #000;
+          text-align: center;
+          background: #f9f9f9;
+        }
+        
+        .upi-title {
+          font-size: 12px;
+          font-weight: bold;
+          margin-bottom: 3px;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+        }
+        
+        .upi-id {
+          font-size: 10px;
+          font-weight: bold;
+          margin-bottom: 5px;
+          color: #333;
+        }
+        
+        .qr-code {
+          display: block;
+          margin: 5px auto;
+          border: 2px solid #000;
+          border-radius: 4px;
+          background: #fff;
+          padding: 5px;
+        }
+        
+        .upi-instructions {
+          font-size: 8px;
+          line-height: 1.2;
+          margin-top: 3px;
+          color: #666;
+        }
+        
         .footer {
           text-align: center;
           margin-top: 5px;
@@ -3133,6 +3237,59 @@ function generateCombinedBillContent(orders: Order[], restaurant: any, table: Ta
             ${paymentData.reference ? `<strong>Reference:</strong> ${paymentData.reference}` : ''}
           </div>
       </div>
+
+        ${upiSettings?.enableQRCode && upiSettings?.upiId ? `
+        <!-- UPI Payment Section -->
+        <div class="upi-section">
+          <div class="upi-title">💳 UPI PAYMENT</div>
+          <div class="upi-id">Pay to: ${upiSettings.upiId}</div>
+          
+          <!-- QR Code Container with better visibility -->
+          <div style="text-align: center; margin: 10px 0; background: #fff; padding: 15px; border: 3px solid #000; border-radius: 8px;">
+            ${upiQRCodeDataURL ? `
+              <img src="${upiQRCodeDataURL}" 
+                   alt="UPI QR Code" 
+                   style="width: 140px; height: 140px; display: block; margin: 0 auto; background: white; border: 2px solid #000; padding: 5px;"
+                   onload="console.log('✅ QR Code image loaded successfully')"
+                   onerror="console.error('❌ QR Code image failed to load'); this.style.display='none'; this.nextElementSibling.style.display='block';" />
+              <div style="display: none; font-size: 10px; padding: 20px; border: 2px dashed #000; background: #ffe6e6; text-align: center;">
+                <strong>⚠️ QR CODE FAILED TO LOAD</strong><br>
+                <span style="font-size: 8px;">Please use manual payment method below</span>
+              </div>
+            ` : `
+              <div style="font-size: 12px; padding: 30px; border: 3px dashed #666; background: #f0f0f0; text-align: center;">
+                <strong>📱 QR CODE NOT GENERATED</strong><br>
+                <span style="font-size: 10px; color: #666;">Use manual payment method below</span>
+              </div>
+            `}
+          </div>
+          
+          <!-- Payment Instructions -->
+          <div class="upi-instructions">
+            <div style="font-size: 13px; font-weight: bold; margin: 8px 0; color: #000; text-align: center; background: #e6ffe6; padding: 5px; border: 1px solid #000;">
+              💰 AMOUNT: ${formatCurrency(finalAmount)}
+            </div>
+            
+            ${upiQRCodeDataURL ? `
+              <div style="font-size: 10px; text-align: center; margin: 5px 0; font-weight: bold;">
+                📱 SCAN QR CODE WITH ANY UPI APP
+              </div>
+            ` : ''}
+            
+            <div style="font-size: 9px; margin: 8px 0; color: #333; text-align: center; border: 1px dashed #666; padding: 8px; background: #f9f9f9;">
+              <strong>📱 MANUAL PAYMENT STEPS:</strong><br>
+              1. Open Google Pay/PhonePe/Paytm/BHIM<br>
+              2. Enter UPI ID: <strong>${upiSettings.upiId}</strong><br>
+              3. Enter Amount: <strong>${formatCurrency(finalAmount)}</strong><br>
+              4. Complete Payment
+            </div>
+            
+            <div style="font-size: 8px; color: #666; text-align: center; margin-top: 5px;">
+              Google Pay • PhonePe • Paytm • BHIM • Any UPI App
+            </div>
+          </div>
+        </div>
+        ` : ''}
 
         <!-- Footer -->
       <div class="footer">

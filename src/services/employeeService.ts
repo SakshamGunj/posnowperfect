@@ -7,11 +7,9 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy,
   Timestamp,
-  getDoc
+  getDoc,
 } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { 
   Employee, 
@@ -23,9 +21,9 @@ import {
 } from '@/types';
 import bcrypt from 'bcryptjs';
 
-// Available modules for permission assignment
+// Available modules for permission assignment - COMPREHENSIVE SYSTEM
 export const AVAILABLE_MODULES: ModulePermission[] = [
-  // Core Operations
+  // ===== CORE POS OPERATIONS =====
   {
     id: 'orders',
     name: 'Orders Management',
@@ -43,11 +41,27 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     defaultAccess: true
   },
   {
-    id: 'tables',
-    name: 'Table Management',
-    description: 'Manage table status and reservations',
+    id: 'order_edit',
+    name: 'Edit Orders',
+    description: 'Modify existing orders and items',
     category: 'core',
-    icon: 'Grid3X3',
+    icon: 'Edit',
+    defaultAccess: false
+  },
+  {
+    id: 'order_cancel',
+    name: 'Cancel Orders',
+    description: 'Cancel orders and process refunds',
+    category: 'core',
+    icon: 'X',
+    defaultAccess: false
+  },
+  {
+    id: 'order_status',
+    name: 'Order Status Management',
+    description: 'Update order status (confirmed, preparing, ready)',
+    category: 'core',
+    icon: 'Clock',
     defaultAccess: true
   },
   {
@@ -58,8 +72,68 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     icon: 'Receipt',
     defaultAccess: true
   },
+  {
+    id: 'discounts',
+    name: 'Apply Discounts',
+    description: 'Apply percentage or fixed amount discounts',
+    category: 'core',
+    icon: 'Percent',
+    defaultAccess: false
+  },
+  {
+    id: 'kot_print',
+    name: 'KOT Printing',
+    description: 'Print Kitchen Order Tickets',
+    category: 'core',
+    icon: 'Printer',
+    defaultAccess: true
+  },
   
-  // Management Features
+  // ===== TABLE MANAGEMENT =====
+  {
+    id: 'tables',
+    name: 'Table Management',
+    description: 'Manage table status and reservations',
+    category: 'core',
+    icon: 'Grid3X3',
+    defaultAccess: true
+  },
+  {
+    id: 'table_merge',
+    name: 'Table Merge/Transfer',
+    description: 'Merge tables and transfer orders between tables',
+    category: 'core',
+    icon: 'ArrowRightLeft',
+    defaultAccess: false
+  },
+  {
+    id: 'table_areas',
+    name: 'Table Areas Management',
+    description: 'Create and manage table areas/floors',
+    category: 'management',
+    icon: 'Map',
+    defaultAccess: false
+  },
+  
+  // ===== KITCHEN OPERATIONS =====
+  {
+    id: 'kitchen',
+    name: 'Kitchen Display',
+    description: 'Access kitchen display system',
+    category: 'core',
+    icon: 'ChefHat',
+    defaultAccess: true
+  },
+  {
+    id: 'kitchen_manage',
+    name: 'Kitchen Order Management',
+    description: 'Update order status from kitchen',
+    category: 'core',
+    icon: 'Timer',
+    defaultAccess: false
+  },
+  
+  // ===== MENU MANAGEMENT =====
   {
     id: 'menu',
     name: 'Menu Management',
@@ -69,6 +143,48 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     defaultAccess: false
   },
   {
+    id: 'menu_categories',
+    name: 'Category Management',
+    description: 'Create and manage menu categories',
+    category: 'management',
+    icon: 'Folder',
+    defaultAccess: false
+  },
+  {
+    id: 'menu_pricing',
+    name: 'Menu Pricing',
+    description: 'Update menu item prices',
+    category: 'management',
+    icon: 'DollarSign',
+    defaultAccess: false
+  },
+  {
+    id: 'menu_availability',
+    name: 'Menu Availability',
+    description: 'Enable/disable menu items',
+    category: 'management',
+    icon: 'ToggleLeft',
+    defaultAccess: false
+  },
+  {
+    id: 'menu_variants',
+    name: 'Menu Variants',
+    description: 'Manage item variants and customizations',
+    category: 'management',
+    icon: 'Settings',
+    defaultAccess: false
+  },
+  {
+    id: 'bulk_menu_import',
+    name: 'Bulk Menu Import',
+    description: 'Import menu items in bulk',
+    category: 'management',
+    icon: 'Upload',
+    defaultAccess: false
+  },
+  
+  // ===== INVENTORY MANAGEMENT =====
+  {
     id: 'inventory',
     name: 'Inventory Management',
     description: 'Track and manage inventory levels',
@@ -76,6 +192,40 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     icon: 'Package',
     defaultAccess: false
   },
+  {
+    id: 'inventory_restock',
+    name: 'Inventory Restocking',
+    description: 'Restock inventory items',
+    category: 'management',
+    icon: 'RefreshCw',
+    defaultAccess: false
+  },
+  {
+    id: 'inventory_adjustments',
+    name: 'Inventory Adjustments',
+    description: 'Make manual inventory adjustments',
+    category: 'management',
+    icon: 'Edit',
+    defaultAccess: false
+  },
+  {
+    id: 'inventory_alerts',
+    name: 'Inventory Alerts',
+    description: 'View and manage low stock alerts',
+    category: 'management',
+    icon: 'AlertTriangle',
+    defaultAccess: false
+  },
+  {
+    id: 'suppliers',
+    name: 'Supplier Management',
+    description: 'Manage suppliers and vendor information',
+    category: 'management',
+    icon: 'Truck',
+    defaultAccess: false
+  },
+  
+  // ===== CUSTOMER MANAGEMENT =====
   {
     id: 'customers',
     name: 'Customer Management',
@@ -85,13 +235,47 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     defaultAccess: false
   },
   {
-    id: 'coupons',
-    name: 'Coupon Management',
-    description: 'Create and manage discount coupons',
+    id: 'customer_create',
+    name: 'Create Customers',
+    description: 'Add new customers to database',
     category: 'management',
-    icon: 'Gift',
+    icon: 'UserPlus',
+    defaultAccess: true
+  },
+  {
+    id: 'customer_edit',
+    name: 'Edit Customer Info',
+    description: 'Modify customer information',
+    category: 'management',
+    icon: 'UserCheck',
     defaultAccess: false
   },
+  {
+    id: 'customer_history',
+    name: 'Customer Order History',
+    description: 'View customer order history and analytics',
+    category: 'management',
+    icon: 'History',
+    defaultAccess: false
+  },
+  {
+    id: 'loyalty_points',
+    name: 'Loyalty Points Management',
+    description: 'Manage customer loyalty points',
+    category: 'management',
+    icon: 'Star',
+    defaultAccess: false
+  },
+  {
+    id: 'customer_export',
+    name: 'Customer Data Export',
+    description: 'Export customer data to CSV',
+    category: 'management',
+    icon: 'Download',
+    defaultAccess: false
+  },
+  
+  // ===== CREDIT MANAGEMENT =====
   {
     id: 'credits',
     name: 'Credit Management',
@@ -100,16 +284,202 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     icon: 'CreditCard',
     defaultAccess: false
   },
-  
-  // Reports & Analytics
   {
-    id: 'reports',
-    name: 'Reports & Analytics',
-    description: 'View sales reports and analytics',
-    category: 'reports',
-    icon: 'BarChart3',
+    id: 'credit_add',
+    name: 'Add Customer Credit',
+    description: 'Add credit to customer accounts',
+    category: 'management',
+    icon: 'Plus',
     defaultAccess: false
   },
+  {
+    id: 'credit_collect',
+    name: 'Collect Credit Payments',
+    description: 'Collect payments for outstanding credits',
+    category: 'management',
+    icon: 'DollarSign',
+    defaultAccess: false
+  },
+  {
+    id: 'credit_history',
+    name: 'Credit Transaction History',
+    description: 'View customer credit transaction history',
+    category: 'management',
+    icon: 'FileText',
+    defaultAccess: false
+  },
+  
+  // ===== COUPON & PROMOTIONS =====
+  {
+    id: 'coupons',
+    name: 'Coupon Management',
+    description: 'Create and manage discount coupons',
+    category: 'management',
+    icon: 'Gift',
+    defaultAccess: false
+  },
+  {
+    id: 'coupon_create',
+    name: 'Create Coupons',
+    description: 'Create new promotional coupons',
+    category: 'management',
+    icon: 'PlusCircle',
+    defaultAccess: false
+  },
+  {
+    id: 'coupon_apply',
+    name: 'Apply Coupons',
+    description: 'Apply coupons to customer orders',
+    category: 'management',
+    icon: 'Tag',
+    defaultAccess: true
+  },
+  {
+    id: 'coupon_analytics',
+    name: 'Coupon Analytics',
+    description: 'View coupon usage and effectiveness',
+    category: 'reports',
+    icon: 'BarChart',
+    defaultAccess: false
+  },
+  
+  // ===== GAMIFICATION & SPIN WHEEL =====
+  {
+    id: 'gamification',
+    name: 'Gamification Dashboard',
+    description: 'Manage spin wheel and customer games',
+    category: 'management',
+    icon: 'Gamepad2',
+    defaultAccess: false
+  },
+  {
+    id: 'spin_wheel_config',
+    name: 'Spin Wheel Configuration',
+    description: 'Configure spin wheel settings and rewards',
+    category: 'management',
+    icon: 'Target',
+    defaultAccess: false
+  },
+  {
+    id: 'spin_wheel_analytics',
+    name: 'Spin Wheel Analytics',
+    description: 'View spin wheel performance and engagement',
+    category: 'reports',
+    icon: 'TrendingUp',
+    defaultAccess: false
+  },
+  {
+    id: 'customer_spins',
+    name: 'Customer Spin Management',
+    description: 'View and manage customer spins',
+    category: 'management',
+    icon: 'RotateCcw',
+    defaultAccess: false
+  },
+  {
+    id: 'rewards_management',
+    name: 'Rewards Management',
+    description: 'Manage customer rewards and redemptions',
+    category: 'management',
+    icon: 'Award',
+    defaultAccess: false
+  },
+  
+  // ===== CUSTOMER PORTAL & DIGITAL =====
+  {
+    id: 'customer_portal',
+    name: 'Customer Portal Management',
+    description: 'Configure customer menu portal',
+    category: 'management',
+    icon: 'Smartphone',
+    defaultAccess: false
+  },
+  {
+    id: 'qr_codes',
+    name: 'QR Code Management',
+    description: 'Generate and manage QR codes',
+    category: 'management',
+    icon: 'QrCode',
+    defaultAccess: false
+  },
+  {
+    id: 'table_portals',
+    name: 'Table-Specific Portals',
+    description: 'Create table-specific menu links',
+    category: 'management',
+    icon: 'Link',
+    defaultAccess: false
+  },
+  {
+    id: 'portal_analytics',
+    name: 'Portal Analytics',
+    description: 'View customer portal usage analytics',
+    category: 'reports',
+    icon: 'Globe',
+    defaultAccess: false
+  },
+  
+  // ===== VOICE COMMANDS =====
+  {
+    id: 'voice_commands',
+    name: 'Voice Commands',
+    description: 'Use AI voice commands for operations',
+    category: 'core',
+    icon: 'Mic',
+    defaultAccess: false
+  },
+  {
+    id: 'voice_orders',
+    name: 'Voice Order Taking',
+    description: 'Take orders using voice commands',
+    category: 'core',
+    icon: 'MessageSquare',
+    defaultAccess: false
+  },
+  {
+    id: 'voice_customers',
+    name: 'Voice Customer Management',
+    description: 'Add customers using voice commands',
+    category: 'management',
+    icon: 'UserVoice',
+    defaultAccess: false
+  },
+  
+  // ===== MARKETPLACE (B2B) =====
+  {
+    id: 'marketplace',
+    name: 'Marketplace Access',
+    description: 'Access B2B marketplace for bulk ordering',
+    category: 'management',
+    icon: 'ShoppingCart',
+    defaultAccess: false
+  },
+  {
+    id: 'marketplace_orders',
+    name: 'Marketplace Orders',
+    description: 'Place and manage marketplace orders',
+    category: 'management',
+    icon: 'Package2',
+    defaultAccess: false
+  },
+  {
+    id: 'marketplace_analytics',
+    name: 'Marketplace Analytics',
+    description: 'View marketplace spending and supplier analytics',
+    category: 'reports',
+    icon: 'TrendingDown',
+    defaultAccess: false
+  },
+  {
+    id: 'supplier_reviews',
+    name: 'Supplier Reviews',
+    description: 'Review and rate suppliers',
+    category: 'management',
+    icon: 'Star',
+    defaultAccess: false
+  },
+  
+  // ===== REPORTS & ANALYTICS =====
   {
     id: 'dashboard',
     name: 'Dashboard Analytics',
@@ -118,8 +488,56 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     icon: 'TrendingUp',
     defaultAccess: true
   },
+  {
+    id: 'reports',
+    name: 'Sales Reports',
+    description: 'View detailed sales reports and analytics',
+    category: 'reports',
+    icon: 'BarChart3',
+    defaultAccess: false
+  },
+  {
+    id: 'financial_reports',
+    name: 'Financial Reports',
+    description: 'View revenue, profit, and financial analytics',
+    category: 'reports',
+    icon: 'DollarSign',
+    defaultAccess: false
+  },
+  {
+    id: 'operational_reports',
+    name: 'Operational Reports',
+    description: 'View operational efficiency and performance reports',
+    category: 'reports',
+    icon: 'Activity',
+    defaultAccess: false
+  },
+  {
+    id: 'staff_analytics',
+    name: 'Staff Performance Analytics',
+    description: 'View staff performance and productivity reports',
+    category: 'reports',
+    icon: 'Users',
+    defaultAccess: false
+  },
+  {
+    id: 'customer_analytics',
+    name: 'Customer Analytics',
+    description: 'View customer behavior and preference analytics',
+    category: 'reports',
+    icon: 'UserCheck',
+    defaultAccess: false
+  },
+  {
+    id: 'export_reports',
+    name: 'Export Reports',
+    description: 'Export reports to PDF/Excel',
+    category: 'reports',
+    icon: 'Download',
+    defaultAccess: false
+  },
   
-  // Settings & Configuration
+  // ===== SETTINGS & CONFIGURATION =====
   {
     id: 'settings',
     name: 'Restaurant Settings',
@@ -129,6 +547,48 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     defaultAccess: false
   },
   {
+    id: 'business_info',
+    name: 'Business Information',
+    description: 'Update restaurant business information',
+    category: 'settings',
+    icon: 'Building',
+    defaultAccess: false
+  },
+  {
+    id: 'payment_settings',
+    name: 'Payment Settings',
+    description: 'Configure payment methods and UPI settings',
+    category: 'settings',
+    icon: 'CreditCard',
+    defaultAccess: false
+  },
+  {
+    id: 'tax_settings',
+    name: 'Tax Configuration',
+    description: 'Configure tax rates and billing settings',
+    category: 'settings',
+    icon: 'Calculator',
+    defaultAccess: false
+  },
+  {
+    id: 'theme_settings',
+    name: 'Theme & Branding',
+    description: 'Customize restaurant theme and branding',
+    category: 'settings',
+    icon: 'Palette',
+    defaultAccess: false
+  },
+  {
+    id: 'operating_hours',
+    name: 'Operating Hours',
+    description: 'Set restaurant operating hours',
+    category: 'settings',
+    icon: 'Clock',
+    defaultAccess: false
+  },
+  
+  // ===== EMPLOYEE MANAGEMENT =====
+  {
     id: 'employees',
     name: 'Employee Management',
     description: 'Manage staff and their permissions (Owner only)',
@@ -137,11 +597,61 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     defaultAccess: false
   },
   {
-    id: 'marketplace',
-    name: 'Marketplace',
-    description: 'Order bulk supplies and manage wholesale orders',
-    category: 'management',
-    icon: 'ShoppingCart',
+    id: 'employee_create',
+    name: 'Create Employees',
+    description: 'Add new employees to the system',
+    category: 'settings',
+    icon: 'UserPlus',
+    defaultAccess: false
+  },
+  {
+    id: 'employee_permissions',
+    name: 'Employee Permissions',
+    description: 'Assign and modify employee permissions',
+    category: 'settings',
+    icon: 'Shield',
+    defaultAccess: false
+  },
+  {
+    id: 'employee_analytics',
+    name: 'Employee Analytics',
+    description: 'View employee performance and activity',
+    category: 'reports',
+    icon: 'BarChart',
+    defaultAccess: false
+  },
+  
+  // ===== ADVANCED FEATURES =====
+  {
+    id: 'multi_location',
+    name: 'Multi-Location Support',
+    description: 'Manage multiple restaurant locations',
+    category: 'settings',
+    icon: 'MapPin',
+    defaultAccess: false
+  },
+  {
+    id: 'api_access',
+    name: 'API Access',
+    description: 'Access to restaurant APIs and integrations',
+    category: 'settings',
+    icon: 'Code',
+    defaultAccess: false
+  },
+  {
+    id: 'data_export',
+    name: 'Data Export/Backup',
+    description: 'Export restaurant data and create backups',
+    category: 'settings',
+    icon: 'Database',
+    defaultAccess: false
+  },
+  {
+    id: 'system_logs',
+    name: 'System Logs',
+    description: 'View system activity and audit logs',
+    category: 'settings',
+    icon: 'FileText',
     defaultAccess: false
   }
 ];

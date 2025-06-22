@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useRestaurantAuth } from '@/contexts/RestaurantAuthContext';
-import { EmployeeService, AVAILABLE_MODULES } from '@/services/employeeService';
-import { Employee, User } from '@/types';
+import { AVAILABLE_MODULES, EmployeeService } from '@/services/employeeService';
+import { Employee } from '@/types';
 
 export interface EmployeePermissions {
   hasPermission: (moduleId: string) => boolean;
@@ -15,6 +16,42 @@ export interface EmployeePermissions {
 
 export function useEmployeePermissions(): EmployeePermissions {
   const { user } = useRestaurantAuth();
+  const { restaurant } = useRestaurant();
+  const [employeeData, setEmployeeData] = useState<Employee | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch employee data when user changes
+  useEffect(() => {
+    const fetchEmployeeData = async () => {
+      if (!user || !restaurant || user.role === 'owner') {
+        return; // No need to fetch for owners or when no user/restaurant
+      }
+
+      if (user.role === 'manager' || user.role === 'staff') {
+        setLoading(true);
+        try {
+          console.log('🔍 Fetching employee permissions for user:', user.email);
+          const result = await EmployeeService.getEmployees(restaurant.id);
+          if (result.success && result.data) {
+            // Find the employee by email
+            const employee = result.data.find((emp: Employee) => emp.email === user.email);
+            if (employee) {
+              console.log('✅ Found employee data with permissions:', employee.permissions?.length || 0, 'permissions');
+              setEmployeeData(employee);
+            } else {
+              console.warn('❌ Employee not found in restaurant employee list:', user.email);
+            }
+          }
+        } catch (error) {
+          console.error('❌ Failed to fetch employee data:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchEmployeeData();
+  }, [user, restaurant]);
 
   return useMemo(() => {
     if (!user) {
@@ -47,13 +84,32 @@ export function useEmployeePermissions(): EmployeePermissions {
       };
     }
 
-    // For employees, we need to check their specific permissions
-    // Since we converted employee to user format, we need to fetch employee data
+    // For employees, check their specific permissions from the database
     const hasPermission = (moduleId: string): boolean => {
       if (isOwner) return true;
       
-      // For now, we'll use a basic permission system
-      // In a real implementation, you'd fetch the employee's permissions from the database
+      // If we have employee data with permissions, use those
+      if (employeeData && employeeData.permissions) {
+        const permission = employeeData.permissions.find(p => p.module === moduleId);
+        const hasAccess = permission ? permission.access : false;
+        
+        if (hasAccess) {
+          console.log(`✅ Permission granted for ${moduleId}:`, hasAccess);
+        } else {
+          console.log(`❌ Permission denied for ${moduleId}`);
+        }
+        
+        return hasAccess;
+      }
+      
+      // Fallback to basic permissions while loading employee data
+      if (loading) {
+        console.log(`⏳ Still loading employee data, denying access to ${moduleId}`);
+        return false;
+      }
+      
+      // If no employee data found, fall back to basic role-based permissions
+      console.warn(`⚠️ No employee data found, using basic role permissions for ${moduleId}`);
       
       // Basic permissions for managers
       if (isManager) {
@@ -84,6 +140,17 @@ export function useEmployeePermissions(): EmployeePermissions {
         return AVAILABLE_MODULES?.map((m) => m.id) || [];
       }
       
+      // If we have employee data, use their specific permissions
+      if (employeeData && employeeData.permissions) {
+        const accessibleModules = employeeData.permissions
+          .filter(p => p.access)
+          .map(p => p.module);
+        
+        console.log('📋 Employee accessible modules:', accessibleModules);
+        return accessibleModules;
+      }
+      
+      // Fallback to basic role permissions
       if (isManager) {
         return [
           'orders', 'take_order', 'tables', 'billing', 'dashboard',
@@ -107,7 +174,7 @@ export function useEmployeePermissions(): EmployeePermissions {
       isEmployee,
       accessibleModules: getAccessibleModules()
     };
-  }, [user]);
+  }, [user, employeeData, loading]);
 }
 
 // Helper function to check if user can access a specific route

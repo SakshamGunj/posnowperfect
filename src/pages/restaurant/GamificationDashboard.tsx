@@ -362,47 +362,40 @@ export default function GamificationDashboard() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200">
+      <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => window.history.back()}
-                className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              
-              <div 
-                className="w-12 h-12 rounded-2xl flex items-center justify-center text-white"
-                style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-              >
-                <Grid3X3 className="w-6 h-6" />
-              </div>
-              
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Gamification Tools</h1>
-                <p className="text-gray-600">Create engaging spin wheel games for your customers</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
+                <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3 text-purple-600" />
+                Gamification Dashboard
+              </h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">
+                Engage customers with interactive spin wheel games and loyalty rewards
+              </p>
               </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+              {spinWheels.some(wheel => 
+                wheel.shareableLink.includes('pos.') || 
+                wheel.shareableLink.includes('admin.') || 
+                wheel.shareableLink.includes('tenversemedia')
+              ) && (
               <button
                 onClick={fixSpinWheelLinks}
-                className="px-3 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors flex items-center space-x-2 text-sm"
-                title="Fix incorrect domain links in existing spin wheels"
+                  className="px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center justify-center space-x-2 text-sm"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>Fix Links</span>
+                  <span className="hidden sm:inline">Fix Links</span>
+                  <span className="sm:hidden">Fix</span>
               </button>
-              
+              )}
               <button
                 onClick={() => {
                   console.log('Create button clicked');
                   setCreateSegments(GamificationService.getDefaultSegments());
                   setShowCreateModal(true);
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                className="px-3 py-2 sm:px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2 text-sm sm:text-base"
               >
                 <Plus className="w-4 h-4" />
                 <span>Create Spin Wheel</span>
@@ -413,57 +406,57 @@ export default function GamificationDashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
             <div className="flex items-center">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Grid3X3 className="w-6 h-6 text-blue-600" />
+              <div className="p-2 sm:p-3 bg-blue-100 rounded-lg">
+                <Grid3X3 className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-600">Total Wheels</p>
-                <p className="text-2xl font-bold text-gray-900">{spinWheels.length}</p>
+              <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-gray-600 truncate">Total Wheels</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{spinWheels.length}</p>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
             <div className="flex items-center">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <CheckCircle className="w-6 h-6 text-green-600" />
+              <div className="p-2 sm:p-3 bg-green-100 rounded-lg">
+                <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6 text-green-600" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-600">Active Wheels</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-gray-600 truncate">Active Wheels</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">
                   {spinWheels.filter(w => w.isActive).length}
                 </p>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
             <div className="flex items-center">
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Users className="w-6 h-6 text-purple-600" />
+              <div className="p-2 sm:p-3 bg-purple-100 rounded-lg">
+                <Users className="w-4 h-4 sm:w-6 sm:h-6 text-purple-600" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-600">Total Spins</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-gray-600 truncate">Total Spins</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">
                   {spinWheels.reduce((sum, wheel) => sum + wheel.totalSpins, 0)}
                 </p>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
             <div className="flex items-center">
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <Award className="w-6 h-6 text-orange-600" />
+              <div className="p-2 sm:p-3 bg-orange-100 rounded-lg">
+                <Award className="w-4 h-4 sm:w-6 sm:h-6 text-orange-600" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-600">Redemptions</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-gray-600 truncate">Redemptions</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">
                   {spinWheels.reduce((sum, wheel) => sum + wheel.totalRedemptions, 0)}
                 </p>
               </div>
@@ -473,28 +466,28 @@ export default function GamificationDashboard() {
 
         {/* Spin Wheels List */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="p-6 border-b border-gray-200">
+          <div className="p-4 sm:p-6 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Your Spin Wheels</h2>
-            <p className="text-gray-600">Manage your customer engagement games</p>
+            <p className="text-gray-600 text-sm sm:text-base">Manage your customer engagement games</p>
           </div>
 
           {isLoading ? (
-            <div className="p-12 text-center">
-              <RefreshCw className="w-8 h-8 text-gray-400 mx-auto mb-4 animate-spin" />
+            <div className="p-8 sm:p-12 text-center">
+              <RefreshCw className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 mx-auto mb-4 animate-spin" />
               <p className="text-gray-600">Loading spin wheels...</p>
             </div>
           ) : spinWheels.length === 0 ? (
-            <div className="p-12 text-center">
-              <Grid3X3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Spin Wheels Yet</h3>
-              <p className="text-gray-600 mb-6">Create your first spin wheel to start engaging customers with fun rewards!</p>
+            <div className="p-8 sm:p-12 text-center">
+              <Grid3X3 className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No Spin Wheels Yet</h3>
+              <p className="text-gray-600 mb-6 text-sm sm:text-base">Create your first spin wheel to start engaging customers with fun rewards!</p>
               <button
                 onClick={() => {
                   console.log('Create first button clicked');
                   setCreateSegments(GamificationService.getDefaultSegments());
                   setShowCreateModal(true);
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base"
               >
                 Create Your First Spin Wheel
               </button>
@@ -502,12 +495,12 @@ export default function GamificationDashboard() {
           ) : (
             <div className="divide-y divide-gray-200">
               {spinWheels.map((wheel) => (
-                <div key={wheel.id} className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3">
-                        <h3 className="text-lg font-medium text-gray-900">{wheel.name}</h3>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                <div key={wheel.id} className="p-4 sm:p-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                        <h3 className="text-base sm:text-lg font-medium text-gray-900 truncate">{wheel.name}</h3>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium self-start ${
                           wheel.isActive 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-gray-100 text-gray-800'
@@ -516,30 +509,31 @@ export default function GamificationDashboard() {
                         </span>
                       </div>
                       
-                      <div className="mt-2 flex items-center space-x-6 text-sm text-gray-600">
-                        <span>
-                          <Users className="w-4 h-4 inline mr-1" />
+                      <div className="mt-2 grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-6 text-xs sm:text-sm text-gray-600">
+                        <span className="flex items-center">
+                          <Users className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                           {wheel.totalSpins} spins
                         </span>
-                        <span>
-                          <Award className="w-4 h-4 inline mr-1" />
+                        <span className="flex items-center">
+                          <Award className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                           {wheel.totalRedemptions} redeemed
                         </span>
-                        <span>
+                        <span className="hidden sm:inline">
                           Max {wheel.maxSpinsPerCustomer} per customer
                         </span>
-                        <span>
+                        <span className="hidden sm:inline">
                           {wheel.segments.length} segments
                         </span>
                       </div>
 
-                      <div className="mt-3 flex items-center space-x-2">
-                        <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                      <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <code className="text-xs bg-gray-100 px-2 py-1 rounded truncate flex-1 block overflow-hidden">
                           {wheel.shareableLink}
                         </code>
                         <button
                           onClick={() => copyShareableLink(wheel.shareableLink)}
-                          className="text-blue-600 hover:text-blue-800"
+                            className="text-blue-600 hover:text-blue-800 flex-shrink-0"
                           title="Copy link"
                         >
                           <Copy className="w-4 h-4" />
@@ -548,15 +542,16 @@ export default function GamificationDashboard() {
                           href={wheel.shareableLink}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800"
+                            className="text-blue-600 hover:text-blue-800 flex-shrink-0"
                           title="Open in new tab"
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center justify-end gap-2 flex-shrink-0">
                       <button
                         onClick={() => loadWheelStats(wheel)}
                         className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"

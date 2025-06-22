@@ -185,6 +185,9 @@ export default function App() {
                     {/* Customer Ordering Portal Route (Public) */}
                     <Route path="menu-portal" element={<CustomerOrderingPage />} />
                     
+                    {/* Table-specific Customer Ordering Portal Route (Public) */}
+                    <Route path="menu-portal/:tableId" element={<CustomerOrderingPage />} />
+                    
                     {/* Customer Order Status Route (Public) */}
                     <Route path="order-status" element={<CustomerOrderStatus />} />
                     

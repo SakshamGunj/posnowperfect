@@ -17,7 +17,7 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
-
+  Printer,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -26,6 +26,7 @@ import { MenuService } from '@/services/menuService';
 import { TableService } from '@/services/tableService';
 import { SalesReportService } from '@/services/salesReportService';
 import { RevenueService } from '@/services/revenueService';
+import { generateUPIPaymentString, generateQRCodeDataURL } from '@/utils/upiUtils';
 
 import { Order, MenuItem, Table, OrderStatus } from '@/types';
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
@@ -942,6 +943,408 @@ function OrderDetailsModal({ order, isOpen, onClose, onStatusUpdate, tables }: O
   );
 }
 
+// Bill generation function for reprinting orders
+async function generateOrderBillContent(order: Order, restaurant: any, table: Table): Promise<string> {
+  // Calculate bill details
+  const subtotal = order.subtotal;
+  const discountAmount = order.discount || 0;
+  const tax = order.tax;
+  const finalAmount = order.total;
+
+  // Generate UPI QR code if UPI settings are configured
+  let upiQRCodeDataURL = '';
+  const upiSettings = restaurant?.settings?.upiSettings;
+  if (upiSettings?.enableQRCode && upiSettings?.upiId) {
+    try {
+      console.log('🏷️ Generating UPI QR code for order bill:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        upiId: upiSettings.upiId,
+        amount: finalAmount,
+        restaurant: restaurant.name
+      });
+      
+      const upiPaymentString = generateUPIPaymentString(
+        upiSettings.upiId,
+        finalAmount,
+        restaurant.name,
+        `Payment for Order #${order.orderNumber} - ${restaurant.name}`
+      );
+      
+      console.log('🔗 UPI Payment String:', upiPaymentString);
+      
+      upiQRCodeDataURL = await generateQRCodeDataURL(upiPaymentString);
+      
+      if (upiQRCodeDataURL) {
+        console.log('✅ UPI QR Code generated successfully for order');
+      } else {
+        console.error('❌ Failed to generate UPI QR Code for order');
+      }
+    } catch (error) {
+      console.error('❌ Error generating UPI QR Code for order:', error);
+    }
+  }
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Bill - Order #${order.orderNumber}</title>
+      <meta charset="UTF-8">
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        body {
+          font-family: 'Courier New', monospace;
+          font-size: 11px;
+          font-weight: bold;
+          line-height: 1.1;
+          width: 100%;
+          margin: 0;
+          padding: 0 5px;
+          background: #fff;
+          color: #000;
+        }
+        
+        .receipt {
+          width: 100%;
+          padding: 5px 0;
+          background: #fff;
+        }
+        
+        .header {
+          text-align: center;
+          margin-bottom: 5px;
+          border-bottom: 2px solid #000;
+          padding-bottom: 3px;
+        }
+        
+        .restaurant-name {
+          font-size: 14px;
+          font-weight: bold;
+          letter-spacing: 0.5px;
+          margin-bottom: 2px;
+          text-transform: uppercase;
+        }
+        
+        .contact-info {
+          font-size: 9px;
+          line-height: 1.1;
+          font-weight: bold;
+          margin-bottom: 2px;
+        }
+        
+        .bill-header {
+          text-align: center;
+          margin: 5px 0;
+          padding: 3px 0;
+          border-top: 1px dashed #000;
+          border-bottom: 1px dashed #000;
+        }
+        
+        .bill-title {
+          font-size: 12px;
+          font-weight: bold;
+          margin-bottom: 2px;
+          letter-spacing: 0.5px;
+        }
+        
+        .bill-info {
+          font-size: 10px;
+          line-height: 1.1;
+          font-weight: bold;
+        }
+        
+        .items-section {
+          margin: 5px 0;
+        }
+        
+        .items-header {
+          display: flex;
+          justify-content: space-between;
+          border-bottom: 1px solid #000;
+          padding-bottom: 2px;
+          margin-bottom: 3px;
+          font-weight: bold;
+          font-size: 10px;
+        }
+        
+        .item-row {
+          display: flex;
+          justify-content: space-between;
+          margin: 2px 0;
+          padding: 1px 0;
+        }
+        
+        .item-details {
+          flex: 1;
+          padding-right: 5px;
+        }
+        
+        .item-name {
+          font-weight: bold;
+          margin-bottom: 1px;
+          font-size: 10px;
+        }
+        
+        .item-qty-price {
+          font-size: 9px;
+          font-weight: bold;
+        }
+        
+        .item-total {
+          font-weight: bold;
+          min-width: 50px;
+          text-align: right;
+          font-size: 10px;
+        }
+        
+        .totals-section {
+          margin-top: 5px;
+          border-top: 1px solid #000;
+          padding-top: 3px;
+        }
+        
+        .total-row {
+          display: flex;
+          justify-content: space-between;
+          margin: 1px 0;
+          padding: 1px 0;
+          font-weight: bold;
+          font-size: 10px;
+        }
+        
+        .total-row.subtotal {
+          border-bottom: 1px dotted #000;
+          padding-bottom: 2px;
+          margin-bottom: 2px;
+        }
+        
+        .total-row.final {
+          border-top: 2px solid #000;
+          border-bottom: 2px solid #000;
+          padding: 3px 0;
+          margin-top: 3px;
+          font-size: 12px;
+          font-weight: bold;
+        }
+        
+        .payment-section {
+          margin: 5px 0;
+          padding: 3px 0;
+          border-top: 1px dashed #000;
+          border-bottom: 1px dashed #000;
+        }
+        
+        .payment-title {
+          font-weight: bold;
+          margin-bottom: 2px;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+          font-size: 10px;
+        }
+        
+        .payment-details {
+          font-size: 9px;
+          line-height: 1.1;
+          font-weight: bold;
+        }
+        
+        .payment-method {
+          background: #f0f0f0;
+          padding: 1px 2px;
+          display: inline-block;
+          font-weight: bold;
+        }
+        
+        .upi-section {
+          margin: 5px 0;
+          padding: 8px;
+          border: 2px solid #000;
+          text-align: center;
+          background: #f9f9f9;
+        }
+        
+        .upi-title {
+          font-size: 12px;
+          font-weight: bold;
+          margin-bottom: 3px;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+        }
+        
+        .upi-id {
+          font-size: 10px;
+          font-weight: bold;
+          margin-bottom: 5px;
+          color: #333;
+        }
+        
+        .footer {
+          text-align: center;
+          margin-top: 5px;
+          padding-top: 3px;
+          border-top: 2px solid #000;
+        }
+        
+        .thank-you {
+          font-size: 11px;
+          font-weight: bold;
+          margin-bottom: 2px;
+          letter-spacing: 0.5px;
+        }
+        
+        .footer-info {
+          font-size: 8px;
+          font-weight: bold;
+          line-height: 1.1;
+        }
+        
+        .timestamp {
+          text-align: center;
+          margin-top: 3px;
+          font-size: 8px;
+          font-weight: bold;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="receipt">
+        <!-- Header Section -->
+        <div class="header">
+          <div class="restaurant-name">${restaurant.name}</div>
+          <div class="contact-info">
+            ${restaurant.settings?.businessInfo?.businessAddress || restaurant.settings?.address || 'Restaurant Address'}
+            ${restaurant.settings?.businessInfo?.city ? `, ${restaurant.settings.businessInfo.city}` : ''}
+            ${restaurant.settings?.businessInfo?.state ? `, ${restaurant.settings.businessInfo.state}` : ''}
+            ${restaurant.settings?.businessInfo?.pincode ? ` - ${restaurant.settings.businessInfo.pincode}` : ''}
+            <br>
+            ${restaurant.settings?.phone ? `📞 ${restaurant.settings.phone}` : ''}
+            ${restaurant.settings?.businessInfo?.gstin ? `<br>GSTIN: ${restaurant.settings.businessInfo.gstin}` : ''}
+            ${restaurant.settings?.businessInfo?.fssaiNumber ? `<br>FSSAI: ${restaurant.settings.businessInfo.fssaiNumber}` : ''}
+          </div>
+        </div>
+
+        <!-- Bill Header -->
+        <div class="bill-header">
+          <div class="bill-title">BILL RECEIPT</div>
+          <div class="bill-info">
+            <strong>Order:</strong> #${order.orderNumber}<br>
+            <strong>Table:</strong> ${table?.number || 'N/A'} (${table?.area || 'N/A'})<br>
+            <strong>Date:</strong> ${formatDate(order.createdAt)}<br>
+            <strong>Time:</strong> ${formatTime(order.createdAt)}<br>
+            <strong>Status:</strong> ${order.status.toUpperCase()}
+          </div>
+        </div>
+
+        <!-- Items Section -->
+        <div class="items-section">
+          <div class="items-header">
+            <span>ITEM</span>
+            <span>TOTAL</span>
+          </div>
+          
+          ${order.items.map(item => `
+            <div class="item-row">
+              <div class="item-details">
+                <div class="item-name">${item.name}</div>
+                <div class="item-qty-price">${item.quantity} × ${formatCurrency(item.price)}</div>
+                ${item.customizations && item.customizations.length > 0 ? `
+                  <div style="font-size: 8px; color: #666;">+ ${item.customizations.join(', ')}</div>
+                ` : ''}
+                ${item.notes ? `
+                  <div style="font-size: 8px; color: #666;">Note: ${item.notes}</div>
+                ` : ''}
+              </div>
+              <div class="item-total">${formatCurrency(item.total)}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Totals Section -->
+        <div class="totals-section">
+          <div class="total-row subtotal">
+            <span>Subtotal</span>
+            <span>${formatCurrency(subtotal)}</span>
+          </div>
+          
+          ${discountAmount > 0 ? `
+            <div class="total-row">
+              <span>Discount</span>
+              <span>-${formatCurrency(discountAmount)}</span>
+            </div>
+          ` : ''}
+          
+          <div class="total-row">
+            <span>Tax (${restaurant?.settings?.taxRate || 8.5}%)</span>
+            <span>${formatCurrency(tax)}</span>
+          </div>
+          
+          <div class="total-row final">
+            <span>TOTAL AMOUNT</span>
+            <span>${formatCurrency(finalAmount)}</span>
+          </div>
+        </div>
+
+        <!-- Payment Section -->
+        <div class="payment-section">
+          <div class="payment-title">Payment Details</div>
+          <div class="payment-details">
+            <strong>Status:</strong> <span class="payment-method">${order.paymentStatus.toUpperCase()}</span><br>
+            <strong>Method:</strong> ${order.paymentMethod || 'N/A'}
+          </div>
+        </div>
+
+        ${upiSettings?.enableQRCode && upiSettings?.upiId ? `
+        <!-- UPI Payment Section -->
+        <div class="upi-section">
+          <div class="upi-title">💳 UPI PAYMENT</div>
+          <div class="upi-id">Pay to: ${upiSettings.upiId}</div>
+          
+          <!-- QR Code Container - Compact Size -->
+          <div style="text-align: center; margin: 5px 0; background: #fff; padding: 8px;">
+            ${upiQRCodeDataURL ? `
+              <img src="${upiQRCodeDataURL}" 
+                   alt="UPI QR Code" 
+                   style="width: 80px; height: 80px; display: block; margin: 0 auto; background: white;"
+                   onload="console.log('✅ QR Code image loaded successfully')"
+                   onerror="console.error('❌ QR Code image failed to load'); this.style.display='none'; this.nextElementSibling.style.display='block';" />
+              <div style="display: none; font-size: 8px; padding: 8px; border: 1px dashed #000; background: #ffe6e6; text-align: center;">
+                <strong>QR FAILED</strong><br>Use UPI ID above
+              </div>
+            ` : `
+              <div style="font-size: 9px; padding: 15px; border: 2px dashed #666; background: #f0f0f0; text-align: center;">
+                <strong>QR NOT AVAILABLE</strong><br>Use UPI ID above
+              </div>
+            `}
+          </div>
+          
+          <!-- Simple Payment Amount -->
+          <div style="text-align: center;">
+            <div style="font-size: 11px; font-weight: bold; margin: 3px 0; color: #000; background: #e6ffe6; padding: 3px;">
+              💰 AMOUNT: ${formatCurrency(finalAmount)}
+            </div>
+          </div>
+        </div>
+        ` : ''}
+
+        <!-- Footer -->
+        <div class="footer">
+          <div class="footer-info">
+            ${restaurant.settings?.businessInfo?.website ? `🌐 ${restaurant.settings.businessInfo.website}<br>` : ''}
+            ${restaurant.settings?.businessInfo?.email ? `📧 ${restaurant.settings.businessInfo.email}` : ''}
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
 export default function OrderDashboard() {
   const { restaurant } = useRestaurant();
   
@@ -1253,6 +1656,66 @@ export default function OrderDashboard() {
       }
     } catch (error) {
       toast.error('Failed to update order status');
+    }
+  };
+
+  const handlePrintBill = async (order: Order) => {
+    if (!restaurant) {
+      toast.error('Restaurant data not available');
+      return;
+    }
+
+    const table = tables.find(t => t.id === order.tableId);
+    if (!table) {
+      toast.error('Table information not found');
+      return;
+    }
+
+    try {
+      // Show loading toast
+      const toastId = toast.loading('Generating bill with QR code...');
+      
+      console.log('🏷️ Starting bill generation for order:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        restaurant: restaurant.name
+      });
+      
+      // Generate bill content with QR code
+      const billContent = await generateOrderBillContent(order, restaurant, table);
+      
+      // Dismiss loading toast
+      toast.dismiss(toastId);
+      
+      // Small delay to ensure QR code is fully processed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Open print dialog
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(billContent);
+        printWindow.document.close();
+        
+        // Wait a bit more for images to load
+        printWindow.addEventListener('load', () => {
+          setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+          }, 1000);
+        });
+        
+        // Fallback for immediate print
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+          printWindow.close();
+        }, 2000);
+      }
+      
+      toast.success(`Bill for Order #${order.orderNumber} sent to printer`);
+    } catch (error) {
+      console.error('❌ Error generating bill:', error);
+      toast.error('Failed to generate bill');
     }
   };
 
@@ -1959,6 +2422,7 @@ export default function OrderDashboard() {
                                 <p className="text-sm text-gray-600">{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</p>
                               </div>
                               
+                              <div className="flex items-center space-x-2">
                               <button
                                 onClick={() => {
                                   setSelectedOrder(order);
@@ -1969,6 +2433,18 @@ export default function OrderDashboard() {
                                 <Eye className="w-4 h-4 mr-2" />
                                 View
                               </button>
+                                
+                                {order.status === 'completed' && (
+                                  <button
+                                    onClick={() => handlePrintBill(order)}
+                                    className="btn btn-primary"
+                                    title={`Print bill for Order #${order.orderNumber}`}
+                                  >
+                                    <Printer className="w-4 h-4 mr-2" />
+                                    Print Bill
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>

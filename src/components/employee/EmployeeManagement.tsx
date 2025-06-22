@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { useRestaurantAuth } from '@/contexts/RestaurantAuthContext';
 import { EmployeeService, AVAILABLE_MODULES } from '@/services/employeeService';
@@ -15,20 +15,17 @@ import {
   Mail,
   Hash,
   User,
-  Settings,
   Search,
-  Filter,
-  MoreVertical,
   CheckCircle,
   XCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface EmployeeManagementProps {
-  onClose?: () => void;
+  // onClose is kept for future use if needed
 }
 
-export default function EmployeeManagement({ onClose }: EmployeeManagementProps) {
+export default function EmployeeManagement({}: EmployeeManagementProps) {
   const { restaurant } = useRestaurant();
   const { user } = useRestaurantAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -567,79 +564,282 @@ function CreateEmployeeModal({ onClose, onSubmit }: CreateEmployeeModalProps) {
             </div>
           </div>
 
-          {/* Permissions */}
+          {/* Comprehensive Permissions System */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-lg font-medium text-gray-900">Permissions</h4>
-              <div className="space-x-2">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Shield className="w-5 h-5 mr-2 text-blue-600" />
+                  Employee Permissions & Access Control
+                </h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  Configure what features and operations this employee can access
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {/* Quick Role Presets */}
+                <div className="flex items-center space-x-2 mr-4">
+                  <span className="text-xs font-medium text-gray-600">Quick Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const basicModules = ['orders', 'take_order', 'billing', 'tables', 'kitchen', 'dashboard', 'customer_create', 'coupon_apply'];
+                      setPermissions(prev => prev.map(p => ({
+                        ...p,
+                        access: basicModules.includes(p.module)
+                      })));
+                    }}
+                    className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                  >
+                    Waiter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const kitchenModules = ['kitchen', 'kitchen_manage', 'order_status', 'kot_print', 'dashboard'];
+                      setPermissions(prev => prev.map(p => ({
+                        ...p,
+                        access: kitchenModules.includes(p.module)
+                      })));
+                    }}
+                    className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
+                  >
+                    Chef
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cashierModules = ['orders', 'billing', 'discounts', 'customer_create', 'credits', 'dashboard', 'coupon_apply'];
+                      setPermissions(prev => prev.map(p => ({
+                        ...p,
+                        access: cashierModules.includes(p.module)
+                      })));
+                    }}
+                    className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                  >
+                    Cashier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const managerModules = ['orders', 'take_order', 'billing', 'tables', 'menu', 'inventory', 'customers', 'coupons', 'reports', 'dashboard'];
+                      setPermissions(prev => prev.map(p => ({
+                        ...p,
+                        access: managerModules.includes(p.module)
+                      })));
+                    }}
+                    className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                  >
+                    Manager
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setAllPermissions(true)}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                  className="flex items-center px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
                 >
-                  Select All
+                  <CheckCircle className="w-4 h-4 mr-1" />
+                  Grant All
                 </button>
                 <button
                   type="button"
                   onClick={() => setAllPermissions(false)}
-                  className="text-sm text-gray-600 hover:text-gray-800"
+                  className="flex items-center px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
                 >
-                  Deselect All
+                  <XCircle className="w-4 h-4 mr-1" />
+                  Revoke All
                 </button>
               </div>
             </div>
-            
-            <div className="space-y-4">
-              {Object.entries(groupedModules).map(([category, modules]) => (
-                <div key={category} className="border rounded-lg p-4">
-                  <h5 className="font-medium text-gray-900 mb-3 capitalize">
-                    {category.replace('_', ' ')} Features
-                  </h5>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {modules.map((module) => {
-                      const permission = permissions.find(p => p.module === module.id);
-                      return (
-                        <label key={module.id} className="flex items-center space-x-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={permission?.access || false}
-                            onChange={() => togglePermission(module.id)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {module.name}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {module.description}
-                            </div>
+
+            {/* Permission Categories */}
+            <div className="space-y-6">
+              {Object.entries(groupedModules).map(([category, modules]) => {
+                const categoryConfig = {
+                  core: {
+                    title: '🍽️ Core POS Operations',
+                    description: 'Essential restaurant operations and order management',
+                    color: 'border-blue-200 bg-blue-50'
+                  },
+                  management: {
+                    title: '⚙️ Management & Administration',
+                    description: 'Business management and configuration features',
+                    color: 'border-orange-200 bg-orange-50'
+                  },
+                  reports: {
+                    title: '📊 Analytics & Reporting',
+                    description: 'Business insights, analytics, and performance reports',
+                    color: 'border-green-200 bg-green-50'
+                  },
+                  settings: {
+                    title: '🔧 System Settings & Configuration',
+                    description: 'Restaurant settings and system administration',
+                    color: 'border-purple-200 bg-purple-50'
+                  }
+                };
+
+                const config = categoryConfig[category as keyof typeof categoryConfig] || {
+                  title: category.replace('_', ' ').toUpperCase(),
+                  description: 'Additional features and capabilities',
+                  color: 'border-gray-200 bg-gray-50'
+                };
+
+                const categoryPermissions = permissions.filter(p => 
+                  modules.some(m => m.id === p.module)
+                );
+                const enabledCount = categoryPermissions.filter(p => p.access).length;
+                const totalCount = modules.length;
+
+                return (
+                  <div key={category} className={`border-2 rounded-xl p-5 ${config.color} transition-all hover:shadow-md`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h5 className="text-lg font-semibold text-gray-900 mb-1">
+                          {config.title}
+                        </h5>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {config.description}
+                        </p>
+                        <div className="flex items-center space-x-2">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white border">
+                            {enabledCount}/{totalCount} permissions enabled
+                          </span>
+                          <div className="w-24 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full transition-all"
+                              style={{ width: `${(enabledCount / totalCount) * 100}%` }}
+                            />
                           </div>
-                        </label>
-                      );
-                    })}
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            modules.forEach(module => {
+                              setPermissions(prev => prev.map(p => 
+                                p.module === module.id ? { ...p, access: true } : p
+                              ));
+                            });
+                          }}
+                          className="text-xs px-2 py-1 bg-white border border-green-300 text-green-700 rounded hover:bg-green-50"
+                        >
+                          Enable All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            modules.forEach(module => {
+                              setPermissions(prev => prev.map(p => 
+                                p.module === module.id ? { ...p, access: false } : p
+                              ));
+                            });
+                          }}
+                          className="text-xs px-2 py-1 bg-white border border-red-300 text-red-700 rounded hover:bg-red-50"
+                        >
+                          Disable All
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {modules.map((module) => {
+                        const permission = permissions.find(p => p.module === module.id);
+                        const isEnabled = permission?.access || false;
+                        
+                        return (
+                          <label 
+                            key={module.id} 
+                            className={`flex items-start space-x-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                              isEnabled 
+                                ? 'border-blue-300 bg-blue-50 shadow-sm' 
+                                : 'border-gray-200 bg-white hover:border-gray-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isEnabled}
+                              onChange={() => togglePermission(module.id)}
+                              className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-2"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2">
+                                <div className={`text-sm font-medium ${isEnabled ? 'text-blue-900' : 'text-gray-900'}`}>
+                                  {module.name}
+                                </div>
+                                {module.defaultAccess && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <div className={`text-xs mt-1 ${isEnabled ? 'text-blue-700' : 'text-gray-500'}`}>
+                                {module.description}
+                              </div>
+                              {/* Additional context for important permissions */}
+                              {module.id === 'employees' && (
+                                <div className="text-xs text-orange-600 mt-1 font-medium">
+                                  ⚠️ Owner-level permission
+                                </div>
+                              )}
+                              {module.id === 'settings' && (
+                                <div className="text-xs text-orange-600 mt-1 font-medium">
+                                  ⚠️ Sensitive system settings
+                                </div>
+                              )}
+                              {module.id === 'financial_reports' && (
+                                <div className="text-xs text-orange-600 mt-1 font-medium">
+                                  💰 Financial data access
+                                </div>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
+            </div>
+
+            {/* Permission Summary */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+              <h6 className="text-sm font-medium text-gray-900 mb-2">Permission Summary</h6>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                {Object.entries(groupedModules).map(([category, modules]) => {
+                  const enabledCount = permissions.filter(p => 
+                    modules.some(m => m.id === p.module) && p.access
+                  ).length;
+                  return (
+                    <div key={category} className="text-center">
+                      <div className="text-lg font-bold text-blue-600">{enabledCount}</div>
+                      <div className="text-xs text-gray-600 capitalize">
+                        {category.replace('_', ' ')}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-end space-x-3 pt-4 border-t">
+          {/* Form Actions */}
+          <div className="flex items-center justify-end space-x-3 pt-6 border-t">
             <button
               type="button"
               onClick={onClose}
-              className="btn btn-secondary"
-              disabled={loading}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="btn btn-theme-primary"
               disabled={loading}
+              className="btn btn-theme-primary flex items-center disabled:opacity-50"
             >
               {loading ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
               ) : (
                 <UserPlus className="w-4 h-4 mr-2" />
               )}
@@ -652,7 +852,6 @@ function CreateEmployeeModal({ onClose, onSubmit }: CreateEmployeeModalProps) {
   );
 }
 
-// Edit Employee Modal Component
 interface EditEmployeeModalProps {
   employee: Employee;
   onClose: () => void;
@@ -726,12 +925,12 @@ function EditEmployeeModal({ employee, onClose, onSubmit }: EditEmployeeModalPro
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold text-gray-900">Edit Employee</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Edit Employee: {employee.name}</h3>
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Basic Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="form-label">Full Name *</label>
               <input
@@ -739,7 +938,6 @@ function EditEmployeeModal({ employee, onClose, onSubmit }: EditEmployeeModalPro
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 className="input"
-                placeholder="Enter employee name"
                 required
               />
             </div>
@@ -751,7 +949,6 @@ function EditEmployeeModal({ employee, onClose, onSubmit }: EditEmployeeModalPro
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 className="input"
-                placeholder="Enter email address"
                 required
               />
             </div>
@@ -810,69 +1007,272 @@ function EditEmployeeModal({ employee, onClose, onSubmit }: EditEmployeeModalPro
             </div>
           </div>
 
-          {/* Permissions */}
+          {/* Comprehensive Permissions System */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-lg font-medium text-gray-900">Permissions</h4>
-              <div className="space-x-2">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Shield className="w-5 h-5 mr-2 text-blue-600" />
+                  Update Employee Permissions
+                </h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  Modify what features and operations this employee can access
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {/* Quick Role Presets */}
+                <div className="flex items-center space-x-2 mr-4">
+                  <span className="text-xs font-medium text-gray-600">Quick Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const basicModules = ['orders', 'take_order', 'billing', 'tables', 'kitchen', 'dashboard', 'customer_create', 'coupon_apply'];
+                      setPermissions(prev => prev.map(p => ({
+                        ...p,
+                        access: basicModules.includes(p.module)
+                      })));
+                    }}
+                    className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                  >
+                    Waiter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const kitchenModules = ['kitchen', 'kitchen_manage', 'order_status', 'kot_print', 'dashboard'];
+                      setPermissions(prev => prev.map(p => ({
+                        ...p,
+                        access: kitchenModules.includes(p.module)
+                      })));
+                    }}
+                    className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
+                  >
+                    Chef
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cashierModules = ['orders', 'billing', 'discounts', 'customer_create', 'credits', 'dashboard', 'coupon_apply'];
+                      setPermissions(prev => prev.map(p => ({
+                        ...p,
+                        access: cashierModules.includes(p.module)
+                      })));
+                    }}
+                    className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                  >
+                    Cashier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const managerModules = ['orders', 'take_order', 'billing', 'tables', 'menu', 'inventory', 'customers', 'coupons', 'reports', 'dashboard'];
+                      setPermissions(prev => prev.map(p => ({
+                        ...p,
+                        access: managerModules.includes(p.module)
+                      })));
+                    }}
+                    className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                  >
+                    Manager
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setAllPermissions(true)}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                  className="flex items-center px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
                 >
-                  Select All
+                  <CheckCircle className="w-4 h-4 mr-1" />
+                  Grant All
                 </button>
                 <button
                   type="button"
                   onClick={() => setAllPermissions(false)}
-                  className="text-sm text-gray-600 hover:text-gray-800"
+                  className="flex items-center px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
                 >
-                  Deselect All
+                  <XCircle className="w-4 h-4 mr-1" />
+                  Revoke All
                 </button>
               </div>
             </div>
-            
-            <div className="space-y-4">
-              {Object.entries(groupedModules).map(([category, modules]) => (
-                <div key={category} className="border rounded-lg p-4">
-                  <h5 className="font-medium text-gray-900 mb-3 capitalize">
-                    {category.replace('_', ' ')} Features
-                  </h5>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {modules.map((module) => {
-                      const permission = permissions.find(p => p.module === module.id);
-                      return (
-                        <label key={module.id} className="flex items-center space-x-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={permission?.access || false}
-                            onChange={() => togglePermission(module.id)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {module.name}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {module.description}
-                            </div>
+
+            {/* Permission Categories */}
+            <div className="space-y-6">
+              {Object.entries(groupedModules).map(([category, modules]) => {
+                const categoryConfig = {
+                  core: {
+                    title: '🍽️ Core POS Operations',
+                    description: 'Essential restaurant operations and order management',
+                    color: 'border-blue-200 bg-blue-50'
+                  },
+                  management: {
+                    title: '⚙️ Management & Administration',
+                    description: 'Business management and configuration features',
+                    color: 'border-orange-200 bg-orange-50'
+                  },
+                  reports: {
+                    title: '📊 Analytics & Reporting',
+                    description: 'Business insights, analytics, and performance reports',
+                    color: 'border-green-200 bg-green-50'
+                  },
+                  settings: {
+                    title: '🔧 System Settings & Configuration',
+                    description: 'Restaurant settings and system administration',
+                    color: 'border-purple-200 bg-purple-50'
+                  }
+                };
+
+                const config = categoryConfig[category as keyof typeof categoryConfig] || {
+                  title: category.replace('_', ' ').toUpperCase(),
+                  description: 'Additional features and capabilities',
+                  color: 'border-gray-200 bg-gray-50'
+                };
+
+                const categoryPermissions = permissions.filter(p => 
+                  modules.some(m => m.id === p.module)
+                );
+                const enabledCount = categoryPermissions.filter(p => p.access).length;
+                const totalCount = modules.length;
+
+                return (
+                  <div key={category} className={`border-2 rounded-xl p-5 ${config.color} transition-all hover:shadow-md`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h5 className="text-lg font-semibold text-gray-900 mb-1">
+                          {config.title}
+                        </h5>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {config.description}
+                        </p>
+                        <div className="flex items-center space-x-2">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white border">
+                            {enabledCount}/{totalCount} permissions enabled
+                          </span>
+                          <div className="w-24 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full transition-all"
+                              style={{ width: `${(enabledCount / totalCount) * 100}%` }}
+                            />
                           </div>
-                        </label>
-                      );
-                    })}
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            modules.forEach(module => {
+                              setPermissions(prev => prev.map(p => 
+                                p.module === module.id ? { ...p, access: true } : p
+                              ));
+                            });
+                          }}
+                          className="text-xs px-2 py-1 bg-white border border-green-300 text-green-700 rounded hover:bg-green-50"
+                        >
+                          Enable All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            modules.forEach(module => {
+                              setPermissions(prev => prev.map(p => 
+                                p.module === module.id ? { ...p, access: false } : p
+                              ));
+                            });
+                          }}
+                          className="text-xs px-2 py-1 bg-white border border-red-300 text-red-700 rounded hover:bg-red-50"
+                        >
+                          Disable All
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {modules.map((module) => {
+                        const permission = permissions.find(p => p.module === module.id);
+                        const isEnabled = permission?.access || false;
+                        
+                        return (
+                          <label 
+                            key={module.id} 
+                            className={`flex items-start space-x-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                              isEnabled 
+                                ? 'border-blue-300 bg-blue-50 shadow-sm' 
+                                : 'border-gray-200 bg-white hover:border-gray-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isEnabled}
+                              onChange={() => togglePermission(module.id)}
+                              className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-2"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2">
+                                <div className={`text-sm font-medium ${isEnabled ? 'text-blue-900' : 'text-gray-900'}`}>
+                                  {module.name}
+                                </div>
+                                {module.defaultAccess && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <div className={`text-xs mt-1 ${isEnabled ? 'text-blue-700' : 'text-gray-500'}`}>
+                                {module.description}
+                              </div>
+                              {/* Additional context for important permissions */}
+                              {module.id === 'employees' && (
+                                <div className="text-xs text-orange-600 mt-1 font-medium">
+                                  ⚠️ Owner-level permission
+                                </div>
+                              )}
+                              {module.id === 'settings' && (
+                                <div className="text-xs text-orange-600 mt-1 font-medium">
+                                  ⚠️ Sensitive system settings
+                                </div>
+                              )}
+                              {module.id === 'financial_reports' && (
+                                <div className="text-xs text-orange-600 mt-1 font-medium">
+                                  💰 Financial data access
+                                </div>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
+            </div>
+
+            {/* Permission Summary */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg border">
+              <h6 className="text-sm font-medium text-gray-900 mb-2">Permission Summary</h6>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                {Object.entries(groupedModules).map(([category, modules]) => {
+                  const enabledCount = permissions.filter(p => 
+                    modules.some(m => m.id === p.module) && p.access
+                  ).length;
+                  return (
+                    <div key={category} className="text-center">
+                      <div className="text-lg font-bold text-blue-600">{enabledCount}</div>
+                      <div className="text-xs text-gray-600 capitalize">
+                        {category.replace('_', ' ')}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-end space-x-3 pt-4 border-t">
+          {/* Form Actions */}
+          <div className="flex items-center justify-end space-x-3 pt-6 border-t">
             <button
               type="button"
               onClick={onClose}
-              className="btn btn-secondary"
-              disabled={loading}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </button>

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { MenuService } from '@/services/menuService';
-import { MenuItem } from '@/types';
+import { TableService } from '@/services/tableService';
+import { MenuItem, Table } from '@/types';
 import toast from 'react-hot-toast';
 import {
   MapPin,
@@ -20,7 +21,11 @@ import {
   Users,
   ShoppingCart,
   Utensils,
-  ChefHat
+  ChefHat,
+  ToggleLeft,
+  ToggleRight,
+  Save,
+  Clock
 } from 'lucide-react';
 
 interface CustomerPortalSettings {
@@ -52,7 +57,9 @@ interface CustomerPortalSettings {
 export default function CustomerMenuPortal() {
   const { restaurant } = useRestaurant();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [tables, setTables] = useState<Table[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [portalType, setPortalType] = useState<'single' | 'table-specific'>('single');
   const [portalSettings, setPortalSettings] = useState<CustomerPortalSettings>({
     isEnabled: false,
     location: {
@@ -78,13 +85,20 @@ export default function CustomerMenuPortal() {
       }
     }
   });
-  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [portalUrl, setPortalUrl] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
+  const [portalStats, setPortalStats] = useState({
+    totalOrders: 0,
+    totalRevenue: 0,
+    averageOrderValue: 0,
+    conversionRate: 0
+  });
 
   useEffect(() => {
     if (restaurant) {
       loadMenuItems();
+      loadTables();
       loadPortalSettings();
       generatePortalUrl();
     }
@@ -102,6 +116,19 @@ export default function CustomerMenuPortal() {
       console.error('Failed to load menu items:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadTables = async () => {
+    if (!restaurant) return;
+
+    try {
+      const result = await TableService.getTablesForRestaurant(restaurant.id);
+      if (result.success && result.data) {
+        setTables(result.data.filter(table => table.isActive));
+      }
+    } catch (error) {
+      console.error('Failed to load tables:', error);
     }
   };
 
@@ -169,6 +196,32 @@ export default function CustomerMenuPortal() {
     setQrCodeUrl(qrUrl);
   };
 
+  const generateTableSpecificUrl = (tableId: string) => {
+    if (!restaurant) return '';
+    
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/${restaurant.slug}/menu-portal/${tableId}`;
+  };
+
+  const generateTableSpecificQR = (tableId: string) => {
+    const url = generateTableSpecificUrl(tableId);
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
+  };
+
+  const copyTableUrl = (tableId: string) => {
+    const url = generateTableSpecificUrl(tableId);
+    navigator.clipboard.writeText(url);
+    toast.success('Table-specific URL copied to clipboard!');
+  };
+
+  const downloadTableQR = (tableId: string, tableNumber: string) => {
+    const qrUrl = generateTableSpecificQR(tableId);
+    const link = document.createElement('a');
+    link.href = qrUrl;
+    link.download = `${restaurant?.name || 'restaurant'}-table-${tableNumber}-qr.png`;
+    link.click();
+  };
+
   const requestLocationPermission = async () => {
     if (!navigator.geolocation) {
       toast.error('Geolocation is not supported by this browser');
@@ -185,25 +238,6 @@ export default function CustomerMenuPortal() {
       });
 
       const { latitude, longitude } = position.coords;
-      setCurrentLocation({ lat: latitude, lng: longitude });
-
-      // Reverse geocode to get address
-      try {
-        const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
-        const data = await response.json();
-        
-        setPortalSettings(prev => ({
-          ...prev,
-          location: {
-            latitude,
-            longitude,
-            address: data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-            radius: prev.location.radius
-          }
-        }));
-
-        toast.success('Restaurant location set successfully!');
-      } catch (error) {
         setPortalSettings(prev => ({
           ...prev,
           location: {
@@ -213,8 +247,8 @@ export default function CustomerMenuPortal() {
             radius: prev.location.radius
           }
         }));
-        toast.success('Location coordinates saved!');
-      }
+
+      toast.success('Restaurant location set successfully!');
     } catch (error) {
       console.error('Error getting location:', error);
       toast.error('Failed to get location. Please try again.');
@@ -621,11 +655,54 @@ export default function CustomerMenuPortal() {
           {/* Sidebar - Portal Info & QR Code */}
           <div className="space-y-6">
             
-            {/* Portal URL & QR Code */}
+            {/* Portal Type Selection */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <div className="flex items-center space-x-3 mb-6">
+                <Settings className="w-6 h-6 text-indigo-600" />
+                <h3 className="text-lg font-semibold text-gray-900">Portal Type</h3>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-3">
+                  <label className="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="portalType"
+                      value="single"
+                      checked={portalType === 'single'}
+                      onChange={(e) => setPortalType(e.target.value as 'single' | 'table-specific')}
+                      className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                    />
+                    <div className="ml-3">
+                      <div className="text-sm font-medium text-gray-900">Single Portal Link</div>
+                      <div className="text-sm text-gray-500">One link for entire restaurant (current functionality)</div>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+                    <input
+                      type="radio"
+                      name="portalType"
+                      value="table-specific"
+                      checked={portalType === 'table-specific'}
+                      onChange={(e) => setPortalType(e.target.value as 'single' | 'table-specific')}
+                      className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                    />
+                    <div className="ml-3">
+                      <div className="text-sm font-medium text-gray-900">Table-Specific Links</div>
+                      <div className="text-sm text-gray-500">Separate link for each table with table tracking</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Portal URL & QR Code */}
+            {portalType === 'single' ? (
+              <div className="bg-white rounded-xl shadow-sm border p-6">
+                <div className="flex items-center space-x-3 mb-6">
                 <QrCode className="w-6 h-6 text-green-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Portal Access</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">General Portal Access</h3>
               </div>
               
               <div className="space-y-4">
@@ -680,7 +757,88 @@ export default function CustomerMenuPortal() {
                   </div>
                 )}
               </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm border p-6">
+                <div className="flex items-center space-x-3 mb-6">
+                  <Users className="w-6 h-6 text-purple-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Table-Specific Links</h3>
+                  <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                    {tables.length} Tables
+                  </span>
             </div>
+                
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {tables.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500">No tables found. Please add tables first.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Group tables by area */}
+                      {Object.entries(
+                        tables.reduce((acc, table) => {
+                          if (!acc[table.area]) acc[table.area] = [];
+                          acc[table.area].push(table);
+                          return acc;
+                        }, {} as Record<string, Table[]>)
+                      ).map(([area, areaTables]) => (
+                        <div key={area} className="border border-gray-200 rounded-lg p-4">
+                          <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                            <MapPin className="w-4 h-4 mr-2 text-gray-500" />
+                            {area}
+                            <span className="ml-2 px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
+                              {areaTables.length} tables
+                            </span>
+                          </h4>
+                          <div className="grid grid-cols-1 gap-2">
+                            {areaTables.map((table) => (
+                              <div key={table.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
+                                    {table.number}
+                                  </div>
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-900">Table {table.number}</div>
+                                    <div className="text-xs text-gray-500">{table.capacity} seats</div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => copyTableUrl(table.id)}
+                                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors border"
+                                    title="Copy Table URL"
+                                  >
+                                    <Copy className="w-4 h-4 text-gray-600" />
+                                  </button>
+                                  <button
+                                    onClick={() => downloadTableQR(table.id, table.number)}
+                                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors border"
+                                    title="Download Table QR"
+                                  >
+                                    <Download className="w-4 h-4 text-gray-600" />
+                                  </button>
+                                  <a
+                                    href={generateTableSpecificUrl(table.id)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-2 bg-white hover:bg-gray-100 rounded-lg transition-colors border"
+                                    title="Preview Table Portal"
+                                  >
+                                    <Eye className="w-4 h-4 text-gray-600" />
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Portal Stats */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
