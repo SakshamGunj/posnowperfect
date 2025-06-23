@@ -15,45 +15,9 @@ import { db } from '@/lib/firebase';
 import { SpinWheelConfig, SpinWheelSegment, CustomerSpin, SpinWheelStats, ApiResponse } from '@/types';
 
 export class GamificationService {
-  // Get the base URL for shareable links - configurable via environment or default to relative
+  // Get the base URL for shareable links - always use production domain
   private static getBaseUrl(): string {
-    // Try to get from environment variables first
-    try {
-      // Check Vite environment variables safely
-      if (import.meta && (import.meta as any).env && (import.meta as any).env.VITE_APP_BASE_URL) {
-        return (import.meta as any).env.VITE_APP_BASE_URL;
-      }
-      
-      // Check process environment variables
-      if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_BASE_URL) {
-        return process.env.REACT_APP_BASE_URL;
-      }
-    } catch (e) {
-      // Environment variables not available, continue to fallback
-      console.log('Environment variables not accessible, using fallback URL generation');
-    }
-    
-    // Default: use current origin, but remove specific subdomains that might be wrong
-    if (typeof window !== 'undefined' && window.location) {
-      const origin = window.location.origin;
-      
-      // If we're on a subdomain that looks like an admin panel, use the parent domain
-      if (origin.includes('pos.') || origin.includes('admin.')) {
-        // Extract the parent domain (e.g., pos.tenversemedia.tech -> tenversemedia.tech)
-        const hostname = window.location.hostname;
-        const parts = hostname.split('.');
-        if (parts.length > 2) {
-          // Reconstruct without the first subdomain
-          const parentDomain = parts.slice(1).join('.');
-          return `${window.location.protocol}//${parentDomain}`;
-        }
-      }
-      
-      return origin;
-    }
-    
-    // Final fallback: return empty string for relative URLs
-    return '';
+    return 'https://pos.tenversemedia.tech';
   }
 
   // Spin Wheel Configuration Management
