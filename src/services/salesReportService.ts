@@ -20,43 +20,121 @@ function formatCurrencyForPDF(amount: number): string {
 
 import { CreditService } from './creditService';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 
-// Ensure autoTable plugin is registered with jsPDF
-try {
-  const doc = new jsPDF();
-  if (typeof doc.autoTable !== 'function') {
-    console.warn('⚠️ autoTable plugin not automatically registered. Attempting manual registration...');
-    
-    // Last resort attempt to make autoTable available
-    (window as any).jspdf = jsPDF;
-    try {
-      // Only use require if it's available (Node.js environment)
-      if (typeof require !== 'undefined') {
-        require('jspdf-autotable');
-      }
-    } catch (e) {
-      // Ignore require errors in browser environment
-    }
-    
-    if (typeof doc.autoTable === 'function') {
-      console.log('✅ autoTable plugin successfully registered manually');
+// Import autoTable properly for ES6 modules
+import autoTable from 'jspdf-autotable';
+
+// Ensure autoTable is properly attached to jsPDF prototype
+if (typeof autoTable === 'function') {
+  // Register the plugin globally
+  (jsPDF as any).autoTable = autoTable;
+  (jsPDF.prototype as any).autoTable = function(options: any) {
+    return autoTable(this, options);
+  };
+  
+  // Test that it works
+  try {
+    const testDoc = new jsPDF();
+    if (typeof testDoc.autoTable === 'function') {
+      console.log('✅ autoTable plugin registered and working correctly');
     } else {
-      console.error('❌ Failed to register autoTable plugin. Simple reports will be used as fallback.');
+      console.warn('⚠️ autoTable registered but not available on instance');
     }
-  } else {
-    console.log('✅ autoTable plugin detected and ready');
+  } catch (error) {
+    console.error('❌ Error testing autoTable plugin:', error);
   }
-} catch (error) {
-  console.error('❌ Error initializing jsPDF plugins:', error);
+} else {
+  console.error('❌ autoTable import failed - plugin not available');
 }
 
 // Extend jsPDF to include autoTable
 declare module 'jspdf' {
   interface jsPDF {
-    autoTable: (options: any) => jsPDF;
+    autoTable: (options: any) => void;
   }
 }
+
+// Safe autoTable wrapper function
+const safeAutoTable = (doc: jsPDF, options: any): void => {
+  try {
+    // Check if autoTable is available and working
+    if (typeof doc.autoTable === 'function') {
+      console.log('✅ Calling autoTable with options:', { startY: options.startY, headLength: options.head?.length, bodyLength: options.body?.length });
+      doc.autoTable(options);
+      console.log('✅ autoTable call completed successfully');
+    } else if (typeof (jsPDF.prototype as any).autoTable === 'function') {
+      // Try calling from prototype
+      console.log('⚡ Calling autoTable from prototype');
+      (jsPDF.prototype as any).autoTable.call(doc, options);
+    } else {
+      console.error('❌ autoTable is not available on instance or prototype, falling back to basic table');
+      renderBasicTable(doc, options);
+    }
+  } catch (error) {
+    console.error('❌ Error calling autoTable:', error);
+    renderBasicTable(doc, options);
+  }
+};
+
+// Basic table fallback renderer
+const renderBasicTable = (doc: jsPDF, options: any): void => {
+  const startY = options.startY || 50;
+  let currentY = startY;
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  
+  // Render header if available
+  if (options.head && options.head.length > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    const headers = options.head[0];
+    let x = 20;
+    headers.forEach((header: string, index: number) => {
+      doc.text(header, x, currentY);
+      x += 40; // Column width
+    });
+    currentY += 8;
+    
+    // Draw a line under headers
+    doc.line(20, currentY, 180, currentY);
+    currentY += 5;
+  }
+  
+  // Render body if available
+  if (options.body && options.body.length > 0) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    
+    options.body.slice(0, 10).forEach((row: any[]) => { // Limit to 10 rows to prevent overflow
+      let x = 20;
+      row.forEach((cell: any, index: number) => {
+        const cellText = String(cell || '').substring(0, 15); // Limit cell text length
+        doc.text(cellText, x, currentY);
+        x += 40; // Column width
+      });
+      currentY += 5;
+      
+      // Check if we need a new page
+      if (currentY > 270) {
+        doc.addPage();
+        currentY = 20;
+      }
+    });
+    
+    if (options.body.length > 10) {
+      currentY += 3;
+      doc.setFontSize(8);
+      doc.text(`... and ${options.body.length - 10} more rows`, 20, currentY);
+      currentY += 5;
+    }
+  }
+  
+  // Set mock lastAutoTable for compatibility
+  (doc as any).lastAutoTable = {
+    finalY: currentY + 10
+  };
+};
 
 export interface DateRange {
   startDate: Date;
@@ -1659,7 +1737,7 @@ export class SalesReportService {
       ] : [])
     ];
 
-    doc.autoTable({
+    safeAutoTable(doc, {
       startY: yPosition,
       head: [['Metric', 'Value']],
       body: summaryData,
@@ -1707,7 +1785,7 @@ export class SalesReportService {
         `${item.percentage.toFixed(1)}%`
       ]);
 
-      doc.autoTable({
+      safeAutoTable(doc, {
         startY: yPosition,
         head: [['Item Name', 'Qty Sold', 'Revenue', '% of Total']],
         body: menuData,
@@ -1761,7 +1839,7 @@ export class SalesReportService {
         `${category.percentage.toFixed(1)}%`
       ]);
 
-      doc.autoTable({
+      safeAutoTable(doc, {
         startY: yPosition,
         head: [['Category', 'Qty Sold', 'Revenue', '% of Total']],
         body: categoryData,
@@ -1814,7 +1892,7 @@ export class SalesReportService {
         formatCurrencyForPDF(table.averageOrderValue)
       ]);
 
-      doc.autoTable({
+      safeAutoTable(doc, {
         startY: yPosition,
         head: [['Table', 'Orders', 'Revenue', 'Avg Order Value']],
         body: tableData,
@@ -1872,7 +1950,7 @@ export class SalesReportService {
         formatCurrencyForPDF(order.total)
       ]);
 
-      doc.autoTable({
+      safeAutoTable(doc, {
         startY: yPosition,
         head: [['Order #', 'Table', 'Date', 'Time', 'Status', 'Type', 'Items', 'Total']],
         body: orderData,
@@ -1930,7 +2008,7 @@ export class SalesReportService {
         formatDate(customer.lastOrderDate)
       ]);
 
-      doc.autoTable({
+      safeAutoTable(doc, {
         startY: yPosition,
         head: [['Customer', 'Orders', 'Total Spent', 'Avg Order', 'Last Order']],
         body: customerData,
@@ -1986,7 +2064,7 @@ export class SalesReportService {
         `${payment.percentage.toFixed(1)}%`
       ]);
 
-      doc.autoTable({
+      safeAutoTable(doc, {
         startY: yPosition,
         head: [['Payment Method', 'Transactions', 'Amount', '% of Total']],
         body: paymentData,
@@ -2035,7 +2113,7 @@ export class SalesReportService {
           `${((detail.amount / splitPaymentMethod.amount) * 100).toFixed(1)}%`
         ]);
 
-        doc.autoTable({
+        safeAutoTable(doc, {
           startY: yPosition,
           head: [['Split Method', 'Transactions', 'Amount', '% of Split Total']],
           body: splitData,
@@ -2094,7 +2172,7 @@ export class SalesReportService {
         formatCurrencyForPDF(order.total)
       ]);
 
-      doc.autoTable({
+      safeAutoTable(doc, {
         startY: yPosition,
         head: [['Order #', 'Table', 'Date', 'Time', 'Status', 'Payment', 'Items', 'Total']],
         body: orderData,
@@ -2154,7 +2232,7 @@ export class SalesReportService {
         ['Revenue Collection Rate', `${analytics.creditAnalytics.revenueCollectionRate.toFixed(1)}%`]
       ];
 
-      doc.autoTable({
+      safeAutoTable(doc, {
         startY: yPosition,
         head: [['Credit Metric', 'Value']],
         body: creditSummaryData,
@@ -2206,7 +2284,7 @@ export class SalesReportService {
             formatDate(credit.createdAt)
           ]);
 
-        doc.autoTable({
+        safeAutoTable(doc, {
           startY: yPosition,
           head: [['Customer', 'Table', 'Total', 'Received', 'Remaining', 'Status', 'Date']],
           body: creditTransactionData,
@@ -2701,7 +2779,7 @@ export class SalesReportService {
         `${payment.percentage.toFixed(1)}%`
       ]);
 
-      doc.autoTable({
+      safeAutoTable(doc, {
         startY: yPosition,
         head: [['Payment Method', 'Transactions', 'Amount', '% of Total']],
         body: paymentData,
@@ -2750,7 +2828,7 @@ export class SalesReportService {
           `${((detail.amount / splitPaymentMethod.amount) * 100).toFixed(1)}%`
         ]);
 
-        doc.autoTable({
+        safeAutoTable(doc, {
           startY: yPosition,
           head: [['Split Method', 'Transactions', 'Amount', '% of Split Total']],
           body: splitData,
@@ -2809,7 +2887,7 @@ export class SalesReportService {
         formatCurrencyForPDF(order.total)
       ]);
 
-      doc.autoTable({
+      safeAutoTable(doc, {
         startY: yPosition,
         head: [['Order #', 'Table', 'Date', 'Time', 'Status', 'Payment', 'Items', 'Total']],
         body: orderData,
