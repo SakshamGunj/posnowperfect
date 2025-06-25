@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -41,6 +41,50 @@ interface CreateAreaForm {
 export default function Tables() {
   const { restaurant } = useRestaurant();
   const { user } = useRestaurantAuth();
+  const navigate = useNavigate();
+  
+  const [tables, setTables] = useState<Table[]>([]);
+  const [areas, setAreas] = useState<string[]>([]);
+  const [selectedArea, setSelectedArea] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<TableStatus | 'all'>('all');
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [showCreateTableModal, setShowCreateTableModal] = useState(false);
+  const [showCreateAreaModal, setShowCreateAreaModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
+  const [voiceLoadingStage, setVoiceLoadingStage] = useState<'processing' | 'placing' | 'completed'>('processing');
+  const [voiceLoadingMessage, setVoiceLoadingMessage] = useState('');
+  const [voiceOrderDetails, setVoiceOrderDetails] = useState<{
+    orderNumber: string;
+    tableNumber: string;
+    items: { name: string; quantity: number }[];
+  } | null>(null);
+  const [showVoiceKOTDialog, setShowVoiceKOTDialog] = useState(false);
+
+  // Track initial load to prevent showing notifications on first load
+  const isInitialLoad = useRef(true);
+
+  const {
+    register: registerTable,
+    handleSubmit: handleTableSubmit,
+    reset: resetTable,
+    setValue,
+    formState: { errors: tableErrors, isValid: isTableValid },
+  } = useForm<CreateTableForm>({
+    mode: 'onChange',
+  });
+
+  const {
+    register: registerArea,
+    handleSubmit: handleAreaSubmit,
+    reset: resetArea,
+    formState: { errors: areaErrors, isValid: isAreaValid },
+  } = useForm<CreateAreaForm>({
+    mode: 'onChange',
+  });
 
   // Generate KOT content for Tables page
   const generateKOTContent = (order: any, restaurant: any, table: any): string => {
@@ -200,55 +244,8 @@ export default function Tables() {
       }
     }
   };
-  const navigate = useNavigate();
-  
-  const [tables, setTables] = useState<Table[]>([]);
-  const [areas, setAreas] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<Date | null>(null);
-  
-  // Modal states
-  const [showCreateTableModal, setShowCreateTableModal] = useState(false);
-  const [showCreateAreaModal, setShowCreateAreaModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
-  
-  // Filter states
-  const [selectedArea, setSelectedArea] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  
-  // Voice command loading states
-  const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
-  const [voiceLoadingStage, setVoiceLoadingStage] = useState<'processing' | 'placing' | 'completed'>('processing');
-  const [voiceLoadingMessage, setVoiceLoadingMessage] = useState('');
-  const [showVoiceKOTDialog, setShowVoiceKOTDialog] = useState(false);
-  const [voiceOrderDetails, setVoiceOrderDetails] = useState<{
-    orderNumber: string;
-    tableNumber: string;
-    items: Array<{ name: string; quantity: number }>;
-  } | null>(null);
 
-  const {
-    register: registerTable,
-    handleSubmit: handleTableSubmit,
-    reset: resetTable,
-    setValue,
-    formState: { errors: tableErrors, isValid: isTableValid },
-  } = useForm<CreateTableForm>({
-    mode: 'onChange',
-  });
-
-  const {
-    register: registerArea,
-    handleSubmit: handleAreaSubmit,
-    reset: resetArea,
-    formState: { errors: areaErrors, isValid: isAreaValid },
-  } = useForm<CreateAreaForm>({
-    mode: 'onChange',
-  });
-
-  // Load tables and table areas with smart caching
+  // Load tables data with enhanced caching and real-time updates
   const loadTables = useCallback(async (forceRefresh = false) => {
     if (!restaurant) return;
 
@@ -295,6 +292,48 @@ export default function Tables() {
     }
   }, [restaurant]);
 
+  // Real-time table subscription
+  useEffect(() => {
+    if (!restaurant) return;
+
+    console.log('🔄 Tables: Setting up real-time table subscription');
+    setIsLoading(true);
+
+    // Subscribe to real-time table updates
+    const unsubscribe = TableService.subscribeToTables(
+      restaurant.id,
+      (updatedTables) => {
+        console.log('🔄 Tables: Real-time table update received:', {
+          count: updatedTables.length,
+          tables: updatedTables.map(t => ({ number: t.number, status: t.status }))
+        });
+
+        setTables(updatedTables);
+        
+        // Extract unique areas from tables (for backward compatibility)
+        const uniqueAreas = [...new Set(updatedTables.map(table => table.area))].sort();
+        setAreas(uniqueAreas);
+        
+        setLastSync(new Date());
+        setIsLoading(false);
+        setIsSyncing(false);
+        
+        // Show notification for status changes (only after initial load)
+        if (!isInitialLoad.current) {
+          console.log('🔄 Tables: Table status updated in real-time');
+        } else {
+          isInitialLoad.current = false;
+        }
+      }
+    );
+
+    // Clean up subscription on unmount
+    return () => {
+      console.log('🔄 Tables: Cleaning up real-time table subscription');
+      unsubscribe();
+    };
+  }, [restaurant]);
+
   // Initialize tables on first load
   const initializeTablesIfNeeded = useCallback(async () => {
     if (!restaurant) return;
@@ -332,36 +371,47 @@ export default function Tables() {
     }
   }, [restaurant]);
 
+  // Effects - Initialize tables if needed (but rely on real-time subscription for updates)
   useEffect(() => {
     if (restaurant && tables.length === 0 && !isLoading) {
       initializeTablesIfNeeded();
     }
   }, [restaurant, tables.length, isLoading, initializeTablesIfNeeded]);
 
-  // Auto-refresh tables every 30 seconds to keep status up to date - DISABLED to prevent loops
-  /*
+  // Auto-fix table statuses on load (after tables are loaded via real-time subscription)
   useEffect(() => {
+    if (restaurant && tables.length > 0 && !isInitialLoad.current) {
+      // Auto-check table statuses after real-time subscription loads tables
+      setTimeout(() => {
+        TableStatusService.autoFixWithNotification(restaurant.id);
+      }, 3000);
+    }
+  }, [restaurant, tables.length]);
+
+  // Remove manual refresh on visibility change - real-time subscription handles updates
+  // This prevents conflicts with real-time updates
+
+  // Sync function for manual refresh (clears cache, real-time subscription will reload)
+  const handleSyncTables = async () => {
     if (!restaurant) return;
-
-    const interval = setInterval(() => {
-      loadTables(true); // Force refresh from Firebase
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(interval);
-  }, [restaurant]);
-  */
-
-  // Refresh tables when user returns to the page (when they come back from order taking)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && restaurant) {
-        loadTables(true); // Force refresh when page becomes visible
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [restaurant]);
+    
+    try {
+      setIsSyncing(true);
+      
+      // Clear cache to force fresh data - real-time subscription will automatically reload
+      TableService.clearCache(restaurant.id);
+      
+      // Show success message after a brief delay
+      setTimeout(() => {
+        toast.success('Tables synchronized successfully');
+        setIsSyncing(false);
+      }, 1000);
+      
+    } catch (error) {
+      toast.error('Failed to sync tables');
+      setIsSyncing(false);
+    }
+  };
 
   const handleTableClick = (table: Table) => {
     if (table.status === 'available') {
@@ -369,22 +419,15 @@ export default function Tables() {
     }
   };
 
-  // Voice command event listeners
+  // Voice command event listeners (updated to work with real-time data)
   useEffect(() => {
-    // Listen for table status updates from other components
+    // Listen for table status updates from other components (legacy support)
     const handleTableStatusUpdate = (event: CustomEvent) => {
       const { tableId, newStatus } = event.detail;
-      console.log('📡 Tables: Received table status update:', { tableId, newStatus });
+      console.log('📡 Tables: Received table status update event:', { tableId, newStatus });
       
-      // Update local state immediately
-      setTables(prev =>
-        prev.map(t => t.id === tableId ? { ...t, status: newStatus } : t)
-      );
-      
-      // Force refresh from Firebase after a short delay to ensure consistency
-      setTimeout(() => {
-        loadTables(true);
-      }, 2000);
+      // Note: Real-time subscription will handle the actual update
+      // This event is kept for backward compatibility
     };
     
     window.addEventListener('tableStatusUpdated', handleTableStatusUpdate as EventListener);
@@ -444,6 +487,53 @@ export default function Tables() {
     if (!restaurant) return;
 
     try {
+      // Special handling when manually marking table as available
+      if (newStatus === 'available') {
+        const confirmed = confirm(
+          `Marking Table ${table.number} as available will cancel all active orders for this table. Are you sure you want to proceed?`
+        );
+        
+        if (!confirmed) return;
+
+        // Clear cache first to ensure we get fresh data
+        const { OrderService } = await import('@/services/orderService');
+        OrderService.clearCache(restaurant.id);
+
+        // Cancel all active orders for this table before making it available
+        const ordersResult = await OrderService.getOrdersByTable(restaurant.id, table.id);
+        
+        if (ordersResult.success && ordersResult.data) {
+          const activeOrders = ordersResult.data.filter(order => 
+            ['placed', 'confirmed', 'preparing', 'ready'].includes(order.status) ||
+            (order.status === 'completed' && order.paymentStatus !== 'paid')
+          );
+          
+          if (activeOrders.length > 0) {
+            console.log(`🔄 Tables: Cancelling ${activeOrders.length} active orders for table ${table.number}`);
+            
+            // Cancel all active orders
+            const cancelPromises = activeOrders.map(async (order) => {
+              return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
+                notes: `Table manually marked as available - orders cancelled automatically at ${new Date().toLocaleString()}`
+              });
+            });
+            
+            const results = await Promise.all(cancelPromises);
+            const allSuccessful = results.every(result => result.success);
+            
+            if (!allSuccessful) {
+              toast.error('Failed to cancel some orders. Please try again.');
+              return;
+            }
+            
+            toast.success(`${activeOrders.length} order(s) cancelled for Table ${table.number}`);
+          }
+          
+          // Clear cache again after cancelling orders
+          OrderService.clearCache(restaurant.id);
+        }
+      }
+
       const result = await TableService.updateTable(table.id, restaurant.id, {
         status: newStatus,
       });
@@ -453,11 +543,29 @@ export default function Tables() {
         setTables(prev =>
           prev.map(t => t.id === table.id ? result.data! : t)
         );
-        toast.success(`Table ${table.number} ${newStatus}`);
+        
+        // If marking as available, force refresh to ensure UI is consistent
+        if (newStatus === 'available') {
+          console.log(`🔄 Tables: Forcing data refresh after marking table ${table.number} as available`);
+          
+          // Clear OrderService cache one more time to ensure fresh data
+          const { OrderService } = await import('@/services/orderService');
+          OrderService.clearCache(restaurant.id);
+          
+          // Small delay to allow database changes to propagate
+          setTimeout(() => {
+            loadTables();
+          }, 500);
+          
+          toast.success(`Table ${table.number} marked as available and all orders cancelled`);
+        } else {
+          toast.success(`Table ${table.number} ${newStatus}`);
+        }
       } else {
         toast.error(result.error || 'Failed to update table');
       }
     } catch (error) {
+      console.error('Error updating table status:', error);
       toast.error('Failed to update table');
     }
   };
@@ -573,165 +681,323 @@ export default function Tables() {
     }
   }, [tables, handleUpdateTableStatus]);
 
-  const handleVoiceOrderCommand = useCallback((event: CustomEvent) => {
+  // Voice order command handler
+  const handleVoiceOrderCommand = useCallback(async (event: CustomEvent) => {
     const { command }: { command: VoiceCommand } = event.detail;
     
     console.log('🎤 Tables: Voice order command received:', command);
     
-    if (command.tableNumber) {
-      const table = tables.find(t => parseInt(t.number) === command.tableNumber);
-      if (table) {
-        console.log('🎤 Tables: Found table:', { id: table.id, number: table.number, status: table.status });
+    if (!restaurant || !user) {
+      toast.error('🎤 Unable to process order at this time');
+      return;
+    }
+    
+    if (!command.tableNumber) {
+      toast.error('🎤 Please specify table number for placing order');
+      return;
+    }
+    
+    // Find the table
+    const table = tables.find(t => parseInt(t.number) === command.tableNumber);
+    if (!table) {
+      toast.error(`🎤 Table ${command.tableNumber} not found`);
+      return;
+    }
+    
+    if (table) {
+      console.log('🎤 Tables: Found table:', { id: table.id, number: table.number, status: table.status });
+      
+      // If there are menu items in the command, this is a direct order placement
+      if (command.menuItems && command.menuItems.length > 0) {
+        console.log('🎤 Tables: Processing voice order on current page');
         
-        // If there are menu items in the command, this is a direct order placement
-        if (command.menuItems && command.menuItems.length > 0) {
-          console.log('🎤 Tables: Processing voice order on current page');
+        // Start voice processing workflow with loading overlay and dismiss existing toasts
+        toast.dismiss();
+        setIsVoiceProcessing(true);
+        setVoiceLoadingStage('processing');
+        setVoiceLoadingMessage('Processing voice command...');
+        
+        // Process order placement in background using ghost ordering
+        try {
+          setVoiceLoadingStage('placing');
+          setVoiceLoadingMessage('Creating your order...');
           
-          // Start voice processing workflow with loading overlay
-          setIsVoiceProcessing(true);
-          setVoiceLoadingStage('processing');
-          setVoiceLoadingMessage('Processing voice command...');
-          toast.dismiss(); // Clear any existing toasts
-          
-          // Process order placement in background using ghost ordering
-          try {
-            setVoiceLoadingStage('placing');
-            setVoiceLoadingMessage('Creating your order...');
-            
-                         // Use the existing ghost ordering logic
-             setTimeout(async () => {
-               try {
-                 if (!restaurant || !user) {
-                   throw new Error('Restaurant or user not available');
-                 }
-                 
-                 const { MenuService } = await import('@/services/menuService');
-                 const { OrderService } = await import('@/services/orderService');
-                 const { TableService } = await import('@/services/tableService');
-                 
-                 // Load menu items to match voice items
-                 const menuResult = await MenuService.getMenuItemsForRestaurant(restaurant.id);
-                if (!menuResult.success || !menuResult.data) {
-                  throw new Error('Failed to load menu items');
-                }
-                
-                const menuItems = menuResult.data;
-                const cartItems: any[] = [];
-                
-                for (const voiceItem of command.menuItems!) {
-                  const findMenuItem = (searchTerm: string) => {
-                    const normalizeWord = (word: string) => {
-                      return word.toLowerCase()
-                        .replace(/s$/, '') // Remove plural 's'
-                        .replace(/ies$/, 'y') // Convert 'ies' to 'y'
-                        .replace(/es$/, '') // Remove 'es'
-                        .trim();
-                    };
-                    
-                    const searchWords = searchTerm.toLowerCase().split(' ').map(normalizeWord);
-                    
-                    return menuItems.find((item: any) => {
-                      const itemWords = item.name.toLowerCase().split(' ').map(normalizeWord);
-                      return searchWords.every((searchWord: string) => 
-                        itemWords.some((itemWord: string) => 
-                          itemWord.includes(searchWord) || searchWord.includes(itemWord)
-                        )
-                      );
-                    });
+          // Use the new AI-powered menu matching
+          setTimeout(async () => {
+            try {
+              if (!restaurant || !user) {
+                throw new Error('Restaurant or user not available');
+              }
+              
+              const { MenuService } = await import('@/services/menuService');
+              const { OrderService } = await import('@/services/orderService');
+              const { TableService } = await import('@/services/tableService');
+              const { VoiceService } = await import('@/services/voiceService');
+              
+              // Load menu items to match voice items
+              const menuResult = await MenuService.getMenuItemsForRestaurant(restaurant.id);
+              if (!menuResult.success || !menuResult.data) {
+                throw new Error('Failed to load menu items');
+              }
+              
+              const menuItems = menuResult.data;
+              
+              // Use AI-powered menu matching instead of hardcoded logic
+              console.log('🎤 Tables: Using AI to match voice items to menu items...');
+              const matchedItems = await VoiceService.matchMenuItemsIntelligently(command.menuItems!, menuItems);
+              
+              const cartItems: any[] = [];
+              
+              for (const matchedItem of matchedItems) {
+                if (matchedItem.matchedItem) {
+                  console.log(`🎤 Tables: AI matched "${matchedItem.name}" → "${matchedItem.matchedItem.name}"`);
+                  
+                  const cartItem = {
+                    id: matchedItem.matchedItem.id,
+                    menuItemId: matchedItem.matchedItem.id,
+                    name: matchedItem.matchedItem.name,
+                    price: matchedItem.matchedItem.price,
+                    quantity: matchedItem.quantity,
+                    total: matchedItem.matchedItem.price * matchedItem.quantity,
+                    variants: [],
+                    notes: `Voice order: "${matchedItem.name}" matched to "${matchedItem.matchedItem.name}" at ${new Date().toLocaleTimeString()}`
                   };
                   
-                  const foundMenuItem = findMenuItem(voiceItem.name);
-                  if (foundMenuItem) {
-                    console.log(`🎤 Tables: Found menu item: ${foundMenuItem.name} for voice item: ${voiceItem.name}`);
-                    
-                    const cartItem = {
-                      id: foundMenuItem.id,
-                      menuItemId: foundMenuItem.id,
-                      name: foundMenuItem.name,
-                      price: foundMenuItem.price,
-                      quantity: voiceItem.quantity,
-                      total: foundMenuItem.price * voiceItem.quantity,
-                      variants: [],
-                      notes: `Voice order placed from Tables page at ${new Date().toLocaleTimeString()}`
-                    };
-                    
-                    cartItems.push(cartItem);
-                  }
-                }
-                
-                if (cartItems.length === 0) {
-                  throw new Error('No valid menu items found');
-                }
-                
-                // Update table status to occupied first
-                await TableService.updateTable(table.id, restaurant.id, { status: 'occupied' });
-                
-                // Create order directly
-                const orderResult = await OrderService.createOrder(
-                  restaurant.id,
-                  table.id,
-                  user!.id,
-                  cartItems,
-                  restaurant.settings?.taxRate || 8.5,
-                  `Voice order: ${command.menuItems!.map(item => `${item.quantity}x ${item.name}`).join(', ')} - placed at ${new Date().toLocaleTimeString()}`
-                );
-                
-                if (orderResult.success && orderResult.data) {
-                  const newOrder = orderResult.data;
-                  console.log('✅ Tables: Voice order created successfully:', { orderId: newOrder.id, orderNumber: newOrder.orderNumber });
-                  
-                  // Move to completed stage
-                  setVoiceLoadingStage('completed');
-                  setVoiceLoadingMessage('Order placed successfully!');
-                  
-                  // Prepare order details for KOT dialog
-                  setVoiceOrderDetails({
-                    orderNumber: newOrder.orderNumber,
-                    tableNumber: table.number,
-                    items: command.menuItems!.map(item => ({
-                      name: item.name,
-                      quantity: item.quantity
-                    }))
-                  });
-                  
-                  // Refresh tables to show updated status
-                  await loadTables(true);
-                  
-                                     // Hide loading after a brief delay and trigger print directly
-                   setTimeout(() => {
-                     setIsVoiceProcessing(false);
-                     // Trigger print directly without showing modal
-                     handleVoiceKOTPrint();
-                   }, 1000);
-                  
+                  cartItems.push(cartItem);
                 } else {
-                  throw new Error(orderResult.error || 'Failed to create order');
+                  console.warn(`🎤 Tables: No match found for voice item: ${matchedItem.name}`);
+                  // Will show summary at the end
                 }
-                
-              } catch (error) {
-                console.error('❌ Tables: Voice ordering failed:', error);
-                setIsVoiceProcessing(false);
-                toast.error('🎤 Failed to place order. Please try manually.');
               }
-            }, 500);
-            
-          } catch (error) {
-            console.error('❌ Tables: Voice command processing failed:', error);
-            setIsVoiceProcessing(false);
-            toast.error('🎤 Failed to process voice command.');
-          }
-        } else {
-          console.log('🎤 Tables: No menu items, just navigating to order page');
-          // Just navigate to order page for manual ordering
-          navigate(`/${restaurant?.slug}/order/${table.id}`);
-          toast.success(`🎤 Navigating to place order for table ${table.number}`);
+              
+              if (cartItems.length === 0) {
+                throw new Error('No valid menu items found');
+              }
+              
+              // Update table status to occupied first
+              await TableService.updateTable(table.id, restaurant.id, { status: 'occupied' });
+              
+              // Create order directly
+              const orderResult = await OrderService.createOrder(
+                restaurant.id,
+                table.id,
+                user!.id,
+                cartItems,
+                restaurant.settings?.taxRate || 8.5,
+                `Voice order: ${command.menuItems!.map(item => `${item.quantity}x ${item.name}`).join(', ')} - placed at ${new Date().toLocaleTimeString()}`
+              );
+              
+              if (orderResult.success && orderResult.data) {
+                const newOrder = orderResult.data;
+                console.log('✅ Tables: Voice order created successfully:', { orderId: newOrder.id, orderNumber: newOrder.orderNumber });
+                
+                // Move to completed stage
+                setVoiceLoadingStage('completed');
+                setVoiceLoadingMessage('Order placed successfully!');
+                
+                // Prepare order details for KOT dialog
+                setVoiceOrderDetails({
+                  orderNumber: newOrder.orderNumber,
+                  tableNumber: table.number,
+                  items: matchedItems.filter(item => item.matchedItem).map(item => ({
+                    name: item.matchedItem?.name || item.name,
+                    quantity: item.quantity
+                  }))
+                });
+                
+                // Real-time subscription will automatically update table status
+                
+                // Hide loading after a brief delay and show final success message
+                setTimeout(() => {
+                  setIsVoiceProcessing(false);
+                  
+                  // Show single consolidated success message
+                  const successItems = matchedItems.filter(item => item.matchedItem);
+                  const failedItems = matchedItems.filter(item => !item.matchedItem);
+                  
+                  if (successItems.length > 0) {
+                    const itemsText = successItems.map(item => `${item.quantity}x ${item.matchedItem?.name}`).join(', ');
+                    toast.success(`🎤 Voice order completed: ${itemsText} placed for table ${table.number}!`, {
+                      duration: 4000
+                    });
+                  }
+                  
+                  if (failedItems.length > 0) {
+                    const failedNames = failedItems.map(item => item.name).join(', ');
+                    toast.error(`🎤 Items not found: ${failedNames}`);
+                  }
+                  
+                  // Generate and print KOT
+                  setTimeout(() => {
+                    console.log('🎤 Tables: Generating KOT for ghost order...');
+                    
+                    // Generate KOT content
+                    const kotContent = `
+                      <!DOCTYPE html>
+                      <html>
+                      <head>
+                        <title>KOT - ${newOrder.orderNumber}</title>
+                        <style>
+                          body { 
+                            font-family: 'Courier New', monospace; 
+                            margin: 0; 
+                            padding: 0 10px; 
+                            width: 100%;
+                            background: #fff;
+                          }
+                          .kot-container {
+                            width: 100%;
+                            padding: 15px 5px;
+                            min-height: auto;
+                          }
+                          .header { 
+                            text-align: center; 
+                            border-bottom: 2px solid #000; 
+                            padding-bottom: 10px; 
+                            margin-bottom: 15px; 
+                          }
+                          .restaurant-name { 
+                            font-size: 18px; 
+                            font-weight: bold; 
+                            margin-bottom: 5px;
+                          }
+                          .order-info { 
+                            margin-bottom: 15px; 
+                            line-height: 1.4;
+                          }
+                          .items { 
+                            border-collapse: collapse; 
+                            width: 100%; 
+                            margin: 15px 0;
+                          }
+                          .items th, .items td { 
+                            border: 1px solid #000; 
+                            padding: 8px; 
+                            text-align: left; 
+                            font-size: 13px;
+                          }
+                          .items th { 
+                            background-color: #f0f0f0; 
+                            font-weight: bold;
+                          }
+                          .footer { 
+                            margin-top: 20px; 
+                            text-align: center; 
+                            font-size: 12px; 
+                            border-top: 1px dashed #000;
+                            padding-top: 15px;
+                          }
+                          .order-notes {
+                            margin-top: 15px; 
+                            padding: 10px; 
+                            border: 1px solid #000;
+                            background: #f9f9f9;
+                          }
+                          @media print {
+                            body { 
+                              margin: 0; 
+                              padding: 0 8px;
+                              width: 100%;
+                            }
+                            .kot-container {
+                              padding: 10px 0;
+                              width: 100%;
+                              min-height: auto;
+                            }
+                            .no-print { display: none; }
+                            .header, .order-info, .items, .order-notes, .footer {
+                              page-break-inside: avoid;
+                            }
+                          }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="kot-container">
+                        <div class="header">
+                          <div class="restaurant-name">${restaurant.name}</div>
+                          <div>KITCHEN ORDER TICKET</div>
+                        </div>
+                        
+                        <div class="order-info">
+                          <p><strong>Order #:</strong> ${newOrder.orderNumber}</p>
+                          <p><strong>Table:</strong> ${table.number} (${table.area})</p>
+                          <p><strong>Date/Time:</strong> ${newOrder.createdAt.toLocaleString()}</p>
+                          <p><strong>Staff:</strong> ${newOrder.staffId}</p>
+                        </div>
+                        
+                        <table class="items">
+                          <thead>
+                            <tr>
+                              <th>Qty</th>
+                              <th>Item</th>
+                              <th>Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${newOrder.items.map((item: any) => `
+                              <tr>
+                                <td>${item.quantity}</td>
+                                <td>${item.name}</td>
+                                <td>${item.notes || ''}</td>
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                        </table>
+                        
+                        ${newOrder.notes ? `
+                            <div class="order-notes">
+                            <strong>Order Notes:</strong><br>
+                            ${newOrder.notes}
+                          </div>
+                        ` : ''}
+                        
+                        <div class="footer">
+                          <p>*** KITCHEN COPY ***</p>
+                          <p>Printed at: ${new Date().toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </body>
+                      </html>
+                    `;
+                    
+                    // Open KOT in new window
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow) {
+                      printWindow.document.write(kotContent);
+                      printWindow.document.close();
+                      printWindow.focus();
+                      printWindow.print();
+                      printWindow.close();
+                      
+                      toast.success('🧾 KOT sent to kitchen!');
+                      console.log('🎤 Tables: KOT generated and sent to kitchen');
+                    }
+                  }, 500);
+                }, 1000);
+                
+              } else {
+                throw new Error(orderResult.error || 'Failed to create order');
+              }
+            } catch (error) {
+              console.error('❌ Tables: Voice order failed:', error);
+              setIsVoiceProcessing(false);
+              toast.error(`🎤 Voice order failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+          }, 500);
+        } catch (error) {
+          console.error('❌ Tables: Voice order processing failed:', error);
+          setIsVoiceProcessing(false);
+          toast.error('🎤 Failed to process voice order');
         }
       } else {
-        console.log('🎤 Tables: Table not found:', command.tableNumber);
-        toast.error(`Table ${command.tableNumber} not found.`);
+        // No menu items, navigate to order page
+        console.log('🎤 Tables: No menu items in command, navigating to order page');
+        navigate(`/${restaurant.slug}/order/${table.id}`);
       }
+    } else {
+      toast.error(`Table ${command.tableNumber} not found.`);
     }
-  }, [tables, navigate, restaurant]);
+  }, [restaurant, user, tables, navigate, loadTables]);
 
   // Voice payment command handler
   const handleVoicePaymentCommand = useCallback(async (event: CustomEvent) => {
@@ -1126,8 +1392,7 @@ export default function Tables() {
         const newOrder = orderResult.data;
         console.log('✅ Tables: Ghost order created successfully:', { orderId: newOrder.id, orderNumber: newOrder.orderNumber });
         
-        // Refresh tables to show updated status
-        await loadTables(true);
+        // Real-time subscription will automatically update table status
         
         // Success message
         const itemsText = command.menuItems.map(item => `${item.quantity}x ${item.name}`).join(', ');
@@ -1359,9 +1624,7 @@ export default function Tables() {
             {/* Desktop Action Buttons */}
             <div className="hidden lg:flex items-center space-x-3">
               <button
-                onClick={async () => {
-                  await loadTables(true);
-                }}
+                onClick={handleSyncTables}
                 disabled={isSyncing}
                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Sync with server and fix areas"
@@ -1373,10 +1636,7 @@ export default function Tables() {
                 onClick={async () => {
                   if (restaurant) {
                     await TableStatusService.autoFixWithNotification(restaurant.id);
-                    // Refresh tables after fixing
-                    setTimeout(() => {
-                      loadTables(true);
-                    }, 1000);
+                    // Real-time subscription will automatically update tables
                   }
                 }}
                 className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
@@ -1415,9 +1675,7 @@ export default function Tables() {
             <div className="lg:hidden">
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={async () => {
-                    await loadTables(true);
-                  }}
+                  onClick={handleSyncTables}
                   disabled={isSyncing}
                   className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                   title="Sync with server and fix areas"
@@ -1429,10 +1687,7 @@ export default function Tables() {
                   onClick={async () => {
                     if (restaurant) {
                       await TableStatusService.autoFixWithNotification(restaurant.id);
-                      // Refresh tables after fixing
-                      setTimeout(() => {
-                        loadTables(true);
-                      }, 1000);
+                      // Real-time subscription will automatically update tables
                     }
                   }}
                   className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
@@ -1517,7 +1772,7 @@ export default function Tables() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Status</label>
               <select
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
+                onChange={(e) => setSelectedStatus(e.target.value as TableStatus | 'all')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="all">All Status</option>

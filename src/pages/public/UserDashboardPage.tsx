@@ -202,16 +202,31 @@ export default function UserDashboardPage() {
                 const spins = data.spins || [];
                 const coupons = data.coupons || [];
                 
+                // Cross-reference spins with coupons to determine redemption status
+                const enrichedSpins = spins.map((spin: any) => {
+                  // Find the corresponding coupon for this spin
+                  const correspondingCoupon = coupons.find((c: any) => 
+                    c.code === spin.couponCode || 
+                    (c.metadata?.spinId === spin.id)
+                  );
+                  
+                  return {
+                    ...spin,
+                    // Override isRedeemed based on coupon usage
+                    isRedeemed: correspondingCoupon ? correspondingCoupon.usageCount > 0 : spin.isRedeemed
+                  };
+                });
+
                 spinData = {
                   totalSpins: spins.length,
                   totalCoupons: coupons.length,
-                  redeemedCoupons: coupons.filter((c: any) => c.isRedeemed).length,
+                  redeemedCoupons: coupons.filter((c: any) => c.usageCount > 0).length,
                   totalDiscountEarned: coupons.reduce((sum: number, c: any) => 
                     sum + (c.discountValue || 0), 0),
-                  totalDiscountUsed: coupons.filter((c: any) => c.isRedeemed)
+                  totalDiscountUsed: coupons.filter((c: any) => c.usageCount > 0)
                     .reduce((sum: number, c: any) => sum + (c.discountValue || 0), 0),
-                  availableCoupons: (data.coupons || []).filter((c: any) => !c.isRedeemed && !c.isExpired) as any[],
-                  spinHistory: (data.spins || []) as any[]
+                  availableCoupons: (data.coupons || []).filter((c: any) => c.usageCount === 0 && !c.isExpired) as any[],
+                  spinHistory: enrichedSpins as any[]
                 };
               }
             }

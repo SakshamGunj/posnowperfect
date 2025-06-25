@@ -5,6 +5,7 @@ import { VoiceContextManager } from '@/services/voiceContextManager';
 import { useRestaurantAuth } from '@/contexts/RestaurantAuthContext';
 import { useRestaurant } from '@/contexts/RestaurantContext';
 import { IncompleteCommandDialog } from '@/components/voice/IncompleteCommandDialog';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 // Voice Context Interface
 interface VoiceContextType {
@@ -12,6 +13,7 @@ interface VoiceContextType {
   hasPermission: boolean;
   isListening: boolean;
   isContinuousMode: boolean;
+  isPushToTalkMode: boolean;
   state: VoiceState;
   transcript: string;
   lastCommand: VoiceCommand | null;
@@ -19,6 +21,8 @@ interface VoiceContextType {
   requestPermission: () => Promise<boolean>;
   startListening: () => void;
   startContinuousListening: () => void;
+  startPushToTalkRecording: () => void;
+  stopPushToTalkRecording: () => void;
   stopListening: () => void;
   toggleListening: () => void;
   executeCommand: (command: VoiceCommand) => Promise<void>;
@@ -36,13 +40,17 @@ export const VoiceProvider: React.FC<VoiceProviderProps> = ({ children }) => {
   const [hasPermission, setHasPermission] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isContinuousMode, setIsContinuousMode] = useState(false);
+  const [isPushToTalkMode, setIsPushToTalkMode] = useState(false);
   const [state, setState] = useState<VoiceState>('idle');
   const [transcript, setTranscript] = useState('');
   const [lastCommand, setLastCommand] = useState<VoiceCommand | null>(null);
   const [incompleteCommandContext, setIncompleteCommandContext] = useState<IncompleteCommandContext | null>(null);
+  const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommand | null>(null);
   
   const { user } = useRestaurantAuth();
   const { restaurant } = useRestaurant();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (!isSupported) {
@@ -55,6 +63,7 @@ export const VoiceProvider: React.FC<VoiceProviderProps> = ({ children }) => {
       setState(newState);
       setIsListening(voiceService.getIsListening());
       setIsContinuousMode(voiceService.getIsContinuousMode());
+      setIsPushToTalkMode(voiceService.getIsPushToTalkMode());
     });
 
     voiceService.setOnTranscriptChange((newTranscript: string) => {
@@ -99,6 +108,238 @@ export const VoiceProvider: React.FC<VoiceProviderProps> = ({ children }) => {
     }
   }, [restaurant]);
 
+  // Handle pending voice command after navigation
+  useEffect(() => {
+    if (pendingVoiceCommand && restaurant) {
+      const tableNumber = pendingVoiceCommand.tableNumber;
+      const currentPath = location.pathname;
+      
+      // Check if we're on the expected page based on command type
+      let isOnCorrectPage = false;
+      let eventType = '';
+      
+      if (pendingVoiceCommand.type === 'ORDER' || pendingVoiceCommand.type === 'PLACE_ORDER') {
+        // Order commands need the specific table order page
+        const expectedPath = `/${restaurant.slug}/tables/${tableNumber}/order`;
+        isOnCorrectPage = currentPath === expectedPath;
+        eventType = pendingVoiceCommand.type === 'PLACE_ORDER' ? 'voicePlaceOrderCommand' : 'voiceOrderCommand';
+      } else {
+        // Other commands (payment, KOT, cancel) can work from tables page
+        isOnCorrectPage = currentPath.includes('/tables');
+        
+        switch (pendingVoiceCommand.type) {
+          case 'PAYMENT':
+            eventType = 'voicePaymentCommand';
+            break;
+          case 'KOT_PRINT':
+            eventType = 'voiceKotPrintCommand';
+            break;
+          case 'ORDER_CANCEL':
+            eventType = 'voiceOrderCancelCommand';
+            break;
+          default:
+            eventType = 'voiceOrderCommand';
+        }
+      }
+      
+      console.log('🎤 Checking navigation completion:', {
+        currentPath,
+        commandType: pendingVoiceCommand.type,
+        tableNumber,
+        isOnCorrectPage,
+        eventType
+      });
+      
+      if (isOnCorrectPage) {
+        console.log('🎤 Navigation completed, executing pending voice command');
+        
+        // Small delay to ensure page is fully loaded
+        setTimeout(() => {
+          // Dispatch the appropriate event type
+          const event = new CustomEvent(eventType, {
+            detail: { command: pendingVoiceCommand }
+          });
+          window.dispatchEvent(event);
+          console.log('🎯 Re-dispatched voice command after navigation:', eventType);
+          
+          // Clear pending command
+          setPendingVoiceCommand(null);
+        }, 500);
+      }
+    }
+  }, [location.pathname, pendingVoiceCommand, restaurant]);
+
+  // Global voice command handler - intercepts commands and navigates if needed
+  const handleGlobalVoiceCommand = (command: VoiceCommand) => {
+    // Don't block commands for auth issues - let the receiving components handle auth
+    // This handler is only for navigation assistance
+    
+    // Commands that require being on the table order page
+    const tableSpecificCommands = ['ORDER', 'PLACE_ORDER'];
+    const requiresTablePage = tableSpecificCommands.includes(command.type) && command.tableNumber;
+    
+    if (requiresTablePage && restaurant) {
+      const expectedPath = `/${restaurant.slug}/tables/${command.tableNumber}/order`;
+      const currentPath = location.pathname;
+      
+      console.log('🎤 Global voice command received:', {
+        commandType: command.type,
+        tableNumber: command.tableNumber,
+        currentPath,
+        expectedPath,
+        needsNavigation: currentPath !== expectedPath
+      });
+      
+      if (currentPath !== expectedPath) {
+        console.log('🧭 Not on table page, navigating first...');
+        
+        // Store the command as pending
+        setPendingVoiceCommand(command);
+        
+        // Show navigation message
+        const action = command.type === 'ORDER' ? 'process order' : 'place order';
+        toast(`🎤 Navigating to Table ${command.tableNumber} to ${action}...`, {
+          icon: '🧭',
+          duration: 2000
+        });
+        
+        // Navigate to the table
+        navigate(expectedPath);
+        return; // Don't dispatch yet, wait for navigation
+      } else {
+        console.log('✅ Already on correct table page, processing command immediately');
+        // We're already on the correct page, dispatch immediately
+        const eventType = command.type === 'PLACE_ORDER' ? 'voicePlaceOrderCommand' : 'voiceOrderCommand';
+        const event = new CustomEvent(eventType, {
+          detail: { command }
+        });
+        window.dispatchEvent(event);
+        return;
+      }
+    }
+    
+    // For commands that can be handled from any page (like Tables page)
+    // Only attempt navigation if we have restaurant context
+    if (restaurant) {
+      switch (command.type) {
+        case 'PAYMENT':
+          // Navigate to Tables page if not already there or on a table page
+          const currentPath = location.pathname;
+          const isOnTablesOrTablePage = currentPath.includes('/tables');
+          
+          if (!isOnTablesOrTablePage) {
+            console.log('🧭 Not on tables page, navigating to tables for payment...');
+            toast(`🎤 Navigating to Tables page to process payment for Table ${command.tableNumber}...`, {
+              icon: '💳',
+              duration: 2000
+            });
+            setPendingVoiceCommand(command);
+            navigate(`/${restaurant.slug}/tables`);
+            return;
+          }
+          
+          const paymentEvent = new CustomEvent('voicePaymentCommand', {
+            detail: { command }
+          });
+          window.dispatchEvent(paymentEvent);
+          break;
+          
+        case 'KOT_PRINT':
+          // KOT can be printed from Tables page
+          const kotCurrentPath = location.pathname;
+          const isOnTablesPageForKot = kotCurrentPath.includes('/tables');
+          
+          if (!isOnTablesPageForKot) {
+            console.log('🧭 Not on tables page, navigating to tables for KOT print...');
+            toast(`🎤 Navigating to Tables page to print KOT for Table ${command.tableNumber}...`, {
+              icon: '🧾',
+              duration: 2000
+            });
+            setPendingVoiceCommand(command);
+            navigate(`/${restaurant.slug}/tables`);
+            return;
+          }
+          
+          const kotEvent = new CustomEvent('voiceKotPrintCommand', {
+            detail: { command }
+          });
+          window.dispatchEvent(kotEvent);
+          break;
+          
+        case 'ORDER_CANCEL':
+          // Order cancel can be done from Tables page
+          const cancelCurrentPath = location.pathname;
+          const isOnTablesPageForCancel = cancelCurrentPath.includes('/tables');
+          
+          if (!isOnTablesPageForCancel) {
+            console.log('🧭 Not on tables page, navigating to tables for order cancel...');
+            toast(`🎤 Navigating to Tables page to cancel order for Table ${command.tableNumber}...`, {
+              icon: '❌',
+              duration: 2000
+            });
+            setPendingVoiceCommand(command);
+            navigate(`/${restaurant.slug}/tables`);
+            return;
+          }
+          
+          const cancelEvent = new CustomEvent('voiceOrderCancelCommand', {
+            detail: { command }
+          });
+          window.dispatchEvent(cancelEvent);
+          break;
+          
+        default:
+          // For other commands, try to dispatch normally
+          const genericEvent = new CustomEvent('voiceOrderCommand', {
+            detail: { command }
+          });
+          window.dispatchEvent(genericEvent);
+          break;
+      }
+    } else {
+      // No restaurant context, just dispatch the command and let the receiving component handle the error
+      console.log('🎤 No restaurant context for navigation, dispatching command normally');
+      
+      switch (command.type) {
+        case 'PAYMENT':
+          const paymentEvent = new CustomEvent('voicePaymentCommand', {
+            detail: { command }
+          });
+          window.dispatchEvent(paymentEvent);
+          break;
+          
+        case 'KOT_PRINT':
+          const kotEvent = new CustomEvent('voiceKotPrintCommand', {
+            detail: { command }
+          });
+          window.dispatchEvent(kotEvent);
+          break;
+          
+        case 'ORDER_CANCEL':
+          const cancelEvent = new CustomEvent('voiceOrderCancelCommand', {
+            detail: { command }
+          });
+          window.dispatchEvent(cancelEvent);
+          break;
+          
+        case 'PLACE_ORDER':
+          const placeOrderEvent = new CustomEvent('voicePlaceOrderCommand', {
+            detail: { command }
+          });
+          window.dispatchEvent(placeOrderEvent);
+          break;
+          
+        default:
+          // For other commands (including ORDER), dispatch as order command
+          const genericEvent = new CustomEvent('voiceOrderCommand', {
+            detail: { command }
+          });
+          window.dispatchEvent(genericEvent);
+          break;
+      }
+    }
+  };
+
   const checkExistingPermission = async () => {
     try {
       const permissions = await navigator.permissions.query({ name: 'microphone' as PermissionName });
@@ -128,6 +369,18 @@ export const VoiceProvider: React.FC<VoiceProviderProps> = ({ children }) => {
       return;
     }
     voiceService.startContinuousListening();
+  };
+
+  const startPushToTalkRecording = () => {
+    if (!hasPermission) {
+      toast.error('Please grant microphone permission first.');
+      return;
+    }
+    voiceService.startPushToTalkRecording();
+  };
+
+  const stopPushToTalkRecording = () => {
+    voiceService.stopPushToTalkRecording();
   };
 
   const stopListening = () => {
@@ -227,12 +480,8 @@ export const VoiceProvider: React.FC<VoiceProviderProps> = ({ children }) => {
       return;
     }
 
-    // Always dispatch the event - let the receiving component handle auth
-    const event = new CustomEvent('voiceOrderCommand', {
-      detail: { command }
-    });
-    window.dispatchEvent(event);
-    console.log('🎯 VoiceContext: Dispatched voiceOrderCommand event');
+    // Use global handler to check navigation and handle the command
+    handleGlobalVoiceCommand(command);
   };
 
   const executePlaceOrderCommand = async (command: VoiceCommand): Promise<void> => {
@@ -249,24 +498,18 @@ export const VoiceProvider: React.FC<VoiceProviderProps> = ({ children }) => {
     if (menuItems && menuItems.length > 0) {
       console.log('🎯 VoiceContext: Place order has menu items, executing as order command');
       
-      // Execute as order command to add items and place order
-      const event = new CustomEvent('voiceOrderCommand', {
-        detail: { 
-          command: {
-            ...command,
-            type: 'ORDER' // Change type to ORDER so it adds items and places order
-          }
-        }
+      // Use global handler for order command with navigation
+      handleGlobalVoiceCommand({
+        ...command,
+        type: 'ORDER' // Change type to ORDER so it adds items and places order
       });
-      window.dispatchEvent(event);
-      console.log('🎯 VoiceContext: Dispatched voiceOrderCommand event with menu items');
     } else {
       // No menu items, just dispatch regular place order event
-    const event = new CustomEvent('voicePlaceOrderCommand', {
-      detail: { command }
-    });
-    window.dispatchEvent(event);
-    console.log('🎯 VoiceContext: Dispatched voicePlaceOrderCommand event');
+      const event = new CustomEvent('voicePlaceOrderCommand', {
+        detail: { command }
+      });
+      window.dispatchEvent(event);
+      console.log('🎯 VoiceContext: Dispatched voicePlaceOrderCommand event');
     }
   };
 
@@ -414,6 +657,7 @@ export const VoiceProvider: React.FC<VoiceProviderProps> = ({ children }) => {
         hasPermission,
         isListening,
         isContinuousMode,
+        isPushToTalkMode,
         state,
         transcript,
         lastCommand,
@@ -421,6 +665,8 @@ export const VoiceProvider: React.FC<VoiceProviderProps> = ({ children }) => {
         requestPermission,
         startListening,
         startContinuousListening,
+        startPushToTalkRecording,
+        stopPushToTalkRecording,
         stopListening,
         toggleListening,
         executeCommand,

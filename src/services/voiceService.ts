@@ -43,8 +43,8 @@ const voiceToast = {
   }),
 };
 
-// Groq AI Configuration
-const GROQ_API_KEY = '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';
+// Groq AI Configuration - Support environment variables for API key
+const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY || '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';
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // Voice Command Types
@@ -94,6 +94,8 @@ export class VoiceService {
   private hasPermission = false;
   private isContinuousMode = false; // New flag for continuous listening
   private shouldRestart = false; // Flag to control auto-restart
+  private isPushToTalkMode = false; // New flag for push-to-talk mode
+  private accumulatedTranscript = ''; // Accumulate all speech during push-to-talk
   private restaurantContext?: { name: string; slug: string; id: string };
   private onStateChange?: (state: VoiceState) => void;
   private onTranscriptChange?: (transcript: string) => void;
@@ -114,9 +116,9 @@ export class VoiceService {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     this.recognition = new SpeechRecognition();
 
-    // Configure for continuous listening
-    this.recognition.continuous = true; // Changed to true for continuous mode
-    this.recognition.interimResults = true; // Show interim results for better UX
+    // Configure for optimal recording
+    this.recognition.continuous = true; // Keep listening continuously
+    this.recognition.interimResults = true; // Show live transcript
     this.recognition.lang = 'en-US';
     this.recognition.maxAlternatives = 1;
 
@@ -130,8 +132,18 @@ export class VoiceService {
       console.log('🎤 Voice recognition ended');
       this.isListening = false;
       
-      // Auto-restart if in continuous mode and should restart
-      if (this.isContinuousMode && this.shouldRestart) {
+      // Handle different end scenarios
+      if (this.isPushToTalkMode) {
+        // Push-to-talk mode: process accumulated transcript when recording ends
+        console.log('🎯 Push-to-talk recording ended, processing accumulated transcript');
+        if (this.accumulatedTranscript.trim()) {
+          this.processVoiceCommand(this.accumulatedTranscript.trim(), this.restaurantContext);
+        }
+        // Reset push-to-talk state
+        this.isPushToTalkMode = false;
+        this.accumulatedTranscript = '';
+      } else if (this.isContinuousMode && this.shouldRestart) {
+        // Continuous mode: auto-restart
         console.log('🔄 Restarting voice recognition for continuous mode');
         setTimeout(() => {
           if (this.shouldRestart && this.isContinuousMode) {
@@ -139,7 +151,7 @@ export class VoiceService {
           }
         }, 100);
       } else {
-        // Only change to idle if we're not processing and not restarting
+        // Single-shot mode: go to idle
         setTimeout(() => {
           if (!this.isListening && !this.shouldRestart) {
             this.setState('idle');
@@ -150,35 +162,43 @@ export class VoiceService {
 
     this.recognition.onresult = (event: any) => {
       // Handle both interim and final results
-      let transcript = '';
+      let currentTranscript = '';
       let isFinal = false;
       
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      // Build complete transcript from all results
+      for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i];
-        transcript += result[0].transcript;
+        currentTranscript += result[0].transcript;
         if (result.isFinal) {
           isFinal = true;
         }
       }
       
-      transcript = transcript.trim();
+      currentTranscript = currentTranscript.trim();
       
-      if (transcript) {
-        console.log('🗣️ Transcript:', transcript, 'Final:', isFinal);
-        this.onTranscriptChange?.(transcript);
-        
-        // Only process final results to avoid processing partial speech
-        if (isFinal) {
-          const confidence = event.results[event.resultIndex][0].confidence;
-          console.log('🎯 Processing final transcript with confidence:', confidence);
+      if (currentTranscript) {
+        if (this.isPushToTalkMode) {
+          // Push-to-talk mode: accumulate all speech, don't process until button release
+          this.accumulatedTranscript = currentTranscript;
+          console.log('🎙️ Push-to-talk accumulating:', this.accumulatedTranscript);
+          this.onTranscriptChange?.(this.accumulatedTranscript);
+          // Don't process yet - wait for button release
+        } else {
+          // Normal mode: process final results immediately
+          console.log('🗣️ Transcript:', currentTranscript, 'Final:', isFinal);
+          this.onTranscriptChange?.(currentTranscript);
           
-          // Lower confidence threshold and always try to process
-          if (confidence > 0.3 || true) {
-            this.processVoiceCommand(transcript, this.restaurantContext);
-          } else {
-            console.warn('🔇 Low confidence, skipping:', confidence);
-            this.setState('error');
-            voiceToast.error('Could not understand. Please speak clearly.');
+          if (isFinal) {
+            const confidence = event.results[event.resultIndex][0].confidence;
+            console.log('🎯 Processing final transcript with confidence:', confidence);
+            
+            if (confidence > 0.3 || true) {
+              this.processVoiceCommand(currentTranscript, this.restaurantContext);
+            } else {
+              console.warn('🔇 Low confidence, skipping:', confidence);
+              this.setState('error');
+              voiceToast.error('Could not understand. Please speak clearly.');
+            }
           }
         }
       }
@@ -190,8 +210,8 @@ export class VoiceService {
       // Handle different error types
       switch (event.error) {
         case 'no-speech':
-          // In continuous mode, don't show error for no speech - just continue listening
-          if (!this.isContinuousMode) {
+          // In push-to-talk or continuous mode, don't show error for no speech
+          if (!this.isPushToTalkMode && !this.isContinuousMode) {
             voiceToast.error('No speech detected. Please try again.');
             this.setState('error');
           }
@@ -199,25 +219,26 @@ export class VoiceService {
         case 'audio-capture':
           voiceToast.error('Microphone not accessible.');
           this.setState('error');
-          this.shouldRestart = false; // Stop trying to restart
+          this.shouldRestart = false;
+          this.isPushToTalkMode = false;
           break;
         case 'not-allowed':
           voiceToast.error('Microphone permission denied.');
           this.setState('error');
-          this.shouldRestart = false; // Stop trying to restart
+          this.shouldRestart = false;
+          this.isPushToTalkMode = false;
           break;
         case 'network':
-          // Network errors in continuous mode - try to restart
           if (this.isContinuousMode && this.shouldRestart) {
             console.log('🌐 Network error, will retry...');
-          } else {
+          } else if (!this.isPushToTalkMode) {
             voiceToast.error('Network error. Please try again.');
             this.setState('error');
           }
           break;
         default:
           console.warn('🤷‍♂️ Other speech error:', event.error);
-          if (!this.isContinuousMode) {
+          if (!this.isContinuousMode && !this.isPushToTalkMode) {
             voiceToast.error('Voice recognition error. Please try again.');
             this.setState('error');
           }
@@ -274,7 +295,14 @@ export class VoiceService {
         command = await this.analyzeWithGroq(transcript, restaurantContext);
         console.log('🤖 AI Command Analysis:', command);
       } catch (aiError) {
-        console.warn('🤖 AI analysis failed, using fallback:', aiError);
+        console.warn('🤖 AI analysis failed, using fallback parser:', aiError);
+        
+        // Show a helpful message once per session about AI being unavailable
+        if (!sessionStorage.getItem('voice_ai_fallback_notified')) {
+          voiceToast.info('🔄 Voice AI temporarily unavailable, using local parsing', '🎤');
+          sessionStorage.setItem('voice_ai_fallback_notified', 'true');
+        }
+        
         // Fallback to simple parsing
         command = this.parseCommandFallback(transcript);
         console.log('🔄 Fallback Command Analysis:', command);
@@ -950,9 +978,65 @@ export class VoiceService {
 
     try {
       this.shouldRestart = false; // Reset restart flag for single-shot mode
+      this.isPushToTalkMode = false; // Regular listening mode
+      this.accumulatedTranscript = ''; // Reset transcript
       this.recognition.start();
     } catch (error) {
       console.error('❌ Failed to start voice recognition:', error);
+      this.setState('error');
+    }
+  }
+
+  // NEW: Start push-to-talk recording mode
+  public startPushToTalkRecording(): void {
+    if (!this.recognition) {
+      voiceToast.error('Voice recognition not initialized');
+      return;
+    }
+
+    if (this.isListening) {
+      console.warn('⚠️ Already listening');
+      return;
+    }
+
+    try {
+      console.log('🎙️ Starting push-to-talk recording mode');
+      this.isPushToTalkMode = true;
+      this.accumulatedTranscript = '';
+      this.shouldRestart = false;
+      this.isContinuousMode = false;
+      this.recognition.start();
+    } catch (error) {
+      console.error('❌ Failed to start push-to-talk recording:', error);
+      this.setState('error');
+      this.isPushToTalkMode = false;
+    }
+  }
+
+  // NEW: Stop push-to-talk recording and process command
+  public stopPushToTalkRecording(): void {
+    if (!this.isListening || !this.recognition) {
+      console.warn('⚠️ Not currently recording');
+      this.isPushToTalkMode = false;
+      this.accumulatedTranscript = '';
+      this.setState('idle');
+      return;
+    }
+
+    if (!this.isPushToTalkMode) {
+      console.warn('⚠️ Not in push-to-talk mode');
+      return;
+    }
+
+    console.log('🛑 Stopping push-to-talk recording');
+    
+    try {
+      // Stop the recognition - this will trigger onend which processes the accumulated transcript
+      this.recognition.stop();
+    } catch (error) {
+      console.error('❌ Failed to stop push-to-talk recording:', error);
+      this.isPushToTalkMode = false;
+      this.accumulatedTranscript = '';
       this.setState('error');
     }
   }
@@ -967,6 +1051,8 @@ export class VoiceService {
     console.log('🔄 Starting continuous listening mode');
     this.isContinuousMode = true;
     this.shouldRestart = true;
+    this.isPushToTalkMode = false; // Not push-to-talk mode
+    this.accumulatedTranscript = ''; // Reset transcript
     
     voiceToast.info('🎤 Continuous listening enabled. Press again to stop.', '🔁');
 
@@ -987,18 +1073,32 @@ export class VoiceService {
 
   public stopListening(): void {
     if (!this.isListening || !this.recognition) {
-      // Even if not currently listening, stop continuous mode
+      // Even if not currently listening, stop all modes
       this.isContinuousMode = false;
       this.shouldRestart = false;
+      this.isPushToTalkMode = false;
+      this.accumulatedTranscript = '';
       this.setState('idle');
       return;
     }
 
     console.log('🛑 Stopping voice recognition');
+    
+    // Store mode before stopping
+    const wasContinuousMode = this.isContinuousMode;
+    const wasPushToTalkMode = this.isPushToTalkMode;
+    
+    // Reset modes
     this.isContinuousMode = false;
     this.shouldRestart = false;
+    
+    // Don't reset push-to-talk mode here - let onend handle it
+    if (!wasPushToTalkMode) {
+      this.isPushToTalkMode = false;
+      this.accumulatedTranscript = '';
+    }
 
-    if (this.isContinuousMode) {
+    if (wasContinuousMode) {
       voiceToast.info('🎤 Continuous listening stopped', '🛑');
     }
 
@@ -1006,17 +1106,6 @@ export class VoiceService {
       this.recognition.stop();
     } catch (error) {
       console.error('❌ Failed to stop voice recognition:', error);
-    }
-  }
-
-  // Toggle between single-shot and continuous listening
-  public toggleListening(): void {
-    if (this.isListening) {
-      // If currently listening, stop
-      this.stopListening();
-    } else {
-      // If not listening, start continuous mode
-      this.startContinuousListening();
     }
   }
 
@@ -1239,6 +1328,175 @@ Example JSON responses:
       console.error('❌ Groq AI analysis failed:', error);
       throw error;
     }
+  }
+
+  // Public method for AI-powered menu item matching (for use by voice command handlers)
+  public static async matchMenuItemsIntelligently(voiceItems: Array<{name: string, quantity: number}>, availableMenuItems: any[]): Promise<Array<{name: string, quantity: number, matchedItem?: any}>> {
+    const instance = VoiceService.getInstance();
+    return instance.matchMenuItemsWithAI(voiceItems, availableMenuItems);
+  }
+
+  // Enhanced AI-powered menu item matching
+  private async matchMenuItemsWithAI(voiceItems: Array<{name: string, quantity: number}>, availableMenuItems: any[]): Promise<Array<{name: string, quantity: number, matchedItem?: any}>> {
+    const matchedItems: Array<{name: string, quantity: number, matchedItem?: any}> = [];
+    
+    for (const voiceItem of voiceItems) {
+      try {
+        // First try exact and basic fuzzy matching
+        const basicMatch = this.findBasicMenuMatch(voiceItem.name, availableMenuItems);
+        if (basicMatch) {
+          matchedItems.push({
+            ...voiceItem,
+            matchedItem: basicMatch
+          });
+          continue;
+        }
+
+        // If no basic match, use AI to find the best match
+        const aiMatch = await this.findAIMenuMatch(voiceItem.name, availableMenuItems);
+        if (aiMatch) {
+          matchedItems.push({
+            ...voiceItem,
+            matchedItem: aiMatch
+          });
+        } else {
+          // No match found, keep original
+          matchedItems.push(voiceItem);
+        }
+      } catch (error) {
+        console.error('Error matching menu item:', voiceItem.name, error);
+        // Fallback to basic matching
+        const basicMatch = this.findBasicMenuMatch(voiceItem.name, availableMenuItems);
+        matchedItems.push({
+          ...voiceItem,
+          matchedItem: basicMatch
+        });
+      }
+    }
+
+    return matchedItems;
+  }
+
+  // Basic fuzzy matching for common cases
+  private findBasicMenuMatch(voiceItemName: string, availableMenuItems: any[]): any {
+    const searchTerm = voiceItemName.toLowerCase().trim();
+    
+    // 1. Exact match
+    let match = availableMenuItems.find(item => 
+      item.name.toLowerCase() === searchTerm
+    );
+    if (match) return match;
+
+    // 2. Contains match (either direction)
+    match = availableMenuItems.find(item => 
+      item.name.toLowerCase().includes(searchTerm) || 
+      searchTerm.includes(item.name.toLowerCase())
+    );
+    if (match) return match;
+
+    // 3. Word-by-word fuzzy matching
+    const searchWords = searchTerm.split(' ').filter(w => w.length > 2);
+    if (searchWords.length > 0) {
+      match = availableMenuItems.find(item => {
+        const itemWords = item.name.toLowerCase().split(' ');
+        return searchWords.some(searchWord => 
+          itemWords.some((itemWord: string) => 
+            itemWord.includes(searchWord) || searchWord.includes(itemWord)
+          )
+        );
+      });
+      if (match) return match;
+    }
+
+    return null;
+  }
+
+  // AI-powered menu item matching using Groq API
+  private async findAIMenuMatch(voiceItemName: string, availableMenuItems: any[]): Promise<any> {
+    try {
+      const menuItemNames = availableMenuItems.map(item => item.name);
+      
+      const prompt = `Find the best menu item match for the voice command: "${voiceItemName}"
+
+Available menu items:
+${menuItemNames.map((name, index) => `${index + 1}. ${name}`).join('\n')}
+
+Instructions:
+1. Find the menu item that best matches the voice command
+2. Consider phonetic similarities, abbreviations, and common variations
+3. Look for items with similar ingredients or characteristics
+4. If no close match exists, return "NO_MATCH"
+5. Return ONLY the exact menu item name from the list above
+
+Examples:
+- "chilly pork" might match "Chilli Pork" or "Spicy Pork"
+- "all time favorite chilly pork" might match "Chilli Pork" or "Special Pork Dish"
+- "wings" might match "Chicken Wings" or "Buffalo Wings"
+- "burger" might match "Beef Burger" or "Chicken Burger"
+
+Voice command: "${voiceItemName}"
+Best match:`;
+
+      const response = await fetch(GROQ_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.1,
+          max_tokens: 100,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const matchedName = data.choices[0]?.message?.content?.trim();
+        
+        if (matchedName && matchedName !== "NO_MATCH") {
+          // Find the exact menu item by name
+          const matchedItem = availableMenuItems.find(item => 
+            item.name.toLowerCase() === matchedName.toLowerCase() ||
+            item.name.toLowerCase().includes(matchedName.toLowerCase()) ||
+            matchedName.toLowerCase().includes(item.name.toLowerCase())
+          );
+          
+          if (matchedItem) {
+            console.log(`🤖 AI matched "${voiceItemName}" → "${matchedItem.name}"`);
+            return matchedItem;
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('AI menu matching failed, using fallback:', error);
+    }
+
+    return null;
+  }
+
+  // Toggle between single-shot and continuous listening
+  public toggleListening(): void {
+    if (this.isListening) {
+      // If currently listening, stop
+      this.stopListening();
+    } else {
+      // If not listening, start continuous mode
+      this.startContinuousListening();
+    }
+  }
+
+  // NEW: Get push-to-talk mode status
+  public getIsPushToTalkMode(): boolean {
+    return this.isPushToTalkMode;
+  }
+
+  // NEW: Get accumulated transcript in push-to-talk mode
+  public getAccumulatedTranscript(): string {
+    return this.accumulatedTranscript;
   }
 }
 

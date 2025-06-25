@@ -2,6 +2,7 @@
 import { Outlet } from 'react-router-dom';
 import RestaurantNavbar from './ImprovedRestaurantNavbar';
 import ConnectionStatus from '@/components/common/ConnectionStatus';
+import VoiceButton from '@/components/voice/VoiceButton';
 
 export default function RestaurantLayout() {
   return (
@@ -16,6 +17,9 @@ export default function RestaurantLayout() {
       <div className="fixed bottom-4 left-4 z-40">
         <ConnectionStatus />
       </div>
+      
+      {/* Voice Button for voice commands */}
+      <VoiceButton />
     </div>
   );
 } 

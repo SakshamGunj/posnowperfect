@@ -38,6 +38,15 @@ export default function PaymentModalWithCoupons({
   const [creditCustomerName, setCreditCustomerName] = useState('');
   const [creditCustomerPhone, setCreditCustomerPhone] = useState('');
   
+  // Split payment functionality states
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [splitPayment, setSplitPayment] = useState({
+    method1: 'cash',
+    amount1: '',
+    method2: 'upi',
+    amount2: ''
+  });
+  
   // Customer selection
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -112,14 +121,22 @@ export default function PaymentModalWithCoupons({
 
   // Set default amount received to full amount if not set
   useEffect(() => {
-    if (finalTotal && !amountReceived) {
+    if (finalTotal && !amountReceived && !isSplitPayment) {
       setAmountReceived(finalTotal.toString());
     }
-  }, [finalTotal]);
+  }, [finalTotal, isSplitPayment]);
+
+  // Split payment calculation
+  const splitAmount1 = parseFloat(splitPayment.amount1) || 0;
+  const splitAmount2 = parseFloat(splitPayment.amount2) || 0;
+  const totalSplitAmount = splitAmount1 + splitAmount2;
+  const isSplitAmountValid = Math.abs(totalSplitAmount - finalTotal) < 0.01; // Allow for small rounding differences
+  const splitPaymentShortfall = finalTotal - totalSplitAmount;
 
   // Check if payment is credit (amount received is less than total)
-  const isCredit = parseFloat(amountReceived) < finalTotal && parseFloat(amountReceived) > 0;
-  const creditAmount = isCredit ? finalTotal - parseFloat(amountReceived) : 0;
+  const actualAmountReceived = isSplitPayment ? totalSplitAmount : parseFloat(amountReceived);
+  const isCredit = actualAmountReceived < finalTotal && actualAmountReceived > 0;
+  const creditAmount = isCredit ? finalTotal - actualAmountReceived : 0;
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -200,10 +217,11 @@ export default function PaymentModalWithCoupons({
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
   const handlePayment = () => {
-    const amountReceivedNum = parseFloat(amountReceived) || finalTotal;
+    const actualAmountReceivedNum = isSplitPayment ? totalSplitAmount : (parseFloat(amountReceived) || finalTotal);
+    
     const paymentData = {
-      method: paymentMethod,
-      amountReceived: amountReceivedNum,
+      method: isSplitPayment ? 'split' : paymentMethod,
+      amountReceived: actualAmountReceivedNum,
       appliedCoupon,
       manualDiscount: manualDiscount.value > 0 ? manualDiscount : null,
       customerId: selectedCustomerId || null,
@@ -215,6 +233,15 @@ export default function PaymentModalWithCoupons({
       freeItems,
       couponDiscountAmount,
       manualDiscountAmount,
+      // Split payment information
+      isSplitPayment,
+      splitPayment: isSplitPayment ? {
+        method1: splitPayment.method1,
+        amount1: splitAmount1,
+        method2: splitPayment.method2,
+        amount2: splitAmount2,
+        totalSplitAmount
+      } : null,
       // Credit information
       isCredit,
       creditAmount,
@@ -511,7 +538,7 @@ export default function PaymentModalWithCoupons({
               </h4>
               
               <div className="space-y-3">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2">
                   {[10, 15, 20, 25].map((percentage) => {
                     const tipAmount = (subtotalWithTax * percentage) / 100;
                     return (
@@ -557,27 +584,143 @@ export default function PaymentModalWithCoupons({
 
             {/* Payment Method Selection */}
             <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Payment Method</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                {['cash', 'upi', 'bank'].map((method) => (
-                  <button
-                    key={method}
-                    onClick={() => {
-                      setPaymentMethod(method);
-                      if (amountReceived === '') {
-                        setAmountReceived(finalTotal.toString());
-                      }
-                    }}
-                    className={`p-3 border rounded-lg text-center capitalize text-sm ${
-                      paymentMethod === method
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    {method}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-medium text-gray-900 text-sm sm:text-base">Payment Method</h4>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={isSplitPayment}
+                    onChange={(e) => setIsSplitPayment(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Split Payment</span>
+                </label>
               </div>
+
+              {!isSplitPayment ? (
+                // Single Payment Method
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                  {['cash', 'upi', 'bank'].map((method) => (
+                    <button
+                      key={method}
+                      onClick={() => {
+                        setPaymentMethod(method);
+                        if (amountReceived === '') {
+                          setAmountReceived(finalTotal.toString());
+                        }
+                      }}
+                      className={`p-3 border rounded-lg text-center capitalize text-sm ${
+                        paymentMethod === method
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      {method}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                // Split Payment Methods
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h5 className="font-medium text-blue-900 mb-3 text-sm">Split Payment Configuration</h5>
+                    
+                    {/* First Payment Method */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Payment Method 1
+                      </label>
+                      <div className="grid grid-cols-3 gap-2 mb-2">
+                        {['cash', 'upi', 'bank'].map((method) => (
+                          <button
+                            key={method}
+                            onClick={() => setSplitPayment(prev => ({ ...prev, method1: method }))}
+                            className={`p-2 border rounded-lg text-center capitalize text-sm ${
+                              splitPayment.method1 === method
+                                ? 'border-blue-500 bg-blue-100 text-blue-700'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            {method}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="number"
+                        placeholder="Amount for method 1"
+                        value={splitPayment.amount1}
+                        onChange={(e) => setSplitPayment(prev => ({ ...prev, amount1: e.target.value }))}
+                        min="0"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      />
+                    </div>
+
+                    {/* Second Payment Method */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Payment Method 2
+                      </label>
+                      <div className="grid grid-cols-3 gap-2 mb-2">
+                        {['cash', 'upi', 'bank'].map((method) => (
+                          <button
+                            key={method}
+                            onClick={() => setSplitPayment(prev => ({ ...prev, method2: method }))}
+                            className={`p-2 border rounded-lg text-center capitalize text-sm ${
+                              splitPayment.method2 === method
+                                ? 'border-blue-500 bg-blue-100 text-blue-700'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            {method}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="number"
+                        placeholder="Amount for method 2"
+                        value={splitPayment.amount2}
+                        onChange={(e) => setSplitPayment(prev => ({ ...prev, amount2: e.target.value }))}
+                        min="0"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      />
+                    </div>
+
+                    {/* Split Payment Summary */}
+                    <div className="bg-white border border-gray-200 rounded-lg p-3">
+                      <div className="text-sm space-y-1">
+                        <div className="flex justify-between">
+                          <span>Total Bill:</span>
+                          <span className="font-medium">{formatCurrency(finalTotal)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>{splitPayment.method1.toUpperCase()}:</span>
+                          <span>{formatCurrency(splitAmount1)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>{splitPayment.method2.toUpperCase()}:</span>
+                          <span>{formatCurrency(splitAmount2)}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-1">
+                          <span>Total Received:</span>
+                          <span className="font-medium">{formatCurrency(totalSplitAmount)}</span>
+                        </div>
+                        {!isSplitAmountValid && (
+                          <div className={`flex justify-between ${splitPaymentShortfall > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            <span>
+                              {splitPaymentShortfall > 0 ? 'Shortfall:' : 'Overpayment:'}
+                            </span>
+                            <span className="font-medium">
+                              {formatCurrency(Math.abs(splitPaymentShortfall))}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Amount Received - Show for all payment methods */}
@@ -671,15 +814,21 @@ export default function PaymentModalWithCoupons({
               </button>
               <button
                 onClick={handlePayment}
-                disabled={isProcessing || (isCredit && !creditCustomerName.trim())}
-                  className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                disabled={isProcessing || (isCredit && !creditCustomerName.trim()) || (isSplitPayment && (splitAmount1 <= 0 || splitAmount2 <= 0))}
+                className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
-                  <span className="block sm:hidden">
-                    {isProcessing ? 'Processing...' : isCredit ? `Pay ${formatCurrency(parseFloat(amountReceived))}` : `Pay ${formatCurrency(finalTotal)}`}
-                  </span>
-                  <span className="hidden sm:block">
-                {isProcessing ? 'Processing...' : isCredit ? `Pay ${formatCurrency(parseFloat(amountReceived))} (Credit: ${formatCurrency(creditAmount)})` : `Pay ${formatCurrency(finalTotal)}`}
-                  </span>
+                <span className="block sm:hidden">
+                  {isProcessing ? 'Processing...' : 
+                   isSplitPayment ? `Pay ${formatCurrency(totalSplitAmount)}${!isSplitAmountValid ? ` (${splitPaymentShortfall > 0 ? 'Short' : 'Over'})` : ''}` :
+                   isCredit ? `Pay ${formatCurrency(parseFloat(amountReceived))}` : 
+                   `Pay ${formatCurrency(finalTotal)}`}
+                </span>
+                <span className="hidden sm:block">
+                  {isProcessing ? 'Processing...' : 
+                   isSplitPayment ? `Pay ${formatCurrency(totalSplitAmount)}${!isSplitAmountValid ? ` (${splitPaymentShortfall > 0 ? 'Shortfall' : 'Overpayment'}: ${formatCurrency(Math.abs(splitPaymentShortfall))})` : ''}` :
+                   isCredit ? `Pay ${formatCurrency(parseFloat(amountReceived))} (Credit: ${formatCurrency(creditAmount)})` : 
+                   `Pay ${formatCurrency(finalTotal)}`}
+                </span>
               </button>
               </div>
             </div>

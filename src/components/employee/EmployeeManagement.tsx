@@ -652,7 +652,7 @@ function CreateEmployeeModal({ onClose, onSubmit }: CreateEmployeeModalProps) {
                 </button>
               </div>
             </div>
-
+            
             {/* Permission Categories */}
             <div className="space-y-6">
               {Object.entries(groupedModules).map(([category, modules]) => {
@@ -697,7 +697,7 @@ function CreateEmployeeModal({ onClose, onSubmit }: CreateEmployeeModalProps) {
                       <div>
                         <h5 className="text-lg font-semibold text-gray-900 mb-1">
                           {config.title}
-                        </h5>
+                  </h5>
                         <p className="text-sm text-gray-600 mb-2">
                           {config.description}
                         </p>
@@ -744,11 +744,11 @@ function CreateEmployeeModal({ onClose, onSubmit }: CreateEmployeeModalProps) {
                     </div>
                     
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {modules.map((module) => {
-                        const permission = permissions.find(p => p.module === module.id);
+                    {modules.map((module) => {
+                      const permission = permissions.find(p => p.module === module.id);
                         const isEnabled = permission?.access || false;
                         
-                        return (
+                      return (
                           <label 
                             key={module.id} 
                             className={`flex items-start space-x-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
@@ -757,17 +757,17 @@ function CreateEmployeeModal({ onClose, onSubmit }: CreateEmployeeModalProps) {
                                 : 'border-gray-200 bg-white hover:border-gray-300'
                             }`}
                           >
-                            <input
-                              type="checkbox"
+                          <input
+                            type="checkbox"
                               checked={isEnabled}
-                              onChange={() => togglePermission(module.id)}
+                            onChange={() => togglePermission(module.id)}
                               className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-2"
-                            />
+                          />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center space-x-2">
                                 <div className={`text-sm font-medium ${isEnabled ? 'text-blue-900' : 'text-gray-900'}`}>
-                                  {module.name}
-                                </div>
+                              {module.name}
+                            </div>
                                 {module.defaultAccess && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
                                     Default
@@ -775,8 +775,8 @@ function CreateEmployeeModal({ onClose, onSubmit }: CreateEmployeeModalProps) {
                                 )}
                               </div>
                               <div className={`text-xs mt-1 ${isEnabled ? 'text-blue-700' : 'text-gray-500'}`}>
-                                {module.description}
-                              </div>
+                              {module.description}
+                            </div>
                               {/* Additional context for important permissions */}
                               {module.id === 'employees' && (
                                 <div className="text-xs text-orange-600 mt-1 font-medium">
@@ -793,12 +793,12 @@ function CreateEmployeeModal({ onClose, onSubmit }: CreateEmployeeModalProps) {
                                   💰 Financial data access
                                 </div>
                               )}
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
+                          </div>
+                        </label>
+                      );
+                    })}
                   </div>
+                </div>
                 );
               })}
             </div>
@@ -1095,7 +1095,7 @@ function EditEmployeeModal({ employee, onClose, onSubmit }: EditEmployeeModalPro
                 </button>
               </div>
             </div>
-
+            
             {/* Permission Categories */}
             <div className="space-y-6">
               {Object.entries(groupedModules).map(([category, modules]) => {
@@ -1140,7 +1140,7 @@ function EditEmployeeModal({ employee, onClose, onSubmit }: EditEmployeeModalPro
                       <div>
                         <h5 className="text-lg font-semibold text-gray-900 mb-1">
                           {config.title}
-                        </h5>
+                  </h5>
                         <p className="text-sm text-gray-600 mb-2">
                           {config.description}
                         </p>
@@ -1187,11 +1187,11 @@ function EditEmployeeModal({ employee, onClose, onSubmit }: EditEmployeeModalPro
                     </div>
                     
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {modules.map((module) => {
-                        const permission = permissions.find(p => p.module === module.id);
+                    {modules.map((module) => {
+                      const permission = permissions.find(p => p.module === module.id);
                         const isEnabled = permission?.access || false;
                         
-                        return (
+                      return (
                           <label 
                             key={module.id} 
                             className={`flex items-start space-x-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
@@ -1200,17 +1200,17 @@ function EditEmployeeModal({ employee, onClose, onSubmit }: EditEmployeeModalPro
                                 : 'border-gray-200 bg-white hover:border-gray-300'
                             }`}
                           >
-                            <input
-                              type="checkbox"
+                          <input
+                            type="checkbox"
                               checked={isEnabled}
-                              onChange={() => togglePermission(module.id)}
+                            onChange={() => togglePermission(module.id)}
                               className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-2"
-                            />
+                          />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center space-x-2">
                                 <div className={`text-sm font-medium ${isEnabled ? 'text-blue-900' : 'text-gray-900'}`}>
-                                  {module.name}
-                                </div>
+                              {module.name}
+                            </div>
                                 {module.defaultAccess && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
                                     Default
@@ -1218,8 +1218,8 @@ function EditEmployeeModal({ employee, onClose, onSubmit }: EditEmployeeModalPro
                                 )}
                               </div>
                               <div className={`text-xs mt-1 ${isEnabled ? 'text-blue-700' : 'text-gray-500'}`}>
-                                {module.description}
-                              </div>
+                              {module.description}
+                            </div>
                               {/* Additional context for important permissions */}
                               {module.id === 'employees' && (
                                 <div className="text-xs text-orange-600 mt-1 font-medium">
@@ -1236,12 +1236,12 @@ function EditEmployeeModal({ employee, onClose, onSubmit }: EditEmployeeModalPro
                                   💰 Financial data access
                                 </div>
                               )}
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
+                          </div>
+                        </label>
+                      );
+                    })}
                   </div>
+                </div>
                 );
               })}
             </div>

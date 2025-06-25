@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  Link,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -39,6 +40,7 @@ interface InventoryForm {
   supplier?: string;
   isTracked: boolean;
   autoDeduct: boolean;
+  linkedItems?: any[];
 }
 
 interface AdjustmentForm {
@@ -225,18 +227,28 @@ export default function InventoryManagement() {
       setSelectedInventory(inventory);
       setDialogType('history');
       
+      await loadTransactionHistory(inventory);
+      
+      setShowDialog(true);
+    } catch (error) {
+      toast.error('Failed to load transaction history');
+    }
+  };
+
+  const loadTransactionHistory = async (inventory: InventoryItem) => {
+    if (!restaurant) return;
+
+    try {
       const result = await InventoryService.getTransactionHistory(inventory.id, restaurant.id);
       
       if (result.success && result.data) {
         setTransactionHistory(result.data);
       } else {
         setTransactionHistory([]);
-        toast.error('Failed to load transaction history');
       }
-      
-      setShowDialog(true);
     } catch (error) {
-      toast.error('Failed to load transaction history');
+      console.error('Failed to load transaction history:', error);
+      setTransactionHistory([]);
     }
   };
 
@@ -248,9 +260,14 @@ export default function InventoryManagement() {
 
       if (selectedInventory) {
         // Update existing inventory
-        const result = await InventoryService.updateInventoryItem(selectedInventory.id, restaurant.id, data);
+        const result = await InventoryService.updateInventoryItem(selectedInventory.id, restaurant.id, data, user.id);
         
         if (result.success) {
+          // If this inventory has linked items, ensure they have inventory items created
+          if (data.linkedItems && data.linkedItems.length > 0) {
+            await createInventoryForLinkedItems(data.linkedItems);
+          }
+          
           toast.success('Inventory updated successfully');
           await loadData();
         } else {
@@ -261,9 +278,14 @@ export default function InventoryManagement() {
         const result = await InventoryService.createInventoryItem({
           ...data,
           restaurantId: restaurant.id,
-        });
+        }, user?.id);
         
-        if (result.success) {
+        if (result.success && result.data) {
+          // If this inventory has linked items, ensure they have inventory items created
+          if (data.linkedItems && data.linkedItems.length > 0) {
+            await createInventoryForLinkedItems(data.linkedItems, result.data.id);
+          }
+          
           toast.success('Inventory created successfully');
           await loadData();
         } else {
@@ -277,6 +299,77 @@ export default function InventoryManagement() {
       toast.error('Failed to save inventory');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Helper function to create inventory for linked items
+  const createInventoryForLinkedItems = async (linkedItems: any[], baseInventoryId?: string) => {
+    if (!restaurant || !user) {
+      console.error('Restaurant or user not available for creating linked inventory');
+      return;
+    }
+    
+    for (const linkedItem of linkedItems) {
+      // Check if inventory already exists for this menu item
+      const existingInventory = inventoryItems.find(inv => inv.menuItemId === linkedItem.linkedMenuItemId);
+      
+      if (!existingInventory) {
+        // Create inventory for the linked item
+        const linkedMenuItemData = menuItems.find(item => item.id === linkedItem.linkedMenuItemId);
+        
+        if (linkedMenuItemData) {
+          const newLinkedInventoryData = {
+            menuItemId: linkedItem.linkedMenuItemId,
+            currentQuantity: 0, // Start with 0, user can adjust later
+            unit: 'pieces' as InventoryUnit,
+            minimumThreshold: 5,
+            consumptionPerOrder: 1,
+            isTracked: true,
+            autoDeduct: true, // Enable auto-deduct for linked items so they work in orders
+            restaurantId: restaurant.id,
+            // Set up reverse linking
+            baseInventoryId: baseInventoryId || selectedInventory?.id,
+            baseRatio: linkedItem.reverseRatio || 1,
+          };
+
+          const createResult = await InventoryService.createInventoryItem(newLinkedInventoryData, user.id);
+          
+          if (createResult.success && createResult.data) {
+            // Update the linked item with the actual inventory ID
+            linkedItem.linkedInventoryId = createResult.data.id;
+            
+            console.log(`✅ Created inventory for linked item: ${linkedMenuItemData.name}`);
+          } else {
+            console.error(`❌ Failed to create inventory for linked item: ${linkedMenuItemData.name}`);
+          }
+        }
+      } else {
+        // Use existing inventory ID
+        linkedItem.linkedInventoryId = existingInventory.id;
+        
+        // Set up reverse linking and enable auto-deduct if not already set
+        const updateData: any = {};
+        
+        if (linkedItem.enableReverseLink && !existingInventory.baseInventoryId) {
+          updateData.baseInventoryId = baseInventoryId || selectedInventory?.id;
+          updateData.baseRatio = linkedItem.reverseRatio || 1;
+        }
+        
+        // Ensure auto-deduct is enabled for linked items
+        if (!existingInventory.autoDeduct) {
+          updateData.autoDeduct = true;
+        }
+        
+        // Apply updates if needed
+        if (Object.keys(updateData).length > 0) {
+          await InventoryService.updateInventoryItem(
+            existingInventory.id, 
+            restaurant.id, 
+            updateData,
+            user.id
+          );
+        }
+      }
     }
   };
 
@@ -312,9 +405,7 @@ export default function InventoryManagement() {
   };
 
   const handleDeleteInventory = async (inventory: InventoryItem) => {
-    if (!restaurant || !confirm('Are you sure you want to delete this inventory item?')) {
-      return;
-    }
+    if (!restaurant || !confirm('Are you sure you want to delete this inventory item?')) return;
 
     try {
       const result = await InventoryService.deleteInventoryItem(inventory.id, restaurant.id);
@@ -329,6 +420,137 @@ export default function InventoryManagement() {
       toast.error('Failed to delete inventory');
     }
   };
+
+  // Function to fix existing linked inventory items
+  const fixExistingLinkedItems = async () => {
+    if (!restaurant || !user) {
+      toast.error('Restaurant or user not available');
+      return;
+    }
+
+    try {
+      const toastId = toast.loading('Fixing existing linked inventory items...');
+      let fixedCount = 0;
+
+      for (const inventory of inventoryItems) {
+        let needsUpdate = false;
+        const updateData: any = {};
+
+        // Check if this item is linked to another (has baseInventoryId) but doesn't have autoDeduct
+        if (inventory.baseInventoryId && !inventory.autoDeduct) {
+          updateData.autoDeduct = true;
+          needsUpdate = true;
+        }
+
+        // Check if this item has linked items but some linked items don't have autoDeduct
+        if (inventory.linkedItems && inventory.linkedItems.length > 0) {
+          for (const linkedItem of inventory.linkedItems) {
+            const linkedInventory = inventoryItems.find(inv => inv.id === linkedItem.linkedInventoryId);
+            if (linkedInventory && !linkedInventory.autoDeduct) {
+              // Update the linked inventory item
+              const linkedUpdateResult = await InventoryService.updateInventoryItem(
+                linkedInventory.id,
+                restaurant.id,
+                { autoDeduct: true },
+                user.id
+              );
+              
+              if (linkedUpdateResult.success) {
+                fixedCount++;
+                console.log(`✅ Fixed autoDeduct for linked item: ${linkedInventory.menuItemId}`);
+              }
+            }
+          }
+        }
+
+        // Update the current item if needed
+        if (needsUpdate) {
+          const updateResult = await InventoryService.updateInventoryItem(
+            inventory.id,
+            restaurant.id,
+            updateData,
+            user.id
+          );
+          
+          if (updateResult.success) {
+            fixedCount++;
+            console.log(`✅ Fixed autoDeduct for inventory item: ${inventory.menuItemId}`);
+          }
+        }
+      }
+
+      toast.dismiss(toastId);
+      
+      if (fixedCount > 0) {
+        toast.success(`Fixed ${fixedCount} inventory items! Refreshing data...`);
+        await loadData(); // Reload data to show updated status
+      } else {
+        toast.success('All linked inventory items are already configured correctly!');
+      }
+    } catch (error) {
+      toast.error('Failed to fix linked inventory items');
+      console.error('Error fixing linked items:', error);
+    }
+  };
+
+  // Function to enable auto-deduct for all inventory items
+  const enableAutoDeductForAll = async () => {
+    if (!restaurant || !user) {
+      toast.error('Restaurant or user not available');
+      return;
+    }
+
+    try {
+      const toastId = toast.loading('Enabling auto-deduct for all items...');
+      
+      const result = await InventoryService.enableAutoDeductForAll(restaurant.id);
+      
+      toast.dismiss(toastId);
+      
+      if (result.success) {
+        toast.success(`Auto-deduct enabled for ${result.data?.updated || 0} items!`);
+        await loadData(); // Reload data to see changes
+      } else {
+        toast.error(result.error || 'Failed to enable auto-deduct');
+      }
+    } catch (error) {
+      console.error('Error enabling auto-deduct:', error);
+      toast.error('Failed to enable auto-deduct');
+    }
+  };
+
+  // Function to fix linked inventory IDs
+  const fixLinkedInventoryIds = async () => {
+    if (!restaurant || !user) {
+      toast.error('Restaurant or user not available');
+      return;
+    }
+
+    try {
+      const toastId = toast.loading('Fixing linked inventory IDs...');
+      
+      const result = await InventoryService.fixLinkedInventoryIds(restaurant.id);
+      
+      toast.dismiss(toastId);
+      
+      if (result.success && result.data) {
+        const { fixed, total } = result.data;
+        if (fixed > 0) {
+          toast.success(`Fixed ${fixed} out of ${total} linked inventory IDs. Inventory should now deduct properly!`);
+          await loadData(); // Reload to show changes
+        } else {
+          toast.success(`All ${total} linked inventory IDs are already correct.`);
+        }
+      } else {
+        toast.error(result.error || 'Failed to fix linked inventory IDs');
+      }
+    } catch (error) {
+      console.error('Error fixing linked inventory IDs:', error);
+      toast.error('Failed to fix linked inventory IDs');
+    }
+  };
+
+
 
   const getMenuItemName = (menuItemId: string): string => {
     const menuItem = menuItems.find(item => item.id === menuItemId);
@@ -382,14 +604,25 @@ export default function InventoryManagement() {
               <p className="text-gray-600">Track and manage your restaurant inventory</p>
             </div>
             
-            <button
-              onClick={handleCreateInventory}
-              className="btn btn-theme-primary"
-              disabled={menuItems.filter(item => !inventoryItems.some(inv => inv.menuItemId === item.id)).length === 0}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Inventory
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={enableAutoDeductForAll}
+                className="btn bg-green-600 text-white hover:bg-green-700"
+                title="Enable auto-deduct for all inventory items"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Enable Auto-Deduct for All
+              </button>
+              
+              <button
+                onClick={handleCreateInventory}
+                className="btn btn-theme-primary"
+                disabled={menuItems.filter(item => !inventoryItems.some(inv => inv.menuItemId === item.id)).length === 0}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Inventory
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -525,6 +758,8 @@ export default function InventoryManagement() {
                   onAdjust={handleAdjustInventory}
                   onHistory={handleViewHistory}
                   onDelete={handleDeleteInventory}
+                  allInventoryItems={inventoryItems}
+                  allMenuItems={menuItems}
                 />
               ))
             )}
@@ -543,6 +778,7 @@ export default function InventoryManagement() {
           existingInventory={inventoryItems}
           register={register}
           handleSubmit={handleSubmit}
+          setValue={setValue}
           selectedUnit={selectedUnit}
           isSubmitting={isSubmitting}
         />
@@ -568,6 +804,7 @@ export default function InventoryManagement() {
           inventory={selectedInventory}
           menuItemName={getMenuItemName(selectedInventory.menuItemId)}
           transactions={transactionHistory}
+          onRefreshTransactions={() => loadTransactionHistory(selectedInventory)}
         />
       )}
     </div>
@@ -583,6 +820,8 @@ interface InventoryItemCardProps {
   onAdjust: (inventory: InventoryItem) => void;
   onHistory: (inventory: InventoryItem) => void;
   onDelete: (inventory: InventoryItem) => void;
+  allInventoryItems?: InventoryItem[];
+  allMenuItems?: MenuItem[];
 }
 
 function InventoryItemCard({
@@ -593,13 +832,30 @@ function InventoryItemCard({
   onAdjust,
   onHistory,
   onDelete,
+  allInventoryItems,
+  allMenuItems,
 }: InventoryItemCardProps) {
   const getUnitDisplay = (unit: InventoryUnit, customUnit?: string): string => {
     return unit === 'custom' && customUnit ? customUnit : unit;
   };
 
+  // Determine if this item has linked relationships
+  const hasLinkedItems = inventory.linkedItems && inventory.linkedItems.length > 0;
+  const isLinkedItem = !!inventory.baseInventoryId;
+  
+  // Find reverse links (items that link TO this inventory)
+  const reverseLinks = allInventoryItems?.filter(otherInventory => 
+    otherInventory.id !== inventory.id && 
+    otherInventory.linkedItems?.some(linkedItem => 
+      linkedItem.linkedInventoryId === inventory.id || linkedItem.linkedMenuItemId === inventory.menuItemId
+    )
+  ) || [];
+  
+  const hasReverseLinks = reverseLinks.length > 0;
+  const totalLinkCount = (inventory.linkedItems?.length || 0) + reverseLinks.length;
+
   return (
-    <div className="card p-6">
+    <div className={`card p-6 ${totalLinkCount > 0 ? 'border-l-4 border-l-blue-500' : ''}`}>
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center space-x-3 mb-2">
@@ -608,6 +864,24 @@ function InventoryItemCard({
               {stockStatus.icon}
               <span className="text-sm font-medium">{stockStatus.status}</span>
             </div>
+            
+            {/* Enhanced Linked relationship indicators */}
+            {totalLinkCount > 0 && (
+              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
+                <Link className="w-3 h-3 mr-1" />
+                {hasLinkedItems && hasReverseLinks ? `Bidirectional (${totalLinkCount} links)` :
+                 hasLinkedItems ? `Base Item (${inventory.linkedItems?.length} linked)` :
+                 hasReverseLinks ? `Linked Item (${reverseLinks.length} sources)` :
+                 'Linked'}
+              </span>
+            )}
+            
+            {isLinkedItem && (
+              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">
+                <TrendingDown className="w-3 h-3 mr-1" />
+                Consumes from Base
+              </span>
+            )}
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -639,6 +913,73 @@ function InventoryItemCard({
               </div>
             )}
           </div>
+          
+          {/* Show linked items details */}
+          {(hasLinkedItems || hasReverseLinks) && (
+            <div className="mt-3 space-y-3">
+              {/* Forward Links */}
+              {hasLinkedItems && (
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center">
+                    <TrendingUp className="w-4 h-4 mr-1" />
+                    Items linked from this inventory:
+                  </h4>
+                  <div className="space-y-1">
+                    {inventory.linkedItems?.map((linkedItem, index) => (
+                      <div key={index} className="text-xs text-blue-700 flex items-center justify-between">
+                        <span>{linkedItem.linkedMenuItemName}</span>
+                        <span className="font-mono">
+                          Ratio: 1:{linkedItem.ratio}
+                          {linkedItem.enableReverseLink && linkedItem.reverseRatio && (
+                            <span className="ml-2">| Reverse: 1:{linkedItem.reverseRatio}</span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Reverse Links */}
+              {hasReverseLinks && (
+                <div className="p-3 bg-purple-50 rounded-lg">
+                  <h4 className="text-sm font-medium text-purple-900 mb-2 flex items-center">
+                    <TrendingDown className="w-4 h-4 mr-1" />
+                    Items linked to this inventory:
+                  </h4>
+                  <div className="space-y-1">
+                    {reverseLinks.map((reverseInventory, index) => {
+                      const reverseLinkData = reverseInventory.linkedItems?.find(linkedItem => 
+                        linkedItem.linkedInventoryId === inventory.id || linkedItem.linkedMenuItemId === inventory.menuItemId
+                      );
+                      const reverseMenuItemName = allMenuItems?.find(item => item.id === reverseInventory.menuItemId)?.name || 'Unknown Item';
+                      
+                      return (
+                        <div key={index} className="text-xs text-purple-700 flex items-center justify-between">
+                          <span>{reverseMenuItemName}</span>
+                          <span className="font-mono">
+                            Ratio: 1:{reverseLinkData?.ratio || '?'}
+                            {reverseLinkData?.enableReverseLink && reverseLinkData?.reverseRatio && (
+                              <span className="ml-2">| Reverse: 1:{reverseLinkData.reverseRatio}</span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Show base item details for linked items */}
+          {isLinkedItem && inventory.baseRatio && (
+            <div className="mt-3 p-3 bg-green-50 rounded-lg">
+              <div className="text-xs text-green-700">
+                <span className="font-medium">Reverse Linked:</span> Ratio 1:{inventory.baseRatio}
+              </div>
+            </div>
+          )}
           
           <div className="flex items-center space-x-4 mt-3">
             {inventory.isTracked ? (

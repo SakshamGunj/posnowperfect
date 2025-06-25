@@ -90,6 +90,14 @@ export default function TakeOrder() {
     items: Array<{ name: string; quantity: number }>;
   } | null>(null);
 
+  // Add state for manual order KOT dialog
+  const [showKOTDialog, setShowKOTDialog] = useState(false);
+  const [kotOrderDetails, setKotOrderDetails] = useState<{
+    orderNumber: string;
+    tableNumber: string;
+    items: Array<{ name: string; quantity: number }>;
+  } | null>(null);
+
   const { register, handleSubmit, reset } = useForm<OrderNotes>();
   const { setValue: setPaymentValue } = useForm<PaymentForm>({
     defaultValues: { method: 'cash' }
@@ -196,6 +204,33 @@ export default function TakeOrder() {
         console.log(`🍽️ TakeOrder: Found ${activeOrders.length} active orders for table ${tableId}`, {
           orders: activeOrders.map(o => ({ id: o.id, status: o.status, paymentStatus: o.paymentStatus }))
         });
+        
+        // Check for inconsistent state: table is available but has active orders
+        if (table && table.status === 'available' && activeOrders.length > 0) {
+          console.warn(`⚠️ TakeOrder: Inconsistent state detected - Table ${table.number} shows as available but has ${activeOrders.length} active orders`);
+          
+          // Auto-cancel these stale orders since table is marked available
+          console.log(`🔧 TakeOrder: Auto-cancelling ${activeOrders.length} stale orders for available table ${table.number}`);
+          
+          const cancelPromises = activeOrders.map(async (order) => {
+            return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
+              notes: `Auto-cancelled: Table marked as available but order was still active - ${new Date().toLocaleString()}`
+            });
+          });
+          
+          await Promise.all(cancelPromises);
+          
+          // Clear cache and reset state after cleaning up
+          OrderService.clearCache(restaurant.id);
+          setAllOrders([]);
+          setCurrentOrder(null);
+          setOrderState('cart');
+          CartManager.clearCart(restaurant.id, tableId);
+          setCartItems([]);
+          
+          toast.success(`🔧 Cleaned up ${activeOrders.length} stale order(s) for Table ${table.number}`);
+          return;
+        }
         
         setAllOrders(activeOrders);
         
@@ -349,7 +384,8 @@ export default function TakeOrder() {
       cartItemsCount: cartItemsToUse.length,
       user: user?.name,
       userId: user?.id,
-      orderNotes: data.orderNotes 
+      orderNotes: data.orderNotes,
+      isVoiceProcessing 
     });
 
     if (!restaurant || !tableId || cartItemsToUse.length === 0 || !user) {
@@ -369,30 +405,23 @@ export default function TakeOrder() {
 
     try {
       setIsPlacingOrder(true);
-      console.log('🚀 Starting order placement process...');
 
-      // Update table status to occupied only if it's the first order
-      if (orderState === 'cart') {
-        console.log('📋 Updating table status to occupied...');
-        await TableService.updateTable(tableId, restaurant.id, { status: 'occupied' });
-      }
+      // Calculate totals
+      const subtotal = cartItemsToUse.reduce((sum, item) => sum + item.total, 0);
+      const taxRate = restaurant.settings?.taxRate || 8.5;
+      const tax = (subtotal * taxRate) / 100;
+      const total = subtotal + tax;
 
-      // Create order using the provided cart items
-      console.log('📝 Creating order in Firebase...', {
-        restaurantId: restaurant.id,
-        tableId,
-        staffId: user.id,
-        itemCount: cartItemsToUse.length,
-        taxRate: restaurant.settings.taxRate
-      });
+      console.log('💰 Order totals:', { subtotal, taxRate, tax, total });
 
+      // Create order
       const result = await OrderService.createOrder(
         restaurant.id,
         tableId,
         user.id,
         cartItemsToUse,
-        restaurant.settings.taxRate,
-        data.orderNotes || undefined
+        taxRate,
+        data.orderNotes
       );
 
       if (result.success && result.data) {
@@ -421,27 +450,25 @@ export default function TakeOrder() {
         setCartItems([]);
         reset();
         
-        const message = orderState === 'adding_more' ? 'Additional order placed successfully!' : 'Order placed successfully!';
-        toast.success(message);
+        // Only show success toast if not voice processing (voice has its own final message)
+        if (!isVoiceProcessing) {
+          const message = orderState === 'adding_more' ? 'Additional order placed successfully!' : 'Order placed successfully!';
+          toast.success(message);
+        }
         console.log('🎉 Order placement completed successfully');
         
-        // Automatically print KOT for the new order
-        setTimeout(() => {
-          if (table) {
-          const kotContent = generateKOTContent(newOrder, restaurant, table);
-          const printWindow = window.open('', '_blank');
-          if (printWindow) {
-            printWindow.document.write(kotContent);
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
-          }
-          if (!isVoiceProcessing) {
-            toast.success('KOT sent to kitchen');
-          }
-          }
-        }, 500);
+        // Show KOT dialog instead of automatically printing
+        if (table) {
+          setKotOrderDetails({
+            orderNumber: newOrder.orderNumber,
+            tableNumber: table.number,
+            items: newOrder.items.map(item => ({
+              name: item.name,
+              quantity: item.quantity
+            }))
+          });
+          setShowKOTDialog(true);
+        }
         
         return newOrder;
       } else {
@@ -545,21 +572,18 @@ export default function TakeOrder() {
         toast.success(message);
         console.log('🎉 Order placement completed successfully');
         
-        // Automatically print KOT for the new order
-        setTimeout(() => {
-          if (table) {
-          const kotContent = generateKOTContent(newOrder, restaurant, table);
-          const printWindow = window.open('', '_blank');
-          if (printWindow) {
-            printWindow.document.write(kotContent);
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
-          }
-          toast.success('KOT sent to kitchen');
-          }
-        }, 500);
+        // Show KOT dialog instead of automatically printing
+        if (table) {
+          setKotOrderDetails({
+            orderNumber: newOrder.orderNumber,
+            tableNumber: table.number,
+            items: newOrder.items.map(item => ({
+              name: item.name,
+              quantity: item.quantity
+            }))
+          });
+          setShowKOTDialog(true);
+        }
       } else {
         console.error('❌ Order creation failed:', result.error);
         toast.error(result.error || 'Failed to place order');
@@ -736,6 +760,57 @@ export default function TakeOrder() {
     toast.success('Order cleared');
   };
 
+  // Cancel all orders for the table
+  const handleCancelAllOrders = async () => {
+    if (!restaurant || !tableId || !table || allOrders.length === 0) return;
+
+    const confirmed = confirm(
+      `Are you sure you want to cancel all ${allOrders.length} order(s) for Table ${table.number}? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsPlacingOrder(true); // Show loading state
+
+      // Update all active orders status to cancelled
+      const cancelPromises = allOrders.map(async (order) => {
+        return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
+          notes: 'Order cancelled manually - ' + new Date().toLocaleString()
+        });
+      });
+
+      const results = await Promise.all(cancelPromises);
+      const allSuccessful = results.every(result => result.success);
+
+      if (allSuccessful) {
+        // Update table status back to available
+        await TableService.updateTable(tableId, restaurant.id, { status: 'available' });
+
+        // Clear the current orders and cart
+        setAllOrders([]);
+        setCurrentOrder(null);
+        setOrderState('cart');
+        CartManager.clearCart(restaurant.id, tableId);
+        setCartItems([]);
+
+        toast.success(`All orders for Table ${table.number} have been cancelled successfully`);
+
+        // Navigate back to tables page after a brief delay
+        setTimeout(() => {
+          navigate(`/${restaurant.slug}/tables`);
+        }, 1500);
+      } else {
+        toast.error('Failed to cancel some orders. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error canceling orders:', error);
+      toast.error('Failed to cancel orders');
+    } finally {
+      setIsPlacingOrder(false);
+    }
+  };
+
   const handlePrintCombinedBill = async (orders: Order[], paymentData: any) => {
     if (!orders.length || !restaurant || !table) return;
 
@@ -788,174 +863,85 @@ export default function TakeOrder() {
     
     console.log('🎤 TakeOrder: Voice order command received:', command);
     
-    // Check authentication first
-    if (!user) {
-      console.log('🎤 User not authenticated, retrying in 2 seconds...');
-      toast.error('🎤 Authentication loading... Please try again in a moment.');
-      
-      // Retry after authentication might be loaded
-      setTimeout(() => {
-        const retryEvent = new CustomEvent('voiceOrderCommand', {
-          detail: { command }
-        });
-        window.dispatchEvent(retryEvent);
-      }, 2000);
+    if (!restaurant || !tableId) {
+      toast.error('🎤 Unable to process order at this time');
       return;
     }
-
-    // Start voice processing workflow
+    
+    if (!command.tableNumber || parseInt(table?.number || '') !== command.tableNumber) {
+      const currentTableNumber = table?.number;
+      console.warn(`🎤 Table mismatch: current=${currentTableNumber}, requested=${command.tableNumber}`);
+      toast.error(`🎤 This is table ${currentTableNumber}, but order was requested for table ${command.tableNumber}`);
+      return;
+    }
+    
+    // Start voice loading and dismiss all existing toasts
+    toast.dismiss();
     setIsVoiceProcessing(true);
     setVoiceLoadingStage('processing');
-    setVoiceLoadingMessage('Analyzing your voice command...');
+    setVoiceLoadingMessage('Processing voice command...');
     
-    // Hide any toast messages for a clean experience
-    toast.dismiss();
+    // Check if table already has existing orders
+    const hasExistingOrders = allOrders.length > 0;
+    const isAddingToExistingOrder = hasExistingOrders && (orderState === 'placed' || orderState === 'completed');
+    
+    console.log('🎤 Voice Order Context:', {
+      tableNumber: table?.number,
+      hasExistingOrders,
+      existingOrdersCount: allOrders.length,
+      currentOrderState: orderState,
+      isAddingToExistingOrder
+    });
     
     if (command.menuItems && command.menuItems.length > 0) {
       let addedItems = 0;
       
-      // Add items to cart with verification
-      const processVoiceItems = async () => {
-        for (const voiceItem of command.menuItems || []) {
-          console.log(`🎤 Searching for menu item: "${voiceItem.name}" in ${menuItems.length} available items`);
-          
-          // Enhanced smart search for menu items with singular/plural handling
-          const findMenuItem = (searchTerm: string) => {
-            const term = searchTerm.toLowerCase().trim();
+      // Use AI-powered menu matching
+      try {
+        console.log('🎤 TakeOrder: Using AI to match voice items to menu items...');
+        const { VoiceService } = await import('@/services/voiceService');
+        const matchedItems = await VoiceService.matchMenuItemsIntelligently(command.menuItems, menuItems);
+        
+        setVoiceLoadingStage('placing');
+        
+        // Update loading message based on context
+        if (isAddingToExistingOrder) {
+          setVoiceLoadingMessage(`Adding items to existing order for table ${table?.number}...`);
+          console.log('🎤 Adding items to existing order (add-more functionality)');
+        } else {
+          setVoiceLoadingMessage('Adding items to new order...');
+          console.log('🎤 Creating new order for table');
+        }
+        
+        for (const matchedItem of matchedItems) {
+          if (matchedItem.matchedItem) {
+            console.log(`🎤 TakeOrder: AI matched "${matchedItem.name}" → "${matchedItem.matchedItem.name}"`);
             
-            console.log(`🔍 Searching for: "${term}"`);
-            
-            // Helper function to normalize singular/plural
-            const normalizeWord = (word: string) => {
-              // Remove common plural endings
-              if (word.endsWith('s') && word.length > 3 && !word.endsWith('ss')) {
-                return word.slice(0, -1);
-              }
-              return word;
-            };
-            
-            // Helper function to add plural form
-            const pluralize = (word: string) => {
-              if (word.endsWith('s') || word.endsWith('x') || word.endsWith('sh') || word.endsWith('ch')) {
-                return word + 'es';
-              }
-              if (word.endsWith('y') && word.length > 1) {
-                return word.slice(0, -1) + 'ies';
-              }
-              return word + 's';
-            };
-            
-            // 1. Exact match first
-            let item = menuItems.find(item => 
-              item.name.toLowerCase() === term
-            );
-            if (item) {
-              console.log(`✅ Exact match found: ${item.name}`);
-              return item;
-            }
-            
-            // 2. Try plural/singular variations
-            const termWords = term.split(' ');
-            const variations = [
-              // Try with last word pluralized
-              [...termWords.slice(0, -1), pluralize(termWords[termWords.length - 1])].join(' '),
-              // Try with last word singularized
-              [...termWords.slice(0, -1), normalizeWord(termWords[termWords.length - 1])].join(' '),
-              // Try with all words normalized (singular)
-              termWords.map(normalizeWord).join(' '),
-              // Try with all words pluralized
-              termWords.map(pluralize).join(' ')
-            ];
-            
-            for (const variation of variations) {
-              item = menuItems.find(item => 
-                item.name.toLowerCase() === variation ||
-                item.name.toLowerCase().includes(variation) ||
-                variation.includes(item.name.toLowerCase())
-              );
-              if (item) {
-                console.log(`✅ Variation match found: "${variation}" → ${item.name}`);
-                return item;
-              }
-            }
-            
-            // 3. Fuzzy word-by-word match with normalization
-            const searchWords = term.split(' ').filter(word => word.length > 2);
-            item = menuItems.find(item => {
-              const itemWords = item.name.toLowerCase().split(' ');
-              return searchWords.every(searchWord => {
-                const normalizedSearchWord = normalizeWord(searchWord);
-                return itemWords.some(itemWord => {
-                  const normalizedItemWord = normalizeWord(itemWord);
-                  return normalizedItemWord.includes(normalizedSearchWord) || 
-                         normalizedSearchWord.includes(normalizedItemWord) ||
-                         itemWord.includes(searchWord) || 
-                         searchWord.includes(itemWord);
-                });
-              });
-            });
-            if (item) {
-              console.log(`✅ Fuzzy match found: ${item.name}`);
-              return item;
-            }
-            
-            // 4. Alternative names/aliases (common variations)
-            const aliases: { [key: string]: string[] } = {
-              'wings': ['chicken wings', 'buffalo wings', 'hot wings'],
-              'chicken wing': ['chicken wings', 'buffalo wings'],
-              'wing': ['chicken wings', 'buffalo wings', 'hot wings'],
-              'burger': ['beef burger', 'chicken burger', 'cheese burger'],
-              'juice': ['fresh orange juice', 'apple juice', 'grape juice'],
-              'orange': ['fresh orange juice', 'orange juice'],
-              'salad': ['caesar salad', 'garden salad', 'greek salad'],
-              'caesar': ['caesar salad'],
-              'chicken': ['grilled chicken', 'fried chicken', 'chicken breast'],
-              'fish': ['grilled fish', 'fried fish', 'fish fillet'],
-              'pasta': ['spaghetti', 'penne pasta', 'pasta marinara'],
-              'pizza': ['margherita pizza', 'cheese pizza', 'pepperoni pizza'],
-            };
-            
-            for (const [alias, possibleNames] of Object.entries(aliases)) {
-              if (term.includes(alias) || normalizeWord(term).includes(normalizeWord(alias))) {
-                for (const possibleName of possibleNames) {
-                  item = menuItems.find(item => 
-                    item.name.toLowerCase().includes(possibleName.toLowerCase()) ||
-                    possibleName.toLowerCase().includes(item.name.toLowerCase())
-                  );
-                  if (item) {
-                    console.log(`✅ Alias match found: "${alias}" → ${item.name}`);
-                    return item;
-                  }
-                }
-              }
-            }
-            
-            console.log(`❌ No match found for: "${term}"`);
-            return null;
-          };
-          
-          const menuItem = findMenuItem(voiceItem.name);
-          
-          if (menuItem) {
             // Store cart state before adding
             const cartBefore = restaurant && tableId ? CartManager.getCartItems(restaurant.id, tableId) : [];
             
-            console.log(`🎤 Current orderState: ${orderState}, attempting to add ${menuItem.name}`);
-            
-            // For voice commands, use forceAdd to bypass orderState restrictions
-            console.log(`🎤 Adding ${menuItem.name} to cart with force=true (orderState: ${orderState})`);
-            
             // Update voice loading message
-            setVoiceLoadingMessage(`Adding ${menuItem.name} to order...`);
+            setVoiceLoadingMessage(`Adding ${matchedItem.matchedItem.name} to order...`);
             
-            // Ensure we're in the right state for voice commands
-            if (orderState === 'placed' || orderState === 'completed') {
-              console.log(`🎤 Setting orderState to 'adding_more' for voice command`);
+            // Handle order state for voice commands
+            if (isAddingToExistingOrder) {
+              // Simulate "Add More Items" button functionality for voice
+              console.log(`🎤 Setting orderState to 'adding_more' for voice command on table with existing orders`);
               setOrderState('adding_more');
+              setShowSidePanel(true); // Show side panel briefly to maintain UI consistency
+              
+              // Clear existing cart to start fresh for additional items
+              if (restaurant && tableId) {
+                CartManager.clearCart(restaurant.id, tableId);
+                setCartItems([]);
+              }
+            } else if (orderState === 'placed' || orderState === 'completed') {
+              console.log(`🎤 Setting orderState to 'cart' for voice command on empty table`);
+              setOrderState('cart');
             }
             
             // Add to cart with forceAdd=true to bypass orderState restrictions
-            addToCart(menuItem, voiceItem.quantity, true);
+            addToCart(matchedItem.matchedItem, matchedItem.quantity, true);
             
             // Give time for cart state to update
             await new Promise(resolve => setTimeout(resolve, 200));
@@ -965,21 +951,19 @@ export default function TakeOrder() {
             
             if (cartAfter.length > cartBefore.length) {
               addedItems++;
-              // Don't show toast during voice processing
-              console.log(`🎤 Verified: Added ${voiceItem.quantity}x ${menuItem.name} to cart (${cartBefore.length} → ${cartAfter.length})`);
+              console.log(`🎤 Verified: Added ${matchedItem.quantity}x ${matchedItem.matchedItem.name} to cart (${cartBefore.length} → ${cartAfter.length})`);
             } else {
-              console.error(`❌ Failed to add ${menuItem.name} to cart - orderState: ${orderState}`);
-              console.error(`❌ Cart verification: before=${cartBefore.length}, after=${cartAfter.length}`);
+              console.error(`❌ Failed to add ${matchedItem.matchedItem.name} to cart - orderState: ${orderState}`);
               
               // Try direct cart manipulation as fallback
               if (restaurant && tableId) {
                 console.log(`🎤 Attempting direct cart addition as fallback`);
                 const cartItem: CartItem = {
-                  menuItemId: menuItem.id,
-                  name: menuItem.name,
-                  price: menuItem.price,
-                  quantity: voiceItem.quantity,
-                  total: menuItem.price * voiceItem.quantity,
+                  menuItemId: matchedItem.matchedItem.id,
+                  name: matchedItem.matchedItem.name,
+                  price: matchedItem.matchedItem.price,
+                  quantity: matchedItem.quantity,
+                  total: matchedItem.matchedItem.price * matchedItem.quantity,
                 };
                 
                 const directCart = CartManager.addToCart(restaurant.id, cartItem, tableId);
@@ -989,123 +973,154 @@ export default function TakeOrder() {
                 const finalCart = CartManager.getCartItems(restaurant.id, tableId);
                 if (finalCart.length > cartBefore.length) {
                   addedItems++;
-                  toast.success(`🎤 Added ${voiceItem.quantity}x ${menuItem.name} to order (direct)`);
                   console.log(`🎤 Direct addition successful: ${cartBefore.length} → ${finalCart.length}`);
                 } else {
-                  toast.error(`🎤 Failed to add ${menuItem.name} to cart`);
                   console.error(`❌ Direct addition also failed`);
                 }
               }
             }
           } else {
-            toast.error(`🎤 Menu item "${voiceItem.name}" not found`);
-            console.log(`🎤 Menu item not found: "${voiceItem.name}"`);
+            console.warn(`🎤 TakeOrder: No match found for voice item: ${matchedItem.name}`);
+            // Don't show toast during voice processing - will show summary at end
+          }
+        }
+        
+        // If items were added successfully, place the order immediately
+        if (addedItems > 0) {
+          console.log(`🎤 Voice cart update complete. Added ${addedItems} items.`);
+          
+          // Move to placing stage
+          setVoiceLoadingStage('placing');
+          
+          // Update message based on context
+          if (isAddingToExistingOrder) {
+            setVoiceLoadingMessage('Creating additional order...');
+          } else {
+            setVoiceLoadingMessage('Creating your order...');
+          }
+          
+          // Reload cart to ensure UI is synced
+          if (restaurant && tableId) {
+            const freshCart = CartManager.getCartItems(restaurant.id, tableId);
+            setCartItems(freshCart);
+            console.log(`🎤 Cart updated: ${freshCart.length} items total`);
             
-            // Suggest similar items
-            const suggestions = menuItems
-              .filter(item => {
-                const itemName = item.name.toLowerCase();
-                const searchTerm = voiceItem.name.toLowerCase();
-                const words1 = itemName.split(' ');
-                const words2 = searchTerm.split(' ');
-                return words1.some(w1 => words2.some(w2 => w1.includes(w2) || w2.includes(w1)));
-              })
-              .slice(0, 3)
-              .map(item => item.name);
-            
-            if (suggestions.length > 0) {
-              console.log(`🎤 Did you mean: ${suggestions.join(', ')}?`);
-              toast(`🎤 Did you mean: ${suggestions.join(', ')}?`, { duration: 4000 });
+            // Ensure we have items before auto-placing the order
+            if (freshCart.length > 0) {
+              // Automatically place the order for voice commands
+              setTimeout(async () => {
+                console.log(`🎤 Auto-placing order after voice command`);
+                
+                // Double-check cart has items before placing order
+                const finalCart = CartManager.getCartItems(restaurant.id, tableId);
+                console.log(`🎤 Final cart check before placing: ${finalCart.length} items`);
+                
+                if (finalCart.length > 0) {
+                  try {
+                    // Create order notes with context
+                    const orderNotesText = isAddingToExistingOrder 
+                      ? `Voice add-more order: ${matchedItems.filter(item => item.matchedItem).map(item => `${item.quantity}x ${item.name}`).join(', ')} - placed at ${new Date().toLocaleTimeString()}`
+                      : `Voice order: ${matchedItems.filter(item => item.matchedItem).map(item => `${item.quantity}x ${item.name}`).join(', ')} - placed at ${new Date().toLocaleTimeString()}`;
+                    
+                    // Call handlePlaceOrderWithCart to bypass state synchronization issues
+                    const newOrder = await handlePlaceOrderWithCart(finalCart, { 
+                      orderNotes: orderNotesText
+                    });
+
+                    if (newOrder) {
+                      // Move to completed stage
+                      setVoiceLoadingStage('completed');
+                      
+                      if (isAddingToExistingOrder) {
+                        setVoiceLoadingMessage('Additional order placed successfully!');
+                      } else {
+                        setVoiceLoadingMessage('Order placed successfully!');
+                      }
+                      
+                      // Prepare order details for KOT dialog
+                      if (table && command.menuItems) {
+                        setVoiceOrderDetails({
+                          orderNumber: newOrder.orderNumber,
+                          tableNumber: table.number,
+                          items: matchedItems.filter(item => item.matchedItem).map(item => ({
+                            name: item.matchedItem?.name || item.name,
+                            quantity: item.quantity
+                          }))
+                        });
+                      }
+
+                      // Hide loading after a brief delay and show final success message
+                      setTimeout(() => {
+                        setIsVoiceProcessing(false);
+                        
+                        // Hide side panel if it was shown
+                        setShowSidePanel(false);
+                        
+                        // Show single consolidated success message
+                        const successItems = matchedItems.filter(item => item.matchedItem);
+                        const itemsText = successItems.map(item => `${item.quantity}x ${item.matchedItem?.name}`).join(', ');
+                        
+                        if (isAddingToExistingOrder) {
+                          toast.success(`🎤 Additional items added: ${itemsText} - KOT printed for new items only!`, {
+                            duration: 4000
+                          });
+                        } else {
+                          toast.success(`🎤 Voice order completed: ${itemsText} placed for table ${table?.number}!`, {
+                            duration: 4000
+                          });
+                        }
+                        
+                        // Print KOT only for the newly added items (this is automatic in handlePlaceOrder)
+                        // The handlePlaceOrder function already prints KOT for the new order only
+                        console.log(`🎤 KOT will be printed automatically for the new order: ${newOrder.orderNumber}`);
+                      }, 1000);
+                    } else {
+                      throw new Error('Failed to create order');
+                    }
+
+                  } catch (error) {
+                    console.error(`❌ Voice order placement failed:`, error);
+                    setIsVoiceProcessing(false);
+                    setShowSidePanel(false);
+                    toast.error(`🎤 Failed to place order. Please try manually.`);
+                  }
+                } else {
+                  console.error(`❌ Cart is empty during auto-place, cannot proceed`);
+                  setIsVoiceProcessing(false);
+                  setShowSidePanel(false);
+                  toast.error(`🎤 Failed to place order - cart appears to be empty`);
+                }
+              }, 500);
+            } else {
+              console.error(`❌ No items in cart after voice command processing`);
+              setIsVoiceProcessing(false);
+              setShowSidePanel(false);
+              toast.error(`🎤 Failed to add items to cart`);
             }
           }
-        }
-        
-        return addedItems;
-      };
-      
-      // Process items asynchronously
-      await processVoiceItems();
-
-      // If items were added successfully, place the order immediately
-      if (addedItems > 0) {
-        console.log(`🎤 Voice cart update complete. Added ${addedItems} items.`);
-        
-        // Move to placing stage
-        setVoiceLoadingStage('placing');
-        setVoiceLoadingMessage('Creating your order...');
-        
-        // Reload cart to ensure UI is synced
-        if (restaurant && tableId) {
-          const freshCart = CartManager.getCartItems(restaurant.id, tableId);
-          setCartItems(freshCart);
-          console.log(`🎤 Cart updated: ${freshCart.length} items total`);
-          
-          // Ensure we have items before auto-placing the order
-          if (freshCart.length > 0) {
-            // Automatically place the order for voice commands
-            setTimeout(async () => {
-              console.log(`🎤 Auto-placing order after voice command`);
-              
-              // Double-check cart has items before placing order
-              const finalCart = CartManager.getCartItems(restaurant.id, tableId);
-              console.log(`🎤 Final cart check before placing: ${finalCart.length} items`);
-              
-              if (finalCart.length > 0) {
-                try {
-                  // Call handlePlaceOrderWithCart to bypass state synchronization issues
-                  await handlePlaceOrderWithCart(finalCart, { 
-                    orderNotes: `Voice order: ${command.menuItems?.map(item => `${item.quantity}x ${item.name}`).join(', ')} - placed at ${new Date().toLocaleTimeString()}` 
-                  });
-
-                  // Move to completed stage
-                  setVoiceLoadingStage('completed');
-                  setVoiceLoadingMessage('Order placed successfully!');
-                  
-                  // Prepare order details for KOT dialog
-                  if (table && command.menuItems) {
-                    setVoiceOrderDetails({
-                      orderNumber: `ORD-${Date.now()}`, // This will be updated in handlePlaceOrderWithCart
-                      tableNumber: table.number,
-                      items: command.menuItems.map(item => ({
-                        name: item.name,
-                        quantity: item.quantity
-                      }))
-                    });
-                  }
-
-                  // Hide loading after a brief delay and trigger print directly
-                  setTimeout(() => {
-                    setIsVoiceProcessing(false);
-                    // Trigger print directly without showing modal
-                    handlePrintKOT();
-                  }, 1000);
-
-                } catch (error) {
-                  console.error(`❌ Voice order placement failed:`, error);
-                  setIsVoiceProcessing(false);
-                  toast.error(`🎤 Failed to place order. Please try manually.`);
-                }
-              } else {
-                console.error(`❌ Cart is empty during auto-place, cannot proceed`);
-                setIsVoiceProcessing(false);
-                toast.error(`🎤 Failed to place order - cart appears to be empty`);
-              }
-            }, 500);
+        } else {
+          // No items were added, end voice processing
+          setIsVoiceProcessing(false);
+          setShowSidePanel(false);
+          const failedItems = matchedItems.filter(item => !item.matchedItem);
+          if (failedItems.length > 0) {
+            const failedNames = failedItems.map(item => item.name).join(', ');
+            toast.error(`🎤 Menu items not found: ${failedNames}`);
           } else {
-            console.error(`❌ No items in cart after voice command processing`);
-            setIsVoiceProcessing(false);
-            toast.error(`🎤 Failed to add items to cart`);
+            toast.error(`🎤 No valid menu items found to add to the order`);
           }
         }
-      } else {
-        // No items were added, end voice processing
+      } catch (error) {
+        console.error('❌ Voice order processing failed:', error);
         setIsVoiceProcessing(false);
-        toast.error(`🎤 Please specify menu items to add to the order`);
+        setShowSidePanel(false);
+        toast.error('🎤 Failed to process voice order');
       }
     } else {
-      toast(`🎤 Please specify menu items to add to the order`);
+      setIsVoiceProcessing(false);
+      toast.error(`🎤 Please specify menu items to add to the order`);
     }
-  }, [menuItems, addToCart, handlePlaceOrder, table, restaurant, user]);
+  }, [menuItems, addToCart, handlePlaceOrderWithCart, table, restaurant, tableId, orderState, allOrders]);
 
   const handleVoicePaymentCommand = useCallback(async (event: CustomEvent) => {
     const { command }: { command: VoiceCommand } = event.detail;
@@ -1268,49 +1283,43 @@ export default function TakeOrder() {
       return;
     }
     
-    // Show confirmation dialog
-    const confirmed = confirm(`Cancel all orders for table ${table.number}? This action cannot be undone.`);
-    
-    if (confirmed) {
-      try {
-        console.log('🎤 Canceling orders for table:', table.number);
-        
-        // Update all active orders status to cancelled
-        const cancelPromises = allOrders.map(async (order) => {
-          return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
-            notes: 'Voice command cancellation - ' + new Date().toLocaleString()
-          });
+    // Directly cancel without confirmation for voice commands
+    try {
+      console.log('🎤 Canceling orders for table:', table.number);
+      
+      // Update all active orders status to cancelled
+      const cancelPromises = allOrders.map(async (order) => {
+        return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
+          notes: 'Voice command cancellation - ' + new Date().toLocaleString()
         });
+      });
+      
+      const results = await Promise.all(cancelPromises);
+      const allSuccessful = results.every(result => result.success);
+      
+      if (allSuccessful) {
+        // Update table status back to available
+        await TableService.updateTable(table.id, restaurant.id, { status: 'available' });
         
-        const results = await Promise.all(cancelPromises);
-        const allSuccessful = results.every(result => result.success);
+        // Clear the current orders and cart
+        setAllOrders([]);
+        setCurrentOrder(null);
+        setOrderState('cart');
+        CartManager.clearCart(restaurant.id, table.id);
+        setCartItems([]);
         
-        if (allSuccessful) {
-          // Update table status back to available
-          await TableService.updateTable(table.id, restaurant.id, { status: 'available' });
-          
-          // Clear the current orders and cart
-          setAllOrders([]);
-          setCurrentOrder(null);
-          setOrderState('cart');
-          CartManager.clearCart(restaurant.id, table.id);
-          setCartItems([]);
-          
-          toast.success('🎤 All orders cancelled successfully');
-          
-          // Navigate back to tables page
-          setTimeout(() => {
-            navigate(`/${restaurant.slug}/tables`);
-          }, 1500);
-        } else {
-          toast.error('🎤 Failed to cancel some orders');
-        }
-      } catch (error) {
-        console.error('🎤 Error canceling orders:', error);
-        toast.error('🎤 Failed to cancel orders');
+        toast.success('🎤 All orders cancelled successfully');
+        
+        // Navigate back to tables page
+        setTimeout(() => {
+          navigate(`/${restaurant.slug}/tables`);
+        }, 1500);
+      } else {
+        toast.error('🎤 Failed to cancel some orders');
       }
-    } else {
-      toast('🎤 Order cancellation cancelled');
+    } catch (error) {
+      console.error('🎤 Error canceling orders:', error);
+      toast.error('🎤 Failed to cancel orders');
     }
   }, [restaurant, table, allOrders, navigate, OrderService, TableService, CartManager]);
 
@@ -1543,6 +1552,33 @@ export default function TakeOrder() {
           }))
         });
 
+        // Check for inconsistent state in real-time updates too
+        if (table && table.status === 'available' && activeOrders.length > 0) {
+          console.warn(`⚠️ TakeOrder: Real-time inconsistency - Table ${table.number} is available but has ${activeOrders.length} active orders`);
+          
+          // Auto-cancel these stale orders
+          const cancelStaleOrders = async () => {
+            const cancelPromises = activeOrders.map(async (order) => {
+              return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
+                notes: `Auto-cancelled via real-time sync: Table marked as available - ${new Date().toLocaleString()}`
+              });
+            });
+            
+            await Promise.all(cancelPromises);
+            console.log(`🔧 TakeOrder: Real-time cleaned up ${activeOrders.length} stale orders`);
+          };
+          
+          cancelStaleOrders();
+          
+          // Reset state immediately
+          setAllOrders([]);
+          setCurrentOrder(null);
+          setOrderState('cart');
+          CartManager.clearCart(restaurant.id, tableId);
+          setCartItems([]);
+          return;
+        }
+
         // Update state with active orders
         setAllOrders(activeOrders);
 
@@ -1702,6 +1738,15 @@ export default function TakeOrder() {
                     <ArrowRightLeft className="w-4 h-4 mr-1" />
                     Manage
                   </button>
+                  
+                  <button
+                    onClick={handleCancelAllOrders}
+                    disabled={isPlacingOrder}
+                    className="btn bg-red-600 text-white hover:bg-red-700 text-sm px-3 py-1.5"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    {isPlacingOrder ? 'Cancelling...' : 'Cancel Order'}
+                  </button>
                 </div>
               )}
               
@@ -1761,7 +1806,21 @@ export default function TakeOrder() {
                         >
                           <ArrowRightLeft className="w-4 h-4 mr-3" />
                           Manage Table
-                  </button>
+                        </button>
+                        
+                        <div className="border-t border-gray-200"></div>
+                        
+                        <button
+                          onClick={() => {
+                            handleCancelAllOrders();
+                            setShowMobileActionsMenu(false);
+                          }}
+                          disabled={isPlacingOrder}
+                          className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          <X className="w-4 h-4 mr-3" />
+                          {isPlacingOrder ? 'Cancelling...' : 'Cancel Order'}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -2229,10 +2288,10 @@ export default function TakeOrder() {
         )}
 
             {orderState === 'placed' && allOrders.length > 0 && (
-              <div className="max-w-4xl mx-auto px-4">
-                <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Receipt className="w-8 h-8 text-blue-600" />
+              <div className="max-w-4xl mx-auto px-3 sm:px-4">
+                <div className="text-center mb-4 sm:mb-6">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                    <Receipt className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" />
                   </div>
                   <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Orders Placed!</h2>
                   <p className="text-gray-600 text-sm sm:text-base">
@@ -2240,7 +2299,7 @@ export default function TakeOrder() {
                   </p>
                 </div>
 
-                <div className="grid gap-4 sm:gap-6">
+                <div className="grid gap-3 sm:gap-4 md:gap-6">
                   {allOrders.map((order) => (
                     <div key={order.id} className="card p-4 sm:p-6">
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
@@ -2252,7 +2311,7 @@ export default function TakeOrder() {
                         </span>
                       </div>
                       
-                      <div className="space-y-3 mb-4">
+                      <div className="space-y-2 sm:space-y-3 mb-4">
                         {order.items.map(item => (
                           <div key={item.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-gray-50 rounded-lg gap-2">
                             <div className="flex-1">
@@ -2428,6 +2487,31 @@ export default function TakeOrder() {
         onClose={() => setShowVoiceKOTDialog(false)}
         onPrintKOT={handlePrintKOT}
         orderDetails={voiceOrderDetails}
+      />
+
+      {/* Manual Order KOT Dialog */}
+      <VoiceKOTDialog
+        isVisible={showKOTDialog}
+        onClose={() => setShowKOTDialog(false)}
+        onPrintKOT={() => {
+          // Print KOT for the manually placed order
+          if (kotOrderDetails && restaurant && table) {
+            const latestOrder = allOrders[allOrders.length - 1];
+            if (latestOrder) {
+              const kotContent = generateKOTContent(latestOrder, restaurant, table);
+              const printWindow = window.open('', '_blank');
+              if (printWindow) {
+                printWindow.document.write(kotContent);
+                printWindow.document.close();
+                printWindow.focus();
+                printWindow.print();
+                printWindow.close();
+              }
+              toast.success('KOT sent to kitchen');
+            }
+          }
+        }}
+        orderDetails={kotOrderDetails}
       />
 
 
@@ -3238,56 +3322,12 @@ async function generateCombinedBillContent(orders: Order[], restaurant: any, tab
           </div>
       </div>
 
-        ${upiSettings?.enableQRCode && upiSettings?.upiId ? `
-        <!-- UPI Payment Section -->
-        <div class="upi-section">
-          <div class="upi-title">💳 UPI PAYMENT</div>
-          <div class="upi-id">Pay to: ${upiSettings.upiId}</div>
-          
-          <!-- QR Code Container with better visibility -->
-          <div style="text-align: center; margin: 10px 0; background: #fff; padding: 15px; border: 3px solid #000; border-radius: 8px;">
-            ${upiQRCodeDataURL ? `
-              <img src="${upiQRCodeDataURL}" 
-                   alt="UPI QR Code" 
-                   style="width: 140px; height: 140px; display: block; margin: 0 auto; background: white; border: 2px solid #000; padding: 5px;"
-                   onload="console.log('✅ QR Code image loaded successfully')"
-                   onerror="console.error('❌ QR Code image failed to load'); this.style.display='none'; this.nextElementSibling.style.display='block';" />
-              <div style="display: none; font-size: 10px; padding: 20px; border: 2px dashed #000; background: #ffe6e6; text-align: center;">
-                <strong>⚠️ QR CODE FAILED TO LOAD</strong><br>
-                <span style="font-size: 8px;">Please use manual payment method below</span>
-              </div>
-            ` : `
-              <div style="font-size: 12px; padding: 30px; border: 3px dashed #666; background: #f0f0f0; text-align: center;">
-                <strong>📱 QR CODE NOT GENERATED</strong><br>
-                <span style="font-size: 10px; color: #666;">Use manual payment method below</span>
-              </div>
-            `}
-          </div>
-          
-          <!-- Payment Instructions -->
-          <div class="upi-instructions">
-            <div style="font-size: 13px; font-weight: bold; margin: 8px 0; color: #000; text-align: center; background: #e6ffe6; padding: 5px; border: 1px solid #000;">
-              💰 AMOUNT: ${formatCurrency(finalAmount)}
-            </div>
-            
-            ${upiQRCodeDataURL ? `
-              <div style="font-size: 10px; text-align: center; margin: 5px 0; font-weight: bold;">
-                📱 SCAN QR CODE WITH ANY UPI APP
-              </div>
-            ` : ''}
-            
-            <div style="font-size: 9px; margin: 8px 0; color: #333; text-align: center; border: 1px dashed #666; padding: 8px; background: #f9f9f9;">
-              <strong>📱 MANUAL PAYMENT STEPS:</strong><br>
-              1. Open Google Pay/PhonePe/Paytm/BHIM<br>
-              2. Enter UPI ID: <strong>${upiSettings.upiId}</strong><br>
-              3. Enter Amount: <strong>${formatCurrency(finalAmount)}</strong><br>
-              4. Complete Payment
-            </div>
-            
-            <div style="font-size: 8px; color: #666; text-align: center; margin-top: 5px;">
-              Google Pay • PhonePe • Paytm • BHIM • Any UPI App
-            </div>
-          </div>
+        ${upiSettings?.enableQRCode && upiSettings?.upiId && upiQRCodeDataURL ? `
+        <!-- UPI QR Code Section - Only QR Code -->
+        <div style="margin: 5px 0; text-align: center; background: #fff; padding: 5px; border: 1px solid #000;">
+          <img src="${upiQRCodeDataURL}" 
+               alt="UPI QR Code" 
+               style="width: 80px; height: 80px; display: block; margin: 0 auto; background: white;" />
         </div>
         ` : ''}
 

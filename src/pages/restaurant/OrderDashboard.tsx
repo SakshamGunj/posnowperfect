@@ -1,35 +1,39 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRestaurant } from '@/contexts/RestaurantContext';
+import { useRestaurantAuth } from '@/contexts/RestaurantAuthContext';
+import { OrderService } from '@/services/orderService';
+import { TableService } from '@/services/tableService';
+import { MenuService } from '@/services/menuService';
+import { Order, OrderStatus, Table, MenuItem } from '@/types';
+import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
+import { toast } from 'react-hot-toast';
 import { useForm } from 'react-hook-form';
-import toast from 'react-hot-toast';
-import {
-  Search,
-  RefreshCw,
-  TrendingUp,
-  DollarSign,
-  ShoppingCart,
-  Clock,
-  Users,
-  MapPin,
-  Package,
-  BarChart3,
-  Eye,
-  FileText,
-  Download,
-  ChevronLeft,
+import { 
+  Filter, 
+  Calendar, 
+  Users, 
+  TrendingUp, 
+  Eye, 
+  Download, 
+  ChevronLeft, 
   ChevronRight,
   Printer,
+  DollarSign,
+  Clock,
+  Package,
+  BarChart3,
+  FileText,
+  Search,
+  X,
+  Edit,
+  RefreshCw,
+  ShoppingCart,
+  MapPin
 } from 'lucide-react';
 
-import { useRestaurant } from '@/contexts/RestaurantContext';
-import { OrderService } from '@/services/orderService';
-import { MenuService } from '@/services/menuService';
-import { TableService } from '@/services/tableService';
 import { SalesReportService } from '@/services/salesReportService';
 import { RevenueService } from '@/services/revenueService';
 import { generateUPIPaymentString, generateQRCodeDataURL } from '@/utils/upiUtils';
-
-import { Order, MenuItem, Table, OrderStatus } from '@/types';
-import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import ReportGenerationModal from '@/components/restaurant/ReportGenerationModal';
 
 interface FilterForm {
@@ -1299,36 +1303,14 @@ async function generateOrderBillContent(order: Order, restaurant: any, table: Ta
           </div>
         </div>
 
-        ${upiSettings?.enableQRCode && upiSettings?.upiId ? `
-        <!-- UPI Payment Section -->
-        <div class="upi-section">
-          <div class="upi-title">💳 UPI PAYMENT</div>
-          <div class="upi-id">Pay to: ${upiSettings.upiId}</div>
-          
-          <!-- QR Code Container - Compact Size -->
-          <div style="text-align: center; margin: 5px 0; background: #fff; padding: 8px;">
-            ${upiQRCodeDataURL ? `
-              <img src="${upiQRCodeDataURL}" 
-                   alt="UPI QR Code" 
-                   style="width: 80px; height: 80px; display: block; margin: 0 auto; background: white;"
-                   onload="console.log('✅ QR Code image loaded successfully')"
-                   onerror="console.error('❌ QR Code image failed to load'); this.style.display='none'; this.nextElementSibling.style.display='block';" />
-              <div style="display: none; font-size: 8px; padding: 8px; border: 1px dashed #000; background: #ffe6e6; text-align: center;">
-                <strong>QR FAILED</strong><br>Use UPI ID above
-              </div>
-            ` : `
-              <div style="font-size: 9px; padding: 15px; border: 2px dashed #666; background: #f0f0f0; text-align: center;">
-                <strong>QR NOT AVAILABLE</strong><br>Use UPI ID above
-              </div>
-            `}
-          </div>
-          
-          <!-- Simple Payment Amount -->
-          <div style="text-align: center;">
-            <div style="font-size: 11px; font-weight: bold; margin: 3px 0; color: #000; background: #e6ffe6; padding: 3px;">
-              💰 AMOUNT: ${formatCurrency(finalAmount)}
-            </div>
-          </div>
+
+
+        ${upiSettings?.enableQRCode && upiSettings?.upiId && upiQRCodeDataURL ? `
+        <!-- UPI QR Code Section - Only QR Code -->
+        <div style="margin: 5px 0; text-align: center; background: #fff; padding: 5px; border: 1px solid #000;">
+          <img src="${upiQRCodeDataURL}" 
+               alt="UPI QR Code" 
+               style="width: 80px; height: 80px; display: block; margin: 0 auto; background: white;" />
         </div>
         ` : ''}
 
@@ -1375,6 +1357,11 @@ export default function OrderDashboard() {
   // Sales Report States
   const [salesAnalytics] = useState<any>(null);
   const [showReportModal, setShowReportModal] = useState(false);
+
+  // State for edit payment modal
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [orderToEditPayment, setOrderToEditPayment] = useState<Order | null>(null);
+  const [isUpdatingPayment, setIsUpdatingPayment] = useState(false);
 
   const { register, handleSubmit, watch } = useForm<FilterForm>({
     defaultValues: {
@@ -1659,6 +1646,73 @@ export default function OrderDashboard() {
     }
   };
 
+  // Handle payment update
+  const handleUpdatePayment = async (orderId: string, paymentData: any) => {
+    if (!restaurant) return;
+
+    try {
+      setIsUpdatingPayment(true);
+
+      // Prepare update data for order
+      const updateData: any = {
+        paymentMethod: paymentData.paymentMethod,
+        amountReceived: paymentData.amountReceived,
+        finalTotal: paymentData.finalTotal,
+        originalTotal: paymentData.originalTotal,
+        updatedAt: new Date()
+      };
+
+      // Add split payment information if applicable
+      if (paymentData.isSplitPayment) {
+        updateData.splitPayments = paymentData.splitPayments;
+        updateData.paymentMethod = 'split';
+      }
+
+      const result = await OrderService.updateOrderStatus(orderId, restaurant.id, 'completed', updateData);
+      
+      if (result.success) {
+        // Update local state
+        setOrders(prev => prev.map(order => 
+          order.id === orderId ? { 
+            ...order, 
+            paymentMethod: updateData.paymentMethod,
+            amountReceived: updateData.amountReceived,
+            finalTotal: updateData.finalTotal,
+            originalTotal: updateData.originalTotal,
+            splitPayments: updateData.splitPayments
+          } : order
+        ));
+        
+        // Update selected order if it's the one being edited
+        if (orderToEditPayment && orderToEditPayment.id === orderId) {
+          setOrderToEditPayment({
+            ...orderToEditPayment,
+            paymentMethod: updateData.paymentMethod,
+            amountReceived: updateData.amountReceived,
+            finalTotal: updateData.finalTotal,
+            originalTotal: updateData.originalTotal
+          } as any);
+        }
+        
+        setShowEditPaymentModal(false);
+        setOrderToEditPayment(null);
+        
+        const methodText = paymentData.isSplitPayment 
+          ? `Split payment (${paymentData.splitPayments.map((p: any) => p.method.toUpperCase()).join(' + ')})`
+          : paymentData.paymentMethod.toUpperCase();
+        
+        toast.success(`Payment method updated to ${methodText}`);
+      } else {
+        toast.error(result.error || 'Failed to update payment details');
+      }
+    } catch (error) {
+      console.error('Payment update error:', error);
+      toast.error('Failed to update payment details');
+    } finally {
+      setIsUpdatingPayment(false);
+    }
+  };
+
   const handlePrintBill = async (order: Order) => {
     if (!restaurant) {
       toast.error('Restaurant data not available');
@@ -1933,41 +1987,102 @@ export default function OrderDashboard() {
       
       const customHourlyBreakdown = Array.from(hourlyMap.values()).sort((a, b) => a.hour - b.hour);
 
-      // Create payment method breakdown from filtered orders
-      const paymentMethodMap = new Map<string, { method: string; count: number; amount: number; }>();
+      // Create payment method breakdown from filtered orders using actual payment data
+      const paymentMethodMap = new Map<string, { method: string; count: number; amount: number; splitDetails?: Array<{method: string, amount: number, count: number}> }>();
       
       filteredOrders.forEach(order => {
-        // Estimate payment method based on order characteristics (since we don't have actual payment data)
-        let estimatedMethod = 'CASH'; // Default
-        
-        // Simple heuristic for payment method estimation
-        if (order.total > 1000) {
-          estimatedMethod = Math.random() > 0.5 ? 'UPI' : 'BANK';
-        } else if (order.total > 500) {
-          estimatedMethod = Math.random() > 0.6 ? 'UPI' : 'CASH';
+        // Use actual payment method from order data
+        if (order.paymentMethod === 'split' && (order as any).splitPayments) {
+          // Handle split payments - count each split method separately
+          const splitPayments = (order as any).splitPayments;
+          const splitMethodMap = new Map<string, number>();
+          
+          splitPayments.forEach((payment: any) => {
+            const method = payment.method.toUpperCase();
+            splitMethodMap.set(method, (splitMethodMap.get(method) || 0) + payment.amount);
+          });
+          
+          // Add each split method to the main payment breakdown
+          splitMethodMap.forEach((amount, method) => {
+            const existing = paymentMethodMap.get(method) || {
+              method: method,
+              count: 0,
+              amount: 0,
+              splitDetails: []
+            };
+            
+            existing.count += 1;
+            existing.amount += amount;
+            
+            // Track split payment details
+            if (!existing.splitDetails) existing.splitDetails = [];
+            const splitDetail = existing.splitDetails.find(s => s.method === method);
+            if (splitDetail) {
+              splitDetail.amount += amount;
+              splitDetail.count += 1;
+            } else {
+              existing.splitDetails.push({
+                method: method,
+                amount: amount,
+                count: 1
+              });
+            }
+            
+            paymentMethodMap.set(method, existing);
+          });
+          
+          // Also track the split payment as a separate category
+          const splitTotal = order.total;
+          const existingSplit = paymentMethodMap.get('SPLIT') || {
+            method: 'SPLIT',
+            count: 0,
+            amount: 0,
+            splitDetails: splitPayments.map((p: any) => ({
+              method: p.method.toUpperCase(),
+              amount: p.amount,
+              count: 1
+            }))
+          };
+          
+          existingSplit.count += 1;
+          existingSplit.amount += splitTotal;
+          paymentMethodMap.set('SPLIT', existingSplit);
+          
+        } else if (order.paymentMethod) {
+          // Handle single payment methods
+          const method = order.paymentMethod.toUpperCase();
+          const existing = paymentMethodMap.get(method) || {
+            method: method,
+            count: 0,
+            amount: 0
+          };
+          
+          existing.count += 1;
+          existing.amount += order.total;
+          paymentMethodMap.set(method, existing);
+          
         } else {
-          estimatedMethod = Math.random() > 0.7 ? 'CASH' : 'UPI';
+          // Fallback for orders without payment method data
+          let estimatedMethod = 'CASH'; // Default
+          
+          // Use order notes as a hint for payment method
+          const orderNotes = order.notes?.toLowerCase() || '';
+          if (orderNotes.includes('upi') || orderNotes.includes('gpay') || orderNotes.includes('paytm') || orderNotes.includes('phonepe')) {
+            estimatedMethod = 'UPI';
+          } else if (orderNotes.includes('card') || orderNotes.includes('bank')) {
+            estimatedMethod = 'BANK';
+          }
+          
+          const existing = paymentMethodMap.get(estimatedMethod) || {
+            method: estimatedMethod,
+            count: 0,
+            amount: 0
+          };
+          
+          existing.count += 1;
+          existing.amount += order.total;
+          paymentMethodMap.set(estimatedMethod, existing);
         }
-        
-        // You can also check if the order has any notes that mention payment method
-        const orderNotes = order.notes?.toLowerCase() || '';
-        if (orderNotes.includes('upi') || orderNotes.includes('gpay') || orderNotes.includes('paytm') || orderNotes.includes('phonepe')) {
-          estimatedMethod = 'UPI';
-        } else if (orderNotes.includes('cash')) {
-          estimatedMethod = 'CASH';
-        } else if (orderNotes.includes('card') || orderNotes.includes('bank')) {
-          estimatedMethod = 'BANK';
-        }
-        
-        const existing = paymentMethodMap.get(estimatedMethod) || {
-          method: estimatedMethod,
-          count: 0,
-          amount: 0
-        };
-        
-        existing.count += 1;
-        existing.amount += order.total;
-        paymentMethodMap.set(estimatedMethod, existing);
       });
       
       const customPaymentMethodBreakdown = Array.from(paymentMethodMap.values()).map(payment => ({
@@ -2007,6 +2122,18 @@ export default function OrderDashboard() {
       // Add detailed order list to analytics
       const detailedOrderList = filteredOrders.slice(0, 100).map(order => {
         const table = tables.find(t => t.id === order.tableId);
+        
+        // Format payment method information
+        let paymentInfo = 'Not specified';
+        if (order.paymentMethod === 'split' && (order as any).splitPayments) {
+          const splitPayments = (order as any).splitPayments;
+          paymentInfo = `Split: ${splitPayments.map((p: any) => 
+            `${p.method.toUpperCase()} Rs.${p.amount.toFixed(2)}`
+          ).join(' + ')}`;
+        } else if (order.paymentMethod) {
+          paymentInfo = order.paymentMethod.toUpperCase();
+        }
+        
         return {
           orderNumber: order.orderNumber,
           tableNumber: table?.number || 'N/A',
@@ -2014,6 +2141,7 @@ export default function OrderDashboard() {
           time: formatTime(order.createdAt),
           status: order.status,
           type: order.type,
+          paymentMethod: paymentInfo,
           itemCount: order.items.length,
           totalItems: order.items.reduce((sum, item) => sum + item.quantity, 0),
           subtotal: order.subtotal,
@@ -2288,7 +2416,6 @@ export default function OrderDashboard() {
                       <option value="confirmed">Confirmed</option>
                       <option value="preparing">Preparing</option>
                       <option value="ready">Ready</option>
-                      <option value="delivered">Delivered</option>
                       <option value="completed">Completed</option>
                       <option value="cancelled">Cancelled</option>
                     </select>
@@ -2435,14 +2562,28 @@ export default function OrderDashboard() {
                               </button>
                                 
                                 {order.status === 'completed' && (
-                                  <button
-                                    onClick={() => handlePrintBill(order)}
-                                    className="btn btn-primary"
-                                    title={`Print bill for Order #${order.orderNumber}`}
-                                  >
-                                    <Printer className="w-4 h-4 mr-2" />
-                                    Print Bill
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={() => handlePrintBill(order)}
+                                      className="btn btn-primary"
+                                      title={`Print bill for Order #${order.orderNumber}`}
+                                    >
+                                      <Printer className="w-4 h-4 mr-2" />
+                                      Print Bill
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => {
+                                        setOrderToEditPayment(order);
+                                        setShowEditPaymentModal(true);
+                                      }}
+                                      className="btn bg-orange-600 text-white hover:bg-orange-700"
+                                      title={`Edit payment method for Order #${order.orderNumber}`}
+                                    >
+                                      <Edit className="w-4 h-4 mr-2" />
+                                      Edit Payment
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -2840,6 +2981,277 @@ export default function OrderDashboard() {
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
       />
+
+      {/* Edit Payment Modal */}
+      <EditPaymentModal
+        order={orderToEditPayment}
+        isOpen={showEditPaymentModal}
+        onClose={() => {
+          setShowEditPaymentModal(false);
+          setOrderToEditPayment(null);
+        }}
+        onUpdatePayment={handleUpdatePayment}
+        isUpdating={isUpdatingPayment}
+      />
+    </div>
+  );
+}
+
+// Edit Payment Modal Component
+interface EditPaymentModalProps {
+  order: Order | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onUpdatePayment: (orderId: string, paymentData: any) => void;
+  isUpdating: boolean;
+}
+
+function EditPaymentModal({ order, isOpen, onClose, onUpdatePayment, isUpdating }: EditPaymentModalProps) {
+  const [paymentMethod, setPaymentMethod] = useState<string>('cash');
+  const [amountReceived, setAmountReceived] = useState<number>(0);
+  const [splitPayments, setSplitPayments] = useState<Array<{ method: string; amount: number }>>([]);
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+
+  useEffect(() => {
+    if (order && isOpen) {
+      setPaymentMethod(order.paymentMethod || 'cash');
+      setAmountReceived(order.total);
+      setSplitPayments([]);
+      setIsSplitPayment(false);
+    }
+  }, [order, isOpen]);
+
+  const addSplitPayment = () => {
+    setSplitPayments([...splitPayments, { method: 'cash', amount: 0 }]);
+  };
+
+  const updateSplitPayment = (index: number, field: 'method' | 'amount', value: string | number) => {
+    const updated = [...splitPayments];
+    updated[index] = { ...updated[index], [field]: value };
+    setSplitPayments(updated);
+  };
+
+  const removeSplitPayment = (index: number) => {
+    setSplitPayments(splitPayments.filter((_, i) => i !== index));
+  };
+
+  const totalSplitAmount = splitPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  const remainingAmount = order ? order.total - totalSplitAmount : 0;
+
+  const handleSubmit = () => {
+    if (!order) return;
+
+    let paymentData;
+    
+    if (isSplitPayment) {
+      if (Math.abs(totalSplitAmount - order.total) > 0.01) {
+        toast.error('Split payment amounts must equal the order total');
+        return;
+      }
+      
+      paymentData = {
+        isSplitPayment: true,
+        splitPayments: splitPayments.map(payment => ({
+          method: payment.method,
+          amount: payment.amount,
+          reference: `Split payment - ${payment.method.toUpperCase()}`
+        })),
+        paymentMethod: 'split', // Special indicator for split payments
+        amountReceived: order.total,
+        finalTotal: order.total,
+        originalTotal: order.total
+      };
+    } else {
+      paymentData = {
+        isSplitPayment: false,
+        paymentMethod: paymentMethod,
+        amountReceived: amountReceived,
+        finalTotal: order.total,
+        originalTotal: order.total,
+        reference: `Payment method updated - ${paymentMethod.toUpperCase()}`
+      };
+    }
+
+    onUpdatePayment(order.id, paymentData);
+  };
+
+  if (!isOpen || !order) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold">Edit Payment Details</h3>
+              <p className="text-blue-100">Order #{order.orderNumber} • {formatCurrency(order.total)}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 max-h-96 overflow-y-auto">
+          <div className="space-y-6">
+            {/* Payment Type Toggle */}
+            <div className="flex items-center space-x-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="paymentType"
+                  checked={!isSplitPayment}
+                  onChange={() => setIsSplitPayment(false)}
+                  className="mr-2"
+                />
+                <span className="font-medium">Single Payment Method</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="paymentType"
+                  checked={isSplitPayment}
+                  onChange={() => setIsSplitPayment(true)}
+                  className="mr-2"
+                />
+                <span className="font-medium">Split Payment</span>
+              </label>
+            </div>
+
+            {!isSplitPayment ? (
+              <div className="space-y-4">
+                {/* Single Payment Method */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Payment Method
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="upi">UPI</option>
+                    <option value="bank">Bank Transfer/Card</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Amount Received
+                  </label>
+                  <input
+                    type="number"
+                    value={amountReceived}
+                    onChange={(e) => setAmountReceived(parseFloat(e.target.value) || 0)}
+                    step="0.01"
+                    min="0"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Split Payments */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-medium text-gray-900">Split Payment Details</h4>
+                    <button
+                      onClick={addSplitPayment}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      Add Payment
+                    </button>
+                  </div>
+
+                  {splitPayments.map((payment, index) => (
+                    <div key={index} className="flex items-center space-x-2 mb-3">
+                      <select
+                        value={payment.method}
+                        onChange={(e) => updateSplitPayment(index, 'method', e.target.value)}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="upi">UPI</option>
+                        <option value="bank">Bank Transfer/Card</option>
+                      </select>
+                      <input
+                        type="number"
+                        placeholder="Amount"
+                        value={payment.amount || ''}
+                        onChange={(e) => updateSplitPayment(index, 'amount', parseFloat(e.target.value) || 0)}
+                        step="0.01"
+                        min="0"
+                        className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <button
+                        onClick={() => removeSplitPayment(index)}
+                        className="w-8 h-8 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 flex items-center justify-center"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex justify-between text-sm">
+                      <span>Total Split Amount:</span>
+                      <span className={totalSplitAmount === order.total ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                        {formatCurrency(totalSplitAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Order Total:</span>
+                      <span className="font-medium">{formatCurrency(order.total)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Remaining:</span>
+                      <span className={remainingAmount === 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                        {formatCurrency(remainingAmount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Current Payment Info */}
+            <div className="bg-blue-50 rounded-lg p-4">
+              <h4 className="font-medium text-blue-900 mb-2">Current Payment Info</h4>
+              <div className="text-sm text-blue-700 space-y-1">
+                <p><strong>Method:</strong> {order.paymentMethod?.toUpperCase() || 'Not specified'}</p>
+                <p><strong>Total:</strong> {formatCurrency(order.total)}</p>
+                <p><strong>Status:</strong> {order.paymentStatus}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-end space-x-3">
+            <button
+              onClick={onClose}
+              className="btn btn-secondary"
+              disabled={isUpdating}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isUpdating}
+              className="btn btn-primary"
+            >
+              {isUpdating ? 'Updating...' : 'Update Payment'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

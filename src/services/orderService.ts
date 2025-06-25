@@ -355,7 +355,11 @@ export class OrderService {
       await setDoc(orderRef, firestoreData);
       
       // Automatically deduct inventory for order items
+      // NOTE: Inventory deduction is now handled during order completion to prevent double deduction
       try {
+
+        
+        /* COMMENTED OUT TO PREVENT DOUBLE DEDUCTION
         const inventoryOrderItems = orderItems.map(item => ({
           menuItemId: item.menuItemId,
           quantity: item.quantity,
@@ -369,13 +373,14 @@ export class OrderService {
         );
         
         if (inventoryResult.success) {
-          console.log('✅ Inventory deducted for order:', orderId);
+
         } else {
-          console.warn('⚠️ Failed to deduct inventory for order:', inventoryResult.error);
+          console.warn('⚠️ ORDER CREATION - Failed to deduct inventory for order:', inventoryResult.error);
           // Don't fail the order creation, just log the warning
         }
+        */
       } catch (inventoryError) {
-        console.warn('⚠️ Inventory deduction error (order still created):', inventoryError);
+        console.warn('⚠️ ORDER CREATION - Inventory deduction error (order still created):', inventoryError);
         // Continue with order creation even if inventory deduction fails
       }
       
@@ -417,9 +422,41 @@ export class OrderService {
         ...additionalData,
       };
       
-      // Handle payment status update
+      // Handle payment status update and inventory deduction
       if (status === 'completed') {
         updateData.paymentStatus = 'paid';
+        
+        // Get the order first to access its items for inventory deduction
+        const orderDoc = await getDoc(orderRef);
+        if (orderDoc.exists()) {
+          const orderData = this.convertFirestoreOrder(orderDoc.data(), orderDoc.id);
+          
+          // Deduct inventory when order is completed
+          try {
+            
+            
+            const inventoryOrderItems = orderData.items.map(item => ({
+              menuItemId: item.menuItemId,
+              quantity: item.quantity,
+            }));
+            
+            const { InventoryService } = await import('./inventoryService');
+            const inventoryResult = await InventoryService.deductInventoryForOrder(
+              orderId,
+              inventoryOrderItems,
+              restaurantId,
+              'system' // Using 'system' as staffId for order completion
+            );
+            
+            if (inventoryResult.success) {
+  
+            } else {
+              console.warn('⚠️ ORDER COMPLETION - Failed to deduct inventory for completed order:', inventoryResult.error);
+            }
+          } catch (inventoryError) {
+            console.warn('⚠️ ORDER COMPLETION - Inventory deduction error for completed order:', inventoryError);
+          }
+        }
       }
       
       await updateDoc(orderRef, updateData);
@@ -441,7 +478,13 @@ export class OrderService {
           updatedOrder.paymentStatus = 'paid';
         }
         
-        OrderCache.updateOrder(restaurantId, updatedOrder);
+        // If cancelling an order, clear cache to ensure consistency
+        if (status === 'cancelled') {
+          console.log(`🗑️ OrderService: Clearing cache after cancelling order ${orderId}`);
+          OrderCache.clearCache(restaurantId);
+        } else {
+          OrderCache.updateOrder(restaurantId, updatedOrder);
+        }
         
         return {
           success: true,

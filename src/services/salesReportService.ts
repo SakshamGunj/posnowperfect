@@ -127,6 +127,11 @@ export interface SalesAnalytics {
     count: number;
     amount: number;
     percentage: number;
+    splitDetails?: Array<{
+      method: string;
+      amount: number;
+      count: number;
+    }>;
   }[];
   
   // Order type analytics
@@ -1960,7 +1965,7 @@ export class SalesReportService {
       yPosition = (doc as any).lastAutoTable.finalY + 20;
     }
 
-    // Payment Method Analysis
+    // Payment Method Analysis with Split Payment Details
     if (analytics.paymentMethodBreakdown.length > 0) {
       if (yPosition > 240) {
         doc.addPage();
@@ -1969,11 +1974,13 @@ export class SalesReportService {
 
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.text('Payment Method Breakdown', 20, yPosition);
-      yPosition += 10;
+      doc.setTextColor(33, 37, 41);
+      doc.text('Payment Method Analysis', 20, yPosition);
+      yPosition += 12;
 
+      // Main payment method table
       const paymentData = analytics.paymentMethodBreakdown.map(payment => [
-        payment.method.charAt(0).toUpperCase() + payment.method.slice(1),
+        payment.method,
         payment.count.toString(),
         formatCurrencyForPDF(payment.amount),
         `${payment.percentage.toFixed(1)}%`
@@ -1993,24 +2000,136 @@ export class SalesReportService {
           lineWidth: 0.5
         },
         headStyles: { 
-          fillColor: [156, 39, 176],
+          fillColor: [52, 144, 220],
           textColor: [255, 255, 255],
           fontSize: 12,
           fontStyle: 'bold',
           halign: 'center'
         },
         columnStyles: {
-          0: { cellWidth: 60, fontStyle: 'normal' },
-          1: { halign: 'center', cellWidth: 40, fontStyle: 'bold' },
-          2: { halign: 'right', cellWidth: 50, fontStyle: 'bold' },
-          3: { halign: 'center', cellWidth: 40, fontStyle: 'bold' }
+          0: { cellWidth: 50, fontStyle: 'bold' },
+          1: { halign: 'center', cellWidth: 35, fontStyle: 'bold' },
+          2: { halign: 'right', cellWidth: 45, fontStyle: 'bold' },
+          3: { halign: 'center', cellWidth: 35, fontStyle: 'bold' }
         },
         alternateRowStyles: {
           fillColor: [248, 249, 250]
         }
       });
 
-      yPosition = (doc as any).lastAutoTable.finalY + 20;
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+      // Split payment details if available
+      const splitPaymentMethod = analytics.paymentMethodBreakdown.find(p => p.method === 'SPLIT');
+      if (splitPaymentMethod && (splitPaymentMethod as any).splitDetails) {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(33, 37, 41);
+        doc.text('Split Payment Breakdown', 20, yPosition);
+        yPosition += 10;
+
+        const splitData = (splitPaymentMethod as any).splitDetails.map((detail: any) => [
+          detail.method,
+          detail.count.toString(),
+          formatCurrencyForPDF(detail.amount),
+          `${((detail.amount / splitPaymentMethod.amount) * 100).toFixed(1)}%`
+        ]);
+
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Split Method', 'Transactions', 'Amount', '% of Split Total']],
+          body: splitData,
+          theme: 'grid',
+          styles: { 
+            fontSize: 10,
+            font: 'helvetica',
+            textColor: [33, 37, 41],
+            cellPadding: 6,
+            lineColor: [220, 220, 220],
+            lineWidth: 0.5
+          },
+          headStyles: { 
+            fillColor: [108, 117, 125],
+            textColor: [255, 255, 255],
+            fontSize: 11,
+            fontStyle: 'bold',
+            halign: 'center'
+          },
+          columnStyles: {
+            0: { cellWidth: 40, fontStyle: 'bold' },
+            1: { halign: 'center', cellWidth: 30, fontStyle: 'bold' },
+            2: { halign: 'right', cellWidth: 40, fontStyle: 'bold' },
+            3: { halign: 'center', cellWidth: 35, fontStyle: 'bold' }
+          },
+          alternateRowStyles: {
+            fillColor: [248, 249, 250]
+          }
+        });
+
+        yPosition = (doc as any).lastAutoTable.finalY + 15;
+      }
+    }
+
+    // Enhanced Detailed Order List with Payment Methods
+    if (config.includeOrderDetails && (analytics as any).detailedOrderList && (analytics as any).detailedOrderList.length > 0) {
+      if (yPosition > 240) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(33, 37, 41);
+      doc.text('Detailed Order List', 20, yPosition);
+      yPosition += 12;
+
+      const orderData = (analytics as any).detailedOrderList.map((order: any) => [
+        order.orderNumber,
+        order.tableNumber,
+        order.date,
+        order.time,
+        order.status.toUpperCase(),
+        order.paymentMethod,
+        order.totalItems.toString(),
+        formatCurrencyForPDF(order.total)
+      ]);
+
+      doc.autoTable({
+        startY: yPosition,
+        head: [['Order #', 'Table', 'Date', 'Time', 'Status', 'Payment', 'Items', 'Total']],
+        body: orderData,
+        theme: 'grid',
+        styles: { 
+          fontSize: 9,
+          font: 'helvetica',
+          textColor: [33, 37, 41],
+          cellPadding: 5,
+          lineColor: [220, 220, 220],
+          lineWidth: 0.5
+        },
+        headStyles: { 
+          fillColor: [52, 58, 64],
+          textColor: [255, 255, 255],
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Order #
+          1: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, // Table
+          2: { cellWidth: 20, halign: 'center' }, // Date
+          3: { cellWidth: 15, halign: 'center' }, // Time
+          4: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Status
+          5: { cellWidth: 35, halign: 'left', fontSize: 8 }, // Payment (wider for split details)
+          6: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, // Items
+          7: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }   // Total
+        },
+        alternateRowStyles: {
+          fillColor: [248, 249, 250]
+        }
+      });
+
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
     }
 
     // Credit Analysis
@@ -2205,56 +2324,6 @@ export class SalesReportService {
         });
       }
       
-      yPosition += 10;
-    }
-
-    // Payment Method Analysis
-    if (analytics.paymentMethodBreakdown.length > 0) {
-      if (yPosition > 240) {
-        doc.addPage();
-        yPosition = 20;
-      }
-
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Payment Method Analysis', 20, yPosition);
-      yPosition += 10;
-
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      analytics.paymentMethodBreakdown.forEach((payment) => {
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = 20;
-        }
-        doc.text(`${payment.method} - Transactions: ${payment.count} - Amount: ${formatCurrencyForPDF(payment.amount)} (${payment.percentage.toFixed(1)}%)`, 20, yPosition);
-        yPosition += 6;
-      });
-      yPosition += 10;
-    }
-
-    // Detailed Order List
-    if (config.includeOrderDetails && (analytics as any).detailedOrderList && (analytics as any).detailedOrderList.length > 0) {
-      if (yPosition > 240) {
-        doc.addPage();
-        yPosition = 20;
-      }
-
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Detailed Order List', 20, yPosition);
-      yPosition += 10;
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      (analytics as any).detailedOrderList.slice(0, 20).forEach((order: any) => {
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = 20;
-        }
-        doc.text(`${order.orderNumber} | Table ${order.tableNumber} | ${order.date} ${order.time} | ${order.status.toUpperCase()} | ${formatCurrencyForPDF(order.total)}`, 20, yPosition);
-        yPosition += 5;
-      });
       yPosition += 10;
     }
 
@@ -2611,54 +2680,171 @@ export class SalesReportService {
       yPosition += 10;
     }
 
-    // Payment Method Analysis
+    // Payment Method Analysis with Split Payment Details
     if (analytics.paymentMethodBreakdown.length > 0) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
       }
 
-      doc.setFontSize(14);
+      doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor(33, 37, 41);
       doc.text('Payment Method Analysis', 20, yPosition);
-      yPosition += 10;
+      yPosition += 12;
 
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      analytics.paymentMethodBreakdown.forEach((payment) => {
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = 20;
+      // Main payment method table
+      const paymentData = analytics.paymentMethodBreakdown.map(payment => [
+        payment.method,
+        payment.count.toString(),
+        formatCurrencyForPDF(payment.amount),
+        `${payment.percentage.toFixed(1)}%`
+      ]);
+
+      doc.autoTable({
+        startY: yPosition,
+        head: [['Payment Method', 'Transactions', 'Amount', '% of Total']],
+        body: paymentData,
+        theme: 'grid',
+        styles: { 
+          fontSize: 11,
+          font: 'helvetica',
+          textColor: [33, 37, 41],
+          cellPadding: 8,
+          lineColor: [220, 220, 220],
+          lineWidth: 0.5
+        },
+        headStyles: { 
+          fillColor: [52, 144, 220],
+          textColor: [255, 255, 255],
+          fontSize: 12,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { cellWidth: 50, fontStyle: 'bold' },
+          1: { halign: 'center', cellWidth: 35, fontStyle: 'bold' },
+          2: { halign: 'right', cellWidth: 45, fontStyle: 'bold' },
+          3: { halign: 'center', cellWidth: 35, fontStyle: 'bold' }
+        },
+        alternateRowStyles: {
+          fillColor: [248, 249, 250]
         }
-        doc.text(`${payment.method} - Transactions: ${payment.count} - Amount: ${formatCurrencyForPDF(payment.amount)} (${payment.percentage.toFixed(1)}%)`, 20, yPosition);
-        yPosition += 6;
       });
-      yPosition += 10;
+
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+      // Split payment details if available
+      const splitPaymentMethod = analytics.paymentMethodBreakdown.find(p => p.method === 'SPLIT');
+      if (splitPaymentMethod && (splitPaymentMethod as any).splitDetails) {
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(33, 37, 41);
+        doc.text('Split Payment Breakdown', 20, yPosition);
+        yPosition += 10;
+
+        const splitData = (splitPaymentMethod as any).splitDetails.map((detail: any) => [
+          detail.method,
+          detail.count.toString(),
+          formatCurrencyForPDF(detail.amount),
+          `${((detail.amount / splitPaymentMethod.amount) * 100).toFixed(1)}%`
+        ]);
+
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Split Method', 'Transactions', 'Amount', '% of Split Total']],
+          body: splitData,
+          theme: 'grid',
+          styles: { 
+            fontSize: 10,
+            font: 'helvetica',
+            textColor: [33, 37, 41],
+            cellPadding: 6,
+            lineColor: [220, 220, 220],
+            lineWidth: 0.5
+          },
+          headStyles: { 
+            fillColor: [108, 117, 125],
+            textColor: [255, 255, 255],
+            fontSize: 11,
+            fontStyle: 'bold',
+            halign: 'center'
+          },
+          columnStyles: {
+            0: { cellWidth: 40, fontStyle: 'bold' },
+            1: { halign: 'center', cellWidth: 30, fontStyle: 'bold' },
+            2: { halign: 'right', cellWidth: 40, fontStyle: 'bold' },
+            3: { halign: 'center', cellWidth: 35, fontStyle: 'bold' }
+          },
+          alternateRowStyles: {
+            fillColor: [248, 249, 250]
+          }
+        });
+
+        yPosition = (doc as any).lastAutoTable.finalY + 15;
+      }
     }
 
-    // Detailed Order List
+    // Enhanced Detailed Order List with Payment Methods
     if (config.includeOrderDetails && (analytics as any).detailedOrderList && (analytics as any).detailedOrderList.length > 0) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
       }
 
-      doc.setFontSize(14);
+      doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor(33, 37, 41);
       doc.text('Detailed Order List', 20, yPosition);
-      yPosition += 10;
+      yPosition += 12;
 
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      (analytics as any).detailedOrderList.slice(0, 20).forEach((order: any) => {
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = 20;
+      const orderData = (analytics as any).detailedOrderList.map((order: any) => [
+        order.orderNumber,
+        order.tableNumber,
+        order.date,
+        order.time,
+        order.status.toUpperCase(),
+        order.paymentMethod,
+        order.totalItems.toString(),
+        formatCurrencyForPDF(order.total)
+      ]);
+
+      doc.autoTable({
+        startY: yPosition,
+        head: [['Order #', 'Table', 'Date', 'Time', 'Status', 'Payment', 'Items', 'Total']],
+        body: orderData,
+        theme: 'grid',
+        styles: { 
+          fontSize: 9,
+          font: 'helvetica',
+          textColor: [33, 37, 41],
+          cellPadding: 5,
+          lineColor: [220, 220, 220],
+          lineWidth: 0.5
+        },
+        headStyles: { 
+          fillColor: [52, 58, 64],
+          textColor: [255, 255, 255],
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Order #
+          1: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, // Table
+          2: { cellWidth: 20, halign: 'center' }, // Date
+          3: { cellWidth: 15, halign: 'center' }, // Time
+          4: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Status
+          5: { cellWidth: 35, halign: 'left', fontSize: 8 }, // Payment (wider for split details)
+          6: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, // Items
+          7: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }   // Total
+        },
+        alternateRowStyles: {
+          fillColor: [248, 249, 250]
         }
-        doc.text(`${order.orderNumber} | Table ${order.tableNumber} | ${order.date} ${order.time} | ${order.status.toUpperCase()} | ${formatCurrencyForPDF(order.total)}`, 20, yPosition);
-        yPosition += 5;
       });
-      yPosition += 10;
+
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
     }
 
     // Customer Portal Analytics

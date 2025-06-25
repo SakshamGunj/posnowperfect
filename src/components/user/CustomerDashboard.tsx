@@ -155,14 +155,29 @@ const CustomerDashboard = ({
         // Load gamification data
         const loadGamificationData = async () => {
           try {
-            // @ts-ignore - Service method may not exist in current implementation
-            const spinsResult = await GamificationIntegrationService.getCustomerSpins?.(restaurant.id, phoneAuthUser.phone);
+            // Use the correct method name
+            const spinsResult = await GamificationIntegrationService.getCustomerGamificationHistory(restaurant.id, phoneAuthUser.phone);
             // @ts-ignore - Service may not be imported properly  
             const loyaltyResult = await LoyaltyPointsService.getCustomerLoyaltyInfo?.(restaurant.id, phoneAuthUser.phone);
 
             if (spinsResult.success && spinsResult.data) {
               const spins = spinsResult.data.spins || [];
               const coupons = spinsResult.data.coupons || [];
+              
+              // Cross-reference spins with coupons to determine redemption status
+              const enrichedSpins = spins.map((spin: any) => {
+                // Find the corresponding coupon for this spin
+                const correspondingCoupon = coupons.find((c: any) => 
+                  c.code === spin.couponCode || 
+                  (c.metadata?.spinId === spin.id)
+                );
+                
+                return {
+                  ...spin,
+                  // Override isRedeemed based on coupon usage
+                  isRedeemed: correspondingCoupon ? correspondingCoupon.usageCount > 0 : spin.isRedeemed
+                };
+              });
               
               setStats({
                 totalOrders: customerOrders.length,
@@ -175,13 +190,13 @@ const CustomerDashboard = ({
                 spinData: {
                   totalSpins: spins.length,
                   totalCoupons: coupons.length,
-                  redeemedCoupons: coupons.filter((c: any) => c.isRedeemed).length,
+                  redeemedCoupons: coupons.filter((c: any) => c.usageCount > 0).length,
                   totalDiscountEarned: coupons.reduce((sum: number, c: any) => 
                     sum + (c.discountValue || 0), 0),
-                  totalDiscountUsed: coupons.filter((c: any) => c.isRedeemed)
+                  totalDiscountUsed: coupons.filter((c: any) => c.usageCount > 0)
                     .reduce((sum: number, c: any) => sum + (c.discountValue || 0), 0),
-                  availableCoupons: coupons?.filter((c: any) => !c.isRedeemed) || [] as any[],
-                  spinHistory: spins || [] as any[]
+                  availableCoupons: coupons?.filter((c: any) => c.usageCount === 0) || [] as any[],
+                  spinHistory: enrichedSpins || [] as any[]
                 }
               });
             }

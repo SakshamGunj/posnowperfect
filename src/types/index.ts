@@ -508,6 +508,27 @@ export interface InventoryItem {
   lastRestockedQuantity?: number;
   isTracked: boolean; // Whether to track inventory for this item
   autoDeduct: boolean; // Whether to automatically deduct on orders
+  
+  // Inventory Linking System
+  linkedItems?: InventoryLinkedItem[]; // Items linked to this inventory
+  baseInventoryId?: string; // If this item is linked to another base inventory
+  baseRatio?: number; // Ratio to base inventory (e.g., 0.5 for 30ml when base is 60ml)
+  isBaseInventory?: boolean; // Whether this is a base inventory that others link to
+  reverseLinksEnabled?: boolean; // Whether reverse linking is enabled for this item
+  
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface InventoryLinkedItem {
+  id: string;
+  linkedInventoryId: string; // The inventory item being linked
+  linkedMenuItemId: string; // The menu item of linked inventory
+  linkedMenuItemName: string; // Name for display
+  ratio: number; // Consumption ratio (e.g., 2.0 means when 1 of base is consumed, 2 of this is consumed)
+  reverseRatio?: number; // Reverse ratio for reverse linking
+  enableReverseLink: boolean; // Whether this link works in reverse
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

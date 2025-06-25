@@ -53,7 +53,7 @@ const VoiceButtonInner: React.FC<any> = ({
       const granted = await requestPermission();
       if (!granted) return;
     }
-    handleClick();
+    handleRecordStart();
   };
 
   // Handle button click - now works like WhatsApp voice message
@@ -61,7 +61,7 @@ const VoiceButtonInner: React.FC<any> = ({
     // Don't do anything on click - we use mouse/touch events instead
   };
 
-  // Handle mouse/touch down - start recording
+  // Handle mouse/touch down - start push-to-talk recording
   const handleRecordStart = () => {
     if (!isSupported) {
       toast.error('Voice commands not supported in this browser.');
@@ -73,14 +73,21 @@ const VoiceButtonInner: React.FC<any> = ({
       return;
     }
 
-    // Start single recording (not continuous mode)
-    startListening();
+    console.log('🎙️ VoiceButton: Starting push-to-talk recording');
+    
+    // Start push-to-talk recording mode using VoiceService directly
+    const voiceService = VoiceService.getInstance();
+    voiceService.startPushToTalkRecording();
   };
 
-  // Handle mouse/touch up - stop recording and send
+  // Handle mouse/touch up - stop push-to-talk recording and process
   const handleRecordStop = () => {
     if (isListening) {
-      stopListening();
+      console.log('🛑 VoiceButton: Stopping push-to-talk recording');
+      
+      // Stop push-to-talk recording using VoiceService directly
+      const voiceService = VoiceService.getInstance();
+      voiceService.stopPushToTalkRecording();
     }
   };
 
