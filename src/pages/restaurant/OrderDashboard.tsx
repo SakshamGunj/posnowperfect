@@ -1637,7 +1637,7 @@ export default function OrderDashboard() {
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
 
-    // Group orders by table and time proximity (within 30 minutes)
+    // Group orders only when they are truly related (Add More sessions - within 30 seconds)
     sortedOrders.forEach(order => {
       if (!order.tableId) {
         // Orders without table go in individual groups
@@ -1647,16 +1647,16 @@ export default function OrderDashboard() {
 
       let foundGroup = false;
       
-      // Look for existing group from same table within 30 minutes
+      // Look for existing group from same table within 30 seconds (Add More window)
       for (const [groupKey, groupOrders] of groups.entries()) {
         const groupTable = groupOrders[0]?.tableId;
         const lastOrderTime = Math.max(...groupOrders.map(o => new Date(o.createdAt).getTime()));
         const currentOrderTime = new Date(order.createdAt).getTime();
         const timeDiff = Math.abs(currentOrderTime - lastOrderTime);
-        const thirtyMinutes = 30 * 60 * 1000;
+        const thirtySeconds = 30 * 1000; // Only 30 seconds for true "Add More" sessions
 
-        if (groupTable === order.tableId && timeDiff <= thirtyMinutes) {
-          // Add to existing group
+        if (groupTable === order.tableId && timeDiff <= thirtySeconds) {
+          // Add to existing group only if within 30 seconds (Add More session)
           groupOrders.push(order);
           foundGroup = true;
           break;
@@ -1984,22 +1984,23 @@ export default function OrderDashboard() {
         percentage: filteredRevenue > 0 ? (item.revenue / filteredRevenue) * 100 : 0
       })).sort((a, b) => b.revenue - a.revenue);
 
-      // Create table sales from filtered orders
+      // Create table sales from grouped orders for better analytics
       const tableSalesMap = new Map<string, { tableId: string; tableNumber: string; orderCount: number; revenue: number; }>();
       
-      filteredOrders.forEach(order => {
-        if (order.tableId) {
-          const table = tables.find(t => t.id === order.tableId);
-          const existing = tableSalesMap.get(order.tableId) || {
-            tableId: order.tableId,
+      exportGroupedOrders.forEach(group => {
+        if (group.primaryOrder.tableId) {
+          const table = tables.find(t => t.id === group.primaryOrder.tableId);
+          const existing = tableSalesMap.get(group.primaryOrder.tableId) || {
+            tableId: group.primaryOrder.tableId,
             tableNumber: table?.number || 'Unknown',
             orderCount: 0,
             revenue: 0
           };
           
+          // Count each group as one transaction, regardless of individual orders within
           existing.orderCount += 1;
-          existing.revenue += order.total;
-          tableSalesMap.set(order.tableId, existing);
+          existing.revenue += group.totalAmount;
+          tableSalesMap.set(group.primaryOrder.tableId, existing);
         }
       });
       
@@ -2181,8 +2182,10 @@ export default function OrderDashboard() {
       const customAnalytics = {
         ...baseAnalytics,
         totalRevenue: filteredRevenue,
-        totalOrders: filteredOrders.length,
+        totalOrders: filteredOrders.length, // Individual orders count
+        totalOrderGroups: exportGroupedOrders.length, // Grouped order count
         averageOrderValue: filteredOrders.length > 0 ? filteredRevenue / filteredOrders.length : 0,
+        averageGroupValue: exportGroupedOrders.length > 0 ? filteredRevenue / exportGroupedOrders.length : 0,
         totalItems: filteredItems,
         menuItemSales: customMenuItemSales,
         tableSales: customTableSales,
@@ -2201,6 +2204,15 @@ export default function OrderDashboard() {
           ordersWithCredits: 0,
           creditTransactions: [],
           revenueCollectionRate: 100
+        },
+        // Additional grouping insights
+        groupingInsights: {
+          totalGroups: exportGroupedOrders.length,
+          totalIndividualOrders: filteredOrders.length,
+          groupedOrders: exportGroupedOrders.filter(g => g.isGroup).length,
+          standaloneOrders: exportGroupedOrders.filter(g => !g.isGroup).length,
+          averageOrdersPerGroup: exportGroupedOrders.length > 0 ? 
+            exportGroupedOrders.reduce((sum, g) => sum + g.orders.length, 0) / exportGroupedOrders.length : 0
         }
       };
 

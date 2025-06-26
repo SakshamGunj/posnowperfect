@@ -8,7 +8,7 @@ const API_CONFIG = {
   user: 'TENVERSE_MEDIA',
   pass: '123456',
   sender: 'BUZWAP',
-  phone: '7250504240', // Target phone number
+  phone: '7864910648', // Target phone number
   templateName: 'billsendingtoowner',
   priority: 'wa',
   stype: 'normal',
