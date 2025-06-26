@@ -1625,20 +1625,17 @@ export default function OrderDashboard() {
     applyFilters();
   }, [applyFilters]);
 
-  // Group orders function - groups related orders from same table/session
+  // Group orders function - groups related orders from same table/session based on payment status
   const groupRelatedOrders = useCallback((ordersList: Order[]) => {
     const groups = new Map<string, Order[]>();
     
-    // Sort orders by table and creation time
+    // Sort orders by creation time globally (all tables together)
     const sortedOrders = [...ordersList].sort((a, b) => {
-      if (a.tableId !== b.tableId) {
-        return a.tableId?.localeCompare(b.tableId || '') || 0;
-      }
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
 
-    // Group orders only when they are truly related (Add More sessions - within 30 seconds)
-    sortedOrders.forEach(order => {
+    // Group orders based on payment sessions - group only unpaid orders from same table
+    sortedOrders.forEach((order, index) => {
       if (!order.tableId) {
         // Orders without table go in individual groups
         groups.set(order.id, [order]);
@@ -1647,27 +1644,72 @@ export default function OrderDashboard() {
 
       let foundGroup = false;
       
-      // Look for existing group from same table within 30 seconds (Add More window)
-      for (const [groupKey, groupOrders] of groups.entries()) {
-        const groupTable = groupOrders[0]?.tableId;
-        const lastOrderTime = Math.max(...groupOrders.map(o => new Date(o.createdAt).getTime()));
-        const currentOrderTime = new Date(order.createdAt).getTime();
-        const timeDiff = Math.abs(currentOrderTime - lastOrderTime);
-        const thirtySeconds = 30 * 1000; // Only 30 seconds for true "Add More" sessions
-
-        if (groupTable === order.tableId && timeDiff <= thirtySeconds) {
-          // Add to existing group only if within 30 seconds (Add More session)
-          groupOrders.push(order);
-          foundGroup = true;
+      // Look backwards to find the most recent order from the same table
+      for (let i = index - 1; i >= 0; i--) {
+        const previousOrder = sortedOrders[i];
+        
+        if (previousOrder.tableId === order.tableId) {
+          // Found a previous order from the same table
+          const currentOrderPaid = order.status === 'completed' && 
+            (order.paymentStatus === 'paid' || order.paymentMethod);
+          const previousOrderPaid = previousOrder.status === 'completed' && 
+            (previousOrder.paymentStatus === 'paid' || previousOrder.paymentMethod);
+          
+          // If both orders are paid, check if they were paid together (completed at similar time)
+          if (currentOrderPaid && previousOrderPaid) {
+            const currentCompletedTime = new Date(order.updatedAt).getTime();
+            const previousCompletedTime = new Date(previousOrder.updatedAt).getTime();
+            const completionTimeDiff = Math.abs(currentCompletedTime - previousCompletedTime);
+            
+            // If completed within 30 seconds of each other, they were likely paid together
+            const thirtySeconds = 30 * 1000;
+            
+            if (completionTimeDiff <= thirtySeconds) {
+              // Find the group that contains this previous order
+              for (const [groupKey, groupOrders] of groups.entries()) {
+                if (groupOrders.some(o => o.id === previousOrder.id)) {
+                  // Add current order to the same group (paid together)
+                  groupOrders.push(order);
+                  foundGroup = true;
+                  break;
+                }
+              }
+              if (foundGroup) break;
+            }
+          }
+          // If both orders are unpaid, check if they're part of ongoing Add More session
+          else if (!currentOrderPaid && !previousOrderPaid) {
+            const currentOrderTime = new Date(order.createdAt).getTime();
+            const previousOrderTime = new Date(previousOrder.createdAt).getTime();
+            const creationTimeDiff = currentOrderTime - previousOrderTime;
+            
+            // Allow longer time for Add More sessions (5 minutes)
+            const fiveMinutes = 5 * 60 * 1000;
+            
+            if (creationTimeDiff <= fiveMinutes) {
+              // Find the group that contains this previous order
+              for (const [groupKey, groupOrders] of groups.entries()) {
+                if (groupOrders.some(o => o.id === previousOrder.id)) {
+                  // Add current order to the same unpaid group
+                  groupOrders.push(order);
+                  foundGroup = true;
+                  break;
+                }
+              }
+              if (foundGroup) break;
+            }
+          }
+          
+          // Stop at first order from same table
           break;
         }
       }
 
-             if (!foundGroup) {
-         // Create new group with unique key
-         const groupKey = `${order.tableId}-${new Date(order.createdAt).getTime()}`;
-         groups.set(groupKey, [order]);
-       }
+      if (!foundGroup) {
+        // Create new group with unique key (new payment session)
+        const groupKey = `${order.tableId}-${new Date(order.createdAt).getTime()}`;
+        groups.set(groupKey, [order]);
+      }
     });
 
     return Array.from(groups.entries()).map(([groupKey, orders]) => ({

@@ -1189,6 +1189,7 @@ export default function KitchenDisplay() {
             total: item.total,
             variants: item.variants || []
           }))}
+          orders={[selectedOrder]}
           menuItems={menuItems}
         />
       )}

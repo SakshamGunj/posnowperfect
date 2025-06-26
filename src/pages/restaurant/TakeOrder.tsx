@@ -2440,6 +2440,7 @@ export default function TakeOrder() {
             total: item.total,
             variants: item.variants
           })))}
+          orders={allOrders}
           menuItems={menuItems}
         />
       )}

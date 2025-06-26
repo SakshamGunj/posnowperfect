@@ -14,6 +14,7 @@ interface EnhancedPaymentModalProps {
   onPayment: (data: any) => void;
   isProcessing: boolean;
   cartItems: any[];
+  orders?: any[]; // Add orders prop to show individual order details
   menuItems: any[];
 }
 
@@ -25,6 +26,7 @@ export default function PaymentModalWithCoupons({
   onPayment,
   isProcessing,
   cartItems,
+  orders = [],
   menuItems,
 }: EnhancedPaymentModalProps) {
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -281,13 +283,40 @@ export default function PaymentModalWithCoupons({
             {/* Order Summary */}
             <div>
               <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Order Summary</h4>
-              <div className="bg-gray-50 rounded-lg p-3 sm:p-4 space-y-2">
-                {cartItems.map((item, index) => (
-                  <div key={index} className="flex justify-between text-xs sm:text-sm">
-                    <span className="truncate mr-2">{item.quantity}x {item.name}</span>
-                    <span className="whitespace-nowrap">{formatCurrency(item.total)}</span>
-                  </div>
-                ))}
+              <div className="bg-gray-50 rounded-lg p-3 sm:p-4 space-y-3">
+                {orders.length > 0 ? (
+                  // Show individual orders with their details
+                  orders.map((order) => (
+                    <div key={order.id} className="border-b border-gray-200 last:border-b-0 pb-2 last:pb-0">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-medium text-gray-600">
+                          Order #{order.orderNumber}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(order.createdAt).toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit',
+                            hour12: true 
+                          })}
+                        </span>
+                      </div>
+                      {order.items.map((item: any, itemIndex: number) => (
+                        <div key={itemIndex} className="flex justify-between text-xs sm:text-sm ml-2">
+                          <span className="truncate mr-2">{item.quantity}x {item.name}</span>
+                          <span className="whitespace-nowrap">{formatCurrency(item.total)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  // Fallback to cart items if no orders provided (backward compatibility)
+                  cartItems.map((item, index) => (
+                    <div key={index} className="flex justify-between text-xs sm:text-sm">
+                      <span className="truncate mr-2">{item.quantity}x {item.name}</span>
+                      <span className="whitespace-nowrap">{formatCurrency(item.total)}</span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
