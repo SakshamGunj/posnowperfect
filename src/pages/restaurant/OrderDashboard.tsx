@@ -28,7 +28,9 @@ import {
   Edit,
   RefreshCw,
   ShoppingCart,
-  MapPin
+  MapPin,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 import { SalesReportService } from '@/services/salesReportService';
@@ -1329,11 +1331,25 @@ async function generateOrderBillContent(order: Order, restaurant: any, table: Ta
 
 export default function OrderDashboard() {
   const { restaurant } = useRestaurant();
-  
+  const { user } = useRestaurantAuth();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [orderToEditPayment, setOrderToEditPayment] = useState<Order | null>(null);
+  const [isUpdatingPayment, setIsUpdatingPayment] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [ordersPerPage] = useState(10);
+  const [viewMode, setViewMode] = useState<'list' | 'analytics' | 'reports'>('list');
+  
+  // New state for managing expanded order groups
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<OrderStats>({
     totalOrders: 0,
     totalRevenue: 0,
@@ -1348,20 +1364,9 @@ export default function OrderDashboard() {
   });
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'list' | 'analytics' | 'reports'>('list');
-  
+
   // Sales Report States
   const [salesAnalytics] = useState<any>(null);
-  const [showReportModal, setShowReportModal] = useState(false);
-
-  // State for edit payment modal
-  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
-  const [orderToEditPayment, setOrderToEditPayment] = useState<Order | null>(null);
-  const [isUpdatingPayment, setIsUpdatingPayment] = useState(false);
 
   const { register, handleSubmit, watch } = useForm<FilterForm>({
     defaultValues: {
@@ -1379,7 +1384,6 @@ export default function OrderDashboard() {
   const status = watch('status');
   const orderType = watch('orderType');
   const menuItemId = watch('menuItemId');
-  const ordersPerPage = 10;
 
   useEffect(() => {
     if (restaurant) {
@@ -1621,6 +1625,85 @@ export default function OrderDashboard() {
     applyFilters();
   }, [applyFilters]);
 
+  // Group orders function - groups related orders from same table/session
+  const groupRelatedOrders = useCallback((ordersList: Order[]) => {
+    const groups = new Map<string, Order[]>();
+    
+    // Sort orders by table and creation time
+    const sortedOrders = [...ordersList].sort((a, b) => {
+      if (a.tableId !== b.tableId) {
+        return a.tableId?.localeCompare(b.tableId || '') || 0;
+      }
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+
+    // Group orders by table and time proximity (within 30 minutes)
+    sortedOrders.forEach(order => {
+      if (!order.tableId) {
+        // Orders without table go in individual groups
+        groups.set(order.id, [order]);
+        return;
+      }
+
+      let foundGroup = false;
+      
+      // Look for existing group from same table within 30 minutes
+      for (const [groupKey, groupOrders] of groups.entries()) {
+        const groupTable = groupOrders[0]?.tableId;
+        const lastOrderTime = Math.max(...groupOrders.map(o => new Date(o.createdAt).getTime()));
+        const currentOrderTime = new Date(order.createdAt).getTime();
+        const timeDiff = Math.abs(currentOrderTime - lastOrderTime);
+        const thirtyMinutes = 30 * 60 * 1000;
+
+        if (groupTable === order.tableId && timeDiff <= thirtyMinutes) {
+          // Add to existing group
+          groupOrders.push(order);
+          foundGroup = true;
+          break;
+        }
+      }
+
+             if (!foundGroup) {
+         // Create new group with unique key
+         const groupKey = `${order.tableId}-${new Date(order.createdAt).getTime()}`;
+         groups.set(groupKey, [order]);
+       }
+    });
+
+    return Array.from(groups.entries()).map(([groupKey, orders]) => ({
+      groupKey,
+      orders: orders.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+      primaryOrder: orders[0], // Use first order as primary
+      totalAmount: orders.reduce((sum, order) => sum + order.total, 0),
+      totalItems: orders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0),
+      isGroup: orders.length > 1
+    }));
+  }, []);
+
+  // Toggle group expansion
+  const toggleGroupExpansion = (groupKey: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupKey)) {
+        newSet.delete(groupKey);
+      } else {
+        newSet.add(groupKey);
+      }
+      return newSet;
+    });
+  };
+
+  // Get grouped orders for display
+  const groupedOrders = useMemo(() => {
+    return groupRelatedOrders(filteredOrders);
+  }, [filteredOrders, groupRelatedOrders]);
+
+  // Pagination for grouped orders
+  const totalGroups = groupedOrders.length;
+  const totalPages = Math.ceil(totalGroups / ordersPerPage);
+  const startIndex = (currentPage - 1) * ordersPerPage;
+  const paginatedGroups = groupedOrders.slice(startIndex, startIndex + ordersPerPage);
+
   const handleStatusUpdate = async (orderId: string, status: OrderStatus) => {
     if (!restaurant) return;
 
@@ -1800,9 +1883,13 @@ export default function OrderDashboard() {
     }
 
     try {
+      // Use grouped orders for export instead of individual orders
+      const exportGroupedOrders = groupRelatedOrders(filteredOrders);
+      
       console.log('🔥 Starting export process...', { 
         restaurantId: restaurant.id, 
         filteredOrdersCount: filteredOrders.length,
+        groupedOrdersCount: exportGroupedOrders.length,
         filters: { dateRange, tableId, status, orderType, menuItemId, searchTerm }
       });
       
@@ -2119,36 +2206,67 @@ export default function OrderDashboard() {
 
       console.log('📊 Custom analytics created:', customAnalytics);
 
-      // Add detailed order list to analytics
-      const detailedOrderList = filteredOrders.slice(0, 100).map(order => {
-        const table = tables.find(t => t.id === order.tableId);
+      // Add detailed grouped order list to analytics
+      const detailedOrderList = exportGroupedOrders.slice(0, 50).map(group => {
+        const table = tables.find(t => t.id === group.primaryOrder.tableId);
         
-        // Format payment method information
+        // Format payment method information for primary order
         let paymentInfo = 'Not specified';
-        if (order.paymentMethod === 'split' && (order as any).splitPayments) {
-          const splitPayments = (order as any).splitPayments;
+        if (group.primaryOrder.paymentMethod === 'split' && (group.primaryOrder as any).splitPayments) {
+          const splitPayments = (group.primaryOrder as any).splitPayments;
           paymentInfo = `Split: ${splitPayments.map((p: any) => 
             `${p.method.toUpperCase()} Rs.${p.amount.toFixed(2)}`
           ).join(' + ')}`;
-        } else if (order.paymentMethod) {
-          paymentInfo = order.paymentMethod.toUpperCase();
+        } else if (group.primaryOrder.paymentMethod) {
+          paymentInfo = group.primaryOrder.paymentMethod.toUpperCase();
         }
-        
-        return {
-          orderNumber: order.orderNumber,
-          tableNumber: table?.number || 'N/A',
-          date: formatDate(order.createdAt),
-          time: formatTime(order.createdAt),
-          status: order.status,
-          type: order.type,
-          paymentMethod: paymentInfo,
-          itemCount: order.items.length,
-          totalItems: order.items.reduce((sum, item) => sum + item.quantity, 0),
-          subtotal: order.subtotal,
-          tax: order.tax,
-          total: order.total,
-          items: order.items.map(item => `${item.quantity}x ${item.name}`).join(', ')
-        };
+
+        // If it's a group, create a combined description
+        if (group.isGroup) {
+          const orderNumbers = group.orders.map(o => o.orderNumber).join(', ');
+          const allItems = group.orders.flatMap(o => o.items.map(item => `${item.quantity}x ${item.name}`));
+          
+          return {
+            orderNumber: `${group.primaryOrder.orderNumber} (+${group.orders.length - 1} more)`,
+            tableNumber: table?.number || 'N/A',
+            date: formatDate(group.primaryOrder.createdAt),
+            time: formatTime(group.primaryOrder.createdAt),
+            status: group.primaryOrder.status,
+            type: group.primaryOrder.type,
+            paymentMethod: paymentInfo,
+            itemCount: group.orders.reduce((sum, o) => sum + o.items.length, 0),
+            totalItems: group.totalItems,
+            subtotal: group.orders.reduce((sum, o) => sum + (o.subtotal || 0), 0),
+            tax: group.orders.reduce((sum, o) => sum + (o.tax || 0), 0),
+            total: group.totalAmount,
+            items: allItems.join(', '),
+            // Additional grouped order details
+            groupDetails: group.orders.map(order => ({
+              orderNumber: order.orderNumber,
+              time: formatTime(order.createdAt),
+              items: order.items.map(item => `${item.quantity}x ${item.name}`).join(', '),
+              total: order.total
+            }))
+          };
+        } else {
+          // Single order in group
+          const order = group.primaryOrder;
+          return {
+            orderNumber: order.orderNumber,
+            tableNumber: table?.number || 'N/A',
+            date: formatDate(order.createdAt),
+            time: formatTime(order.createdAt),
+            status: order.status,
+            type: order.type,
+            paymentMethod: paymentInfo,
+            itemCount: order.items.length,
+            totalItems: order.items.reduce((sum, item) => sum + item.quantity, 0),
+            subtotal: order.subtotal,
+            tax: order.tax,
+            total: order.total,
+            items: order.items.map(item => `${item.quantity}x ${item.name}`).join(', ')
+          };
+        }
       });
 
       // Add to analytics
@@ -2166,14 +2284,14 @@ export default function OrderDashboard() {
         includeDiscountAnalysis: false,
         includeOrderDetails: true, // New flag for detailed order list
         reportTitle: `Orders Export - ${rangeLabel}`,
-        additionalNotes: `Filtered orders export containing ${filteredOrders.length} orders. Applied filters: ${[
+        additionalNotes: `Grouped orders export containing ${filteredOrders.length} individual orders (${exportGroupedOrders.length} groups). Applied filters: ${[
           dateRange !== 'today' ? `Date: ${rangeLabel}` : null,
           tableId && tableId !== 'all' ? `Table: ${tables.find(t => t.id === tableId)?.number || 'N/A'}` : null,
           status && status !== 'all' ? `Status: ${status}` : null,
           orderType && orderType !== 'all' ? `Type: ${orderType.replace('_', ' ')}` : null,
           menuItemId && menuItemId !== 'all' ? `Item: ${menuItems.find(m => m.id === menuItemId)?.name || 'N/A'}` : null,
           searchTerm ? `Search: "${searchTerm}"` : null
-        ].filter(Boolean).join(', ') || 'None'}. ${filteredOrders.length > 100 ? `Note: Only first 100 orders shown in detail.` : ''}`
+        ].filter(Boolean).join(', ') || 'None'}. ${exportGroupedOrders.length > 50 ? `Note: Only first 50 order groups shown in detail.` : 'Related orders from same table are grouped together.'}`
       };
 
       const dateRangeObj = {
@@ -2204,18 +2322,13 @@ export default function OrderDashboard() {
 
       console.log('✅ Export completed successfully');
       toast.dismiss();
-      toast.success(`Export completed! ${filteredOrders.length} orders exported.`);
+      toast.success(`Export completed! ${filteredOrders.length} orders in ${exportGroupedOrders.length} groups exported.`);
     } catch (error) {
       toast.dismiss();
       console.error('❌ Export error:', error);
       toast.error(`Failed to export data: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
-
-  // Pagination
-  const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
-  const startIndex = (currentPage - 1) * ordersPerPage;
-  const paginatedOrders = filteredOrders.slice(startIndex, startIndex + ordersPerPage);
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
@@ -2507,99 +2620,156 @@ export default function OrderDashboard() {
               ) : (
                 <>
                   <div className="divide-y divide-gray-200">
-                    {paginatedOrders.map((order) => {
-                      const table = tables.find(t => t.id === order.tableId);
-                      
-                      return (
-                        <div key={order.id} className="p-6 hover:bg-gray-50">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-4 mb-2">
-                                <h3 className="font-semibold text-gray-900">#{order.orderNumber}</h3>
-                                {getStatusBadge(order.status)}
-                                <span className="text-sm text-gray-600">
-                                  Table {table?.number || 'N/A'}
-                                </span>
-                                <span className="text-sm text-gray-600">
-                                  {formatDate(order.createdAt)} {formatTime(order.createdAt)}
-                                </span>
-                              </div>
-                              
-                              <div className="text-sm text-gray-600 mb-2">
-                                {order.items.length} item{order.items.length !== 1 ? 's' : ''} • 
-                                {order.items.slice(0, 3).map(item => item.name).join(', ')}
-                                {order.items.length > 3 && ` + ${order.items.length - 3} more`}
-                              </div>
-                              
-                              <div className="flex items-center space-x-4 text-sm">
-                                <span className="flex items-center text-gray-600">
-                                  <Users className="w-4 h-4 mr-1" />
-                                  {order.type.replace('_', ' ')}
-                                </span>
-                                <span className="flex items-center text-gray-600">
-                                  <DollarSign className="w-4 h-4 mr-1" />
-                                  {order.paymentStatus}
-                                </span>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center space-x-4">
-                              <div className="text-right">
-                                <p className="font-semibold text-gray-900">{formatCurrency(order.total)}</p>
-                                <p className="text-sm text-gray-600">{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</p>
-                              </div>
-                              
-                              <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedOrder(order);
-                                  setShowOrderDetails(true);
-                                }}
-                                className="btn btn-secondary"
-                              >
-                                <Eye className="w-4 h-4 mr-2" />
-                                View
-                              </button>
-                                
-                                {order.status === 'completed' && (
-                                  <>
-                                    <button
-                                      onClick={() => handlePrintBill(order)}
-                                      className="btn btn-primary"
-                                      title={`Print bill for Order #${order.orderNumber}`}
-                                    >
-                                      <Printer className="w-4 h-4 mr-2" />
-                                      Print Bill
-                                    </button>
-                                    
-                                    <button
-                                      onClick={() => {
-                                        setOrderToEditPayment(order);
-                                        setShowEditPaymentModal(true);
-                                      }}
-                                      className="btn bg-orange-600 text-white hover:bg-orange-700"
-                                      title={`Edit payment method for Order #${order.orderNumber}`}
-                                    >
-                                      <Edit className="w-4 h-4 mr-2" />
-                                      Edit Payment
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                                         {paginatedGroups.map((group) => {
+                       const table = tables.find(t => t.id === group.primaryOrder.tableId);
+                       const isExpanded = expandedGroups.has(group.groupKey);
+                       
+                       return (
+                         <div key={group.groupKey} className="border-b border-gray-200">
+                           {/* Main Group Row */}
+                           <div 
+                             className={`p-6 hover:bg-gray-50 cursor-pointer ${isExpanded ? 'bg-blue-50' : ''}`}
+                             onClick={() => group.isGroup && toggleGroupExpansion(group.groupKey)}
+                           >
+                             <div className="flex items-center justify-between">
+                               <div className="flex-1">
+                                 <div className="flex items-center space-x-4 mb-2">
+                                   <div className="flex items-center space-x-2">
+                                     {group.isGroup && (
+                                       <button className="p-1 text-gray-400 hover:text-gray-600">
+                                         {isExpanded ? 
+                                           <ChevronUp className="w-4 h-4" /> : 
+                                           <ChevronDown className="w-4 h-4" />
+                                         }
+                                       </button>
+                                     )}
+                                     <h3 className="font-semibold text-gray-900">
+                                       #{group.primaryOrder.orderNumber}
+                                       {group.isGroup && ` (+${group.orders.length - 1} more)`}
+                                     </h3>
+                                   </div>
+                                   {getStatusBadge(group.primaryOrder.status)}
+                                   <span className="text-sm text-gray-600">
+                                     Table {table?.number || 'N/A'}
+                                   </span>
+                                   <span className="text-sm text-gray-600">
+                                     {formatDate(group.primaryOrder.createdAt)} {formatTime(group.primaryOrder.createdAt)}
+                                   </span>
+                                 </div>
+                                 
+                                 <div className="text-sm text-gray-600 mb-2">
+                                   {group.totalItems} item{group.totalItems !== 1 ? 's' : ''} • 
+                                   {group.isGroup ? `${group.orders.length} orders combined` : 
+                                     `${group.primaryOrder.items.slice(0, 3).map(item => item.name).join(', ')}${group.primaryOrder.items.length > 3 ? ` + ${group.primaryOrder.items.length - 3} more` : ''}`
+                                   }
+                                 </div>
+                                 
+                                 <div className="flex items-center space-x-4 text-sm">
+                                   <span className="flex items-center text-gray-600">
+                                     <Users className="w-4 h-4 mr-1" />
+                                     {group.primaryOrder.type.replace('_', ' ')}
+                                   </span>
+                                   <span className="flex items-center text-gray-600">
+                                     <DollarSign className="w-4 h-4 mr-1" />
+                                     {group.primaryOrder.paymentStatus}
+                                   </span>
+                                 </div>
+                               </div>
+                               
+                               <div className="flex items-center space-x-4">
+                                 <div className="text-right">
+                                   <p className="font-semibold text-gray-900">{formatCurrency(group.totalAmount)}</p>
+                                   <p className="text-sm text-gray-600">{group.totalItems} items</p>
+                                 </div>
+                                 
+                                 <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                                   <button
+                                     onClick={() => {
+                                       setSelectedOrder(group.primaryOrder);
+                                       setShowOrderDetails(true);
+                                     }}
+                                     className="btn btn-secondary"
+                                   >
+                                     <Eye className="w-4 h-4 mr-2" />
+                                     View
+                                   </button>
+                                     
+                                   {group.primaryOrder.status === 'completed' && (
+                                     <>
+                                       <button
+                                         onClick={() => handlePrintBill(group.primaryOrder)}
+                                         className="btn btn-primary"
+                                         title={`Print bill for Order #${group.primaryOrder.orderNumber}`}
+                                       >
+                                         <Printer className="w-4 h-4 mr-2" />
+                                         Print Bill
+                                       </button>
+                                       
+                                       <button
+                                         onClick={() => {
+                                           setOrderToEditPayment(group.primaryOrder);
+                                           setShowEditPaymentModal(true);
+                                         }}
+                                         className="btn bg-orange-600 text-white hover:bg-orange-700"
+                                         title={`Edit payment method for Order #${group.primaryOrder.orderNumber}`}
+                                       >
+                                         <Edit className="w-4 h-4 mr-2" />
+                                         Edit Payment
+                                       </button>
+                                     </>
+                                   )}
+                                 </div>
+                               </div>
+                             </div>
+                           </div>
+
+                           {/* Expanded Individual Orders */}
+                           {group.isGroup && isExpanded && (
+                             <div className="bg-gray-50 border-t border-gray-200">
+                               {group.orders.map((order, index) => (
+                                 <div key={order.id} className="px-8 py-4 border-b border-gray-100 last:border-b-0">
+                                   <div className="flex items-center justify-between">
+                                     <div className="flex-1">
+                                       <div className="flex items-center space-x-4 mb-2">
+                                         <h4 className="font-medium text-gray-800">#{order.orderNumber}</h4>
+                                         {getStatusBadge(order.status)}
+                                         <span className="text-sm text-gray-500">
+                                           {formatTime(order.createdAt)}
+                                         </span>
+                                       </div>
+                                       
+                                       <div className="text-sm text-gray-600 mb-1">
+                                         {order.items.map(item => `${item.quantity}x ${item.name}`).join(', ')}
+                                       </div>
+                                       
+                                       {order.notes && (
+                                         <div className="text-xs text-gray-500 italic">
+                                           Note: {order.notes}
+                                         </div>
+                                       )}
+                                     </div>
+                                     
+                                     <div className="text-right">
+                                       <p className="font-semibold text-gray-800">{formatCurrency(order.total)}</p>
+                                       <p className="text-sm text-gray-500">{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</p>
+                                     </div>
+                                   </div>
+                                 </div>
+                               ))}
+                             </div>
+                           )}
+                         </div>
+                       );
+                     })}
                   </div>
 
                   {/* Pagination */}
                   {totalPages > 1 && (
                     <div className="px-6 py-4 border-t border-gray-200">
                       <div className="flex items-center justify-between">
-                        <div className="text-sm text-gray-600">
-                          Showing {startIndex + 1} to {Math.min(startIndex + ordersPerPage, filteredOrders.length)} of {filteredOrders.length} orders
-                        </div>
+                                                <div className="text-sm text-gray-600">
+                           Showing {startIndex + 1} to {Math.min(startIndex + ordersPerPage, totalGroups)} of {totalGroups} order groups
+                         </div>
                         
                         <div className="flex items-center space-x-2">
                           <button
