@@ -17,28 +17,61 @@ import {
   User,
   Search,
   CheckCircle,
-  XCircle
+  XCircle,
+  Clock,
+  BarChart3,
+  Activity,
+  Calendar,
+  Star,
+  TrendingUp,
+  Filter,
+  Download,
+  Settings,
+  AlertCircle,
+  CheckSquare,
+  Square,
+  LogIn,
+  LogOut,
+  Timer,
+  Target,
+  Award,
+  FileText,
+  Zap,
+  Briefcase,
+  UserCheck,
+  ClockIn,
+  PlayCircle,
+  Pause,
+  StopCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-interface EmployeeManagementProps {
-  // onClose is kept for future use if needed
-}
+interface EmployeeManagementProps {}
 
 export default function EmployeeManagement({}: EmployeeManagementProps) {
   const { restaurant } = useRestaurant();
   const { user } = useRestaurantAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'overview' | 'employees' | 'performance' | 'shifts' | 'activity'>('overview');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'manager' | 'staff'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [performanceData, setPerformanceData] = useState<any[]>([]);
+  const [shiftData, setShiftData] = useState<any[]>([]);
+  const [activityData, setActivityData] = useState<any[]>([]);
+  const [dateRange, setDateRange] = useState({
+    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+    end: new Date()
+  });
 
   useEffect(() => {
     if (restaurant) {
       fetchEmployees();
+      fetchPerformanceData();
     }
   }, [restaurant]);
 
@@ -61,6 +94,32 @@ export default function EmployeeManagement({}: EmployeeManagementProps) {
     }
   };
 
+  const fetchPerformanceData = async () => {
+    if (!restaurant) return;
+    
+    try {
+      const result = await EmployeeService.getAllEmployeesPerformance(restaurant.id, dateRange);
+      if (result.success && result.data) {
+        setPerformanceData(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching performance data:', error);
+    }
+  };
+
+  const fetchEmployeeActivity = async (employeeId: string) => {
+    if (!restaurant) return;
+    
+    try {
+      const result = await EmployeeService.getEmployeeActivity(employeeId, restaurant.id);
+      if (result.success && result.data) {
+        setActivityData(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching activity data:', error);
+    }
+  };
+
   const handleCreateEmployee = async (employeeData: CreateEmployeeRequest) => {
     if (!restaurant || !user) return;
 
@@ -70,6 +129,14 @@ export default function EmployeeManagement({}: EmployeeManagementProps) {
         toast.success('Employee created successfully');
         setShowCreateForm(false);
         fetchEmployees();
+        
+        // Log activity
+        await EmployeeService.logEmployeeActivity(
+          result.data?.id || '',
+          restaurant.id,
+          'employee_created',
+          { createdBy: user.name, employeeName: employeeData.name }
+        );
       } else {
         toast.error(result.error || 'Failed to create employee');
       }
@@ -86,6 +153,16 @@ export default function EmployeeManagement({}: EmployeeManagementProps) {
         toast.success('Employee updated successfully');
         setEditingEmployee(null);
         fetchEmployees();
+        
+        // Log activity
+        if (restaurant) {
+          await EmployeeService.logEmployeeActivity(
+            employeeId,
+            restaurant.id,
+            'employee_updated',
+            { updatedBy: user?.name, changes: Object.keys(updates) }
+          );
+        }
       } else {
         toast.error(result.error || 'Failed to update employee');
       }
@@ -103,12 +180,56 @@ export default function EmployeeManagement({}: EmployeeManagementProps) {
       if (result.success) {
         toast.success('Employee deleted successfully');
         fetchEmployees();
+        
+        // Log activity
+        if (restaurant) {
+          await EmployeeService.logEmployeeActivity(
+            employeeId,
+            restaurant.id,
+            'employee_deleted',
+            { deletedBy: user?.name }
+          );
+        }
       } else {
         toast.error(result.error || 'Failed to delete employee');
       }
     } catch (error) {
       console.error('Error deleting employee:', error);
       toast.error('Failed to delete employee');
+    }
+  };
+
+  const handleClockIn = async (employeeId: string) => {
+    if (!restaurant) return;
+    
+    try {
+      const result = await EmployeeService.clockIn(employeeId, restaurant.id);
+      if (result.success) {
+        toast.success('Employee clocked in successfully');
+        // Refresh data if needed
+      } else {
+        toast.error(result.error || 'Failed to clock in');
+      }
+    } catch (error) {
+      console.error('Error clocking in:', error);
+      toast.error('Failed to clock in');
+    }
+  };
+
+  const handleClockOut = async (employeeId: string) => {
+    if (!restaurant) return;
+    
+    try {
+      const result = await EmployeeService.clockOut(employeeId, restaurant.id);
+      if (result.success) {
+        toast.success(`Employee clocked out. Total hours: ${result.data?.totalHours?.toFixed(2) || 0}`);
+        // Refresh data if needed
+      } else {
+        toast.error(result.error || 'Failed to clock out');
+      }
+    } catch (error) {
+      console.error('Error clocking out:', error);
+      toast.error('Failed to clock out');
     }
   };
 
@@ -132,6 +253,17 @@ export default function EmployeeManagement({}: EmployeeManagementProps) {
     return employee.permissions.filter(p => p.access).length;
   };
 
+  const getEmployeeStats = () => {
+    const totalEmployees = employees.length;
+    const activeEmployees = employees.filter(emp => emp.isActive).length;
+    const managers = employees.filter(emp => emp.role === 'manager').length;
+    const staff = employees.filter(emp => emp.role === 'staff').length;
+    
+    return { totalEmployees, activeEmployees, managers, staff };
+  };
+
+  const stats = getEmployeeStats();
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -145,252 +277,590 @@ export default function EmployeeManagement({}: EmployeeManagementProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-            <Users className="w-6 h-6 mr-2" />
+          <h2 className="text-3xl font-bold text-gray-900 flex items-center">
+            <Users className="w-8 h-8 mr-3 text-blue-600" />
             Employee Management
           </h2>
-          <p className="text-gray-600 mt-1">
-            Manage your restaurant staff and their permissions
+          <p className="text-gray-600 mt-2">
+            Comprehensive staff management with performance tracking and analytics
           </p>
         </div>
         <button
           onClick={() => setShowCreateForm(true)}
-          className="btn btn-theme-primary flex items-center"
+          className="btn btn-theme-primary flex items-center text-white px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all"
         >
-          <UserPlus className="w-4 h-4 mr-2" />
+          <UserPlus className="w-5 h-5 mr-2" />
           Add Employee
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg border p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Search employees..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10"
-            />
-          </div>
-
-          {/* Role Filter */}
-          <select
-            value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value as any)}
-            className="input"
-          >
-            <option value="all">All Roles</option>
-            <option value="manager">Manager</option>
-            <option value="staff">Staff</option>
-          </select>
-
-          {/* Status Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
-            className="input"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Employee Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg border p-4">
-          <div className="flex items-center">
-            <Users className="w-8 h-8 text-blue-600" />
-            <div className="ml-3">
+      {/* Overview Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
               <p className="text-sm font-medium text-gray-600">Total Employees</p>
-              <p className="text-2xl font-bold text-gray-900">{employees.length}</p>
+              <p className="text-3xl font-bold text-gray-900">{stats.totalEmployees}</p>
+            </div>
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <Users className="w-6 h-6 text-blue-600" />
             </div>
           </div>
         </div>
-        
-        <div className="bg-white rounded-lg border p-4">
-          <div className="flex items-center">
-            <CheckCircle className="w-8 h-8 text-green-600" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-600">Active</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {employees.filter(e => e.isActive).length}
-              </p>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Active Staff</p>
+              <p className="text-3xl font-bold text-green-600">{stats.activeEmployees}</p>
+            </div>
+            <div className="p-3 bg-green-100 rounded-lg">
+              <UserCheck className="w-6 h-6 text-green-600" />
             </div>
           </div>
         </div>
-        
-        <div className="bg-white rounded-lg border p-4">
-          <div className="flex items-center">
-            <Shield className="w-8 h-8 text-purple-600" />
-            <div className="ml-3">
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
               <p className="text-sm font-medium text-gray-600">Managers</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {employees.filter(e => e.role === 'manager').length}
-              </p>
+              <p className="text-3xl font-bold text-purple-600">{stats.managers}</p>
+            </div>
+            <div className="p-3 bg-purple-100 rounded-lg">
+              <Shield className="w-6 h-6 text-purple-600" />
             </div>
           </div>
         </div>
-        
-        <div className="bg-white rounded-lg border p-4">
-          <div className="flex items-center">
-            <User className="w-8 h-8 text-orange-600" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-gray-600">Staff</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {employees.filter(e => e.role === 'staff').length}
-              </p>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Staff Members</p>
+              <p className="text-3xl font-bold text-orange-600">{stats.staff}</p>
+            </div>
+            <div className="p-3 bg-orange-100 rounded-lg">
+              <Briefcase className="w-6 h-6 text-orange-600" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Employee List */}
-      <div className="bg-white rounded-lg border overflow-hidden">
-        {filteredEmployees.length === 0 ? (
-          <div className="text-center py-12">
-            <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No employees found</h3>
-            <p className="text-gray-600 mb-4">
-              {employees.length === 0 
-                ? "Get started by adding your first employee"
-                : "Try adjusting your search or filters"
-              }
-            </p>
-            {employees.length === 0 && (
+      {/* Navigation Tabs */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            {[
+              { id: 'overview', name: 'Overview', icon: BarChart3 },
+              { id: 'employees', name: 'Employees', icon: Users },
+              { id: 'performance', name: 'Performance', icon: TrendingUp },
+              { id: 'shifts', name: 'Shifts', icon: Clock },
+              { id: 'activity', name: 'Activity Logs', icon: Activity }
+            ].map((tab) => (
               <button
-                onClick={() => setShowCreateForm(true)}
-                className="btn btn-theme-primary"
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center px-1 py-4 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
               >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Add First Employee
+                <tab.icon className="w-4 h-4 mr-2" />
+                {tab.name}
               </button>
-            )}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Employee
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Permissions
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Login
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredEmployees.map((employee) => (
-                  <tr key={employee.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                            <User className="w-5 h-5 text-gray-600" />
+            ))}
+          </nav>
+        </div>
+
+        <div className="p-6">
+          {/* Overview Tab */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Recent Employee Activity */}
+                <div className="bg-gray-50 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <Activity className="w-5 h-5 mr-2 text-blue-600" />
+                    Recent Activity
+                  </h3>
+                  <div className="space-y-3">
+                    {employees.slice(0, 5).map((employee) => (
+                      <div key={employee.id} className="flex items-center justify-between p-3 bg-white rounded-lg">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <User className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div className="ml-3">
+                            <p className="text-sm font-medium text-gray-900">{employee.name}</p>
+                            <p className="text-xs text-gray-500">{employee.role}</p>
                           </div>
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {employee.name}
-                          </div>
-                          <div className="text-sm text-gray-500 flex items-center">
-                            <Mail className="w-3 h-3 mr-1" />
-                            {employee.email}
-                          </div>
-                          <div className="text-sm text-gray-500 flex items-center">
-                            <Hash className="w-3 h-3 mr-1" />
-                            PIN: {employee.pin}
-                          </div>
+                        <div className="flex items-center">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            employee.isActive
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {employee.isActive ? 'Active' : 'Inactive'}
+                          </span>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        employee.role === 'manager' 
-                          ? 'bg-purple-100 text-purple-800' 
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {employee.role === 'manager' ? (
-                          <Shield className="w-3 h-3 mr-1" />
-                        ) : (
-                          <User className="w-3 h-3 mr-1" />
-                        )}
-                        {employee.role.charAt(0).toUpperCase() + employee.role.slice(1)}
+                    ))}
+                  </div>
+                </div>
+
+                {/* Performance Summary */}
+                <div className="bg-gray-50 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <Target className="w-5 h-5 mr-2 text-green-600" />
+                    Performance Summary
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Average Performance</span>
+                      <span className="text-lg font-semibold text-green-600">85%</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Top Performer</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {employees.find(emp => emp.isActive)?.name || 'N/A'}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Needs Attention</span>
+                      <span className="text-sm font-medium text-orange-600">0 employees</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Zap className="w-5 h-5 mr-2 text-blue-600" />
+                  Quick Actions
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button
+                    onClick={() => setShowCreateForm(true)}
+                    className="flex items-center justify-center p-4 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <UserPlus className="w-5 h-5 mr-2 text-blue-600" />
+                    <span className="font-medium">Add Employee</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('performance')}
+                    className="flex items-center justify-center p-4 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <BarChart3 className="w-5 h-5 mr-2 text-green-600" />
+                    <span className="font-medium">View Performance</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('shifts')}
+                    className="flex items-center justify-center p-4 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <Clock className="w-5 h-5 mr-2 text-purple-600" />
+                    <span className="font-medium">Manage Shifts</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Employees Tab */}
+          {activeTab === 'employees' && (
+            <div className="space-y-6">
+              {/* Filters */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {/* Search */}
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <input
+                      type="text"
+                      placeholder="Search employees..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  {/* Role Filter */}
+                  <select
+                    value={filterRole}
+                    onChange={(e) => setFilterRole(e.target.value as any)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">All Roles</option>
+                    <option value="manager">Manager</option>
+                    <option value="staff">Staff</option>
+                  </select>
+
+                  {/* Status Filter */}
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value as any)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Employee List */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Employee
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Role & Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Permissions
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Last Login
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredEmployees.map((employee) => (
+                        <tr key={employee.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                <User className="w-5 h-5 text-blue-600" />
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {employee.name}
+                                </div>
+                                <div className="text-sm text-gray-500 flex items-center">
+                                  <Mail className="w-3 h-3 mr-1" />
+                                  {employee.email}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mb-1 ${
+                                employee.role === 'manager'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {employee.role === 'manager' ? (
+                                  <Shield className="w-3 h-3 mr-1" />
+                                ) : (
+                                  <User className="w-3 h-3 mr-1" />
+                                )}
+                                {employee.role}
+                              </span>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                employee.isActive
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {employee.isActive ? (
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                ) : (
+                                  <XCircle className="w-3 h-3 mr-1" />
+                                )}
+                                {employee.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <ShieldCheck className="w-4 h-4 text-green-500 mr-2" />
+                              <span className="text-sm text-gray-900">
+                                {getPermissionCount(employee)} of {AVAILABLE_MODULES.length}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {employee.lastLoginAt 
+                              ? new Date(employee.lastLoginAt).toLocaleDateString()
+                              : 'Never'
+                            }
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => setEditingEmployee(employee)}
+                                className="text-blue-600 hover:text-blue-900 p-1 rounded"
+                                title="Edit Employee"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => toggleEmployeeStatus(employee)}
+                                className={`p-1 rounded ${
+                                  employee.isActive
+                                    ? 'text-red-600 hover:text-red-900'
+                                    : 'text-green-600 hover:text-green-900'
+                                }`}
+                                title={employee.isActive ? 'Deactivate' : 'Activate'}
+                              >
+                                {employee.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedEmployee(employee);
+                                  fetchEmployeeActivity(employee.id);
+                                }}
+                                className="text-purple-600 hover:text-purple-900 p-1 rounded"
+                                title="View Activity"
+                              >
+                                <Activity className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEmployee(employee.id)}
+                                className="text-red-600 hover:text-red-900 p-1 rounded"
+                                title="Delete Employee"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Performance Tab */}
+          {activeTab === 'performance' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Employee Performance Analytics</h3>
+                <button
+                  onClick={fetchPerformanceData}
+                  className="btn btn-secondary flex items-center"
+                >
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Refresh Data
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {performanceData.map((item) => (
+                  <div key={item.employee.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center">
-                        <ShieldCheck className="w-4 h-4 text-green-600 mr-1" />
-                        <span className="text-sm text-gray-900">
-                          {getPermissionCount(employee)} / {AVAILABLE_MODULES.length}
-                        </span>
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <User className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div className="ml-3">
+                          <h4 className="text-sm font-medium text-gray-900">{item.employee.name}</h4>
+                          <p className="text-xs text-gray-500">{item.employee.role}</p>
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => toggleEmployeeStatus(employee)}
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          employee.isActive
-                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                            : 'bg-red-100 text-red-800 hover:bg-red-200'
-                        } transition-colors`}
-                      >
-                        {employee.isActive ? (
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                        ) : (
-                          <XCircle className="w-3 h-3 mr-1" />
-                        )}
-                        {employee.isActive ? 'Active' : 'Inactive'}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {employee.lastLoginAt 
-                        ? new Date(employee.lastLoginAt).toLocaleDateString()
-                        : 'Never'
-                      }
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <button
-                          onClick={() => setEditingEmployee(employee)}
-                          className="text-blue-600 hover:text-blue-900 p-1 rounded"
-                          title="Edit Employee"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteEmployee(employee.id)}
-                          className="text-red-600 hover:text-red-900 p-1 rounded"
-                          title="Delete Employee"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        item.employee.isActive
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {item.employee.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+
+                    {item.performance ? (
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Total Orders</span>
+                          <span className="text-sm font-medium">{item.performance.totalOrders}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Revenue</span>
+                          <span className="text-sm font-medium">₹{item.performance.totalRevenue?.toFixed(2) || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Avg. Order Value</span>
+                          <span className="text-sm font-medium">₹{item.performance.averageOrderValue?.toFixed(2) || 0}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Completion Rate</span>
+                          <span className="text-sm font-medium text-green-600">
+                            {item.performance.completionRate?.toFixed(1) || 0}%
+                          </span>
+                        </div>
                       </div>
-                    </td>
-                  </tr>
+                    ) : (
+                      <div className="text-center py-4">
+                        <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">No performance data available</p>
+                      </div>
+                    )}
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </div>
+            </div>
+          )}
+
+          {/* Shifts Tab */}
+          {activeTab === 'shifts' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Shift Management</h3>
+                <div className="flex items-center space-x-3">
+                  <button className="btn btn-secondary flex items-center">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Schedule Shifts
+                  </button>
+                  <button className="btn btn-secondary flex items-center">
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Report
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Active Shifts */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <PlayCircle className="w-5 h-5 mr-2 text-green-600" />
+                    Currently Clocked In
+                  </h4>
+                  <div className="space-y-3">
+                    {employees.filter(emp => emp.isActive).slice(0, 3).map((employee) => (
+                      <div key={employee.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                            <User className="w-4 h-4 text-green-600" />
+                          </div>
+                          <div className="ml-3">
+                            <p className="text-sm font-medium text-gray-900">{employee.name}</p>
+                            <p className="text-xs text-gray-500">Started at 9:00 AM</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm text-green-600 font-medium">3.5 hrs</span>
+                          <button
+                            onClick={() => handleClockOut(employee.id)}
+                            className="text-red-600 hover:text-red-800 p-1 rounded"
+                            title="Clock Out"
+                          >
+                            <StopCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Available for Clock In */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <Timer className="w-5 h-5 mr-2 text-blue-600" />
+                    Available Staff
+                  </h4>
+                  <div className="space-y-3">
+                    {employees.filter(emp => emp.isActive).slice(3, 6).map((employee) => (
+                      <div key={employee.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <User className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div className="ml-3">
+                            <p className="text-sm font-medium text-gray-900">{employee.name}</p>
+                            <p className="text-xs text-gray-500">Ready to clock in</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleClockIn(employee.id)}
+                          className="text-green-600 hover:text-green-800 p-1 rounded"
+                          title="Clock In"
+                        >
+                          <PlayCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Activity Tab */}
+          {activeTab === 'activity' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Activity Logs</h3>
+                <select
+                  value={selectedEmployee?.id || ''}
+                  onChange={(e) => {
+                    const emp = employees.find(emp => emp.id === e.target.value);
+                    setSelectedEmployee(emp || null);
+                    if (emp) fetchEmployeeActivity(emp.id);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select Employee</option>
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedEmployee && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                  <div className="px-6 py-4 border-b border-gray-200">
+                    <h4 className="text-lg font-medium text-gray-900 flex items-center">
+                      <Activity className="w-5 h-5 mr-2 text-blue-600" />
+                      Activity for {selectedEmployee.name}
+                    </h4>
+                  </div>
+                  <div className="p-6">
+                    {activityData.length > 0 ? (
+                      <div className="space-y-4">
+                        {activityData.map((activity, index) => (
+                          <div key={index} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                              <Activity className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">
+                                {activity.action.replace(/_/g, ' ').toUpperCase()}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {activity.timestamp?.toLocaleString()}
+                              </p>
+                              {activity.details && (
+                                <pre className="text-xs text-gray-600 mt-1 bg-white p-2 rounded">
+                                  {JSON.stringify(activity.details, null, 2)}
+                                </pre>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                        <p className="text-gray-500">No activity data available for this employee</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Create Employee Modal */}
@@ -406,7 +876,7 @@ export default function EmployeeManagement({}: EmployeeManagementProps) {
         <EditEmployeeModal
           employee={editingEmployee}
           onClose={() => setEditingEmployee(null)}
-          onSubmit={(updates) => handleUpdateEmployee(editingEmployee.id, updates)}
+          onSubmit={handleUpdateEmployee}
         />
       )}
     </div>

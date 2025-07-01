@@ -30,6 +30,7 @@ import { useRestaurant } from '@/contexts/RestaurantContext';
 import { CustomerService } from '@/services/customerService';
 import { OrderService } from '@/services/orderService';
 import { GamificationIntegrationService } from '@/services/gamificationIntegrationService';
+import { CreditService, CreditTransaction } from '@/services/creditService';
 import { Customer, Order } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -50,7 +51,9 @@ export default function Customers() {
   const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
   const [customerGamificationHistory, setCustomerGamificationHistory] = useState<any>(null);
   const [customerLoyaltyInfo, setCustomerLoyaltyInfo] = useState<any>(null);
+  const [customerCreditHistory, setCustomerCreditHistory] = useState<CreditTransaction[]>([]);
   const [loadingGamification, setLoadingGamification] = useState(false);
+  const [loadingCredits, setLoadingCredits] = useState(false);
   const [selectedSpin, setSelectedSpin] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -235,48 +238,83 @@ export default function Customers() {
         }
       }
       
-             // Method 2: Search for orders by phone number and customer details (comprehensive fallback)
-       if (orders.length === 0 && customer.phone) {
-         console.log('📞 Searching orders by phone number:', customer.phone);
-         const allOrdersResult = await OrderService.getOrdersForRestaurant(restaurant.id, 1000); // Get more orders
-         if (allOrdersResult.success && allOrdersResult.data) {
-           // Filter orders that match this customer
-           const customerOrders = allOrdersResult.data.filter(order => {
-             // Check if order notes contain customer phone or name
-             const notesMatch = order.notes?.includes(customer.phone || '') || 
-                               (customer.name && order.notes?.includes(customer.name)) ||
-                               order.notes?.includes('Customer Portal');
-             
-             // Check if customerId matches
-             const customerIdMatch = order.customerId === customer.id;
-             
-             return notesMatch || customerIdMatch;
-           });
-           
-           orders = customerOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-           console.log('🔍 Found orders by search:', orders.length);
-         }
-       }
+      // Method 2: Search for orders by phone number and customer details (comprehensive fallback)
+      if (orders.length === 0 && customer.phone) {
+        console.log('📞 Searching orders by phone number:', customer.phone);
+        const allOrdersResult = await OrderService.getOrdersForRestaurant(restaurant.id, 1000); // Get more orders
+        if (allOrdersResult.success && allOrdersResult.data) {
+          // Filter orders that match this customer
+          const customerOrders = allOrdersResult.data.filter(order => {
+            // Check if order notes contain customer phone or name
+            const notesMatch = order.notes?.includes(customer.phone || '') || 
+                              (customer.name && order.notes?.includes(customer.name)) ||
+                              order.notes?.includes('Customer Portal');
+            
+            // Check if customerId matches
+            const customerIdMatch = order.customerId === customer.id;
+            
+            // Check if customer phone/name is in order customer fields
+            const customerMatch = order.customerPhone?.includes(customer.phone || '') ||
+                                 order.customerName?.toLowerCase().includes(customer.name?.toLowerCase() || '');
+            
+            return notesMatch || customerIdMatch || customerMatch;
+          });
+          
+          orders = customerOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          console.log('🔍 Found orders by search:', orders.length);
+        }
+      }
       
-             // Method 3: Final fallback - check recent orders for any mention of customer
-       if (orders.length === 0 && (customer.name || customer.email)) {
-         console.log('📧 Searching orders by name/email');
-         const allOrdersResult = await OrderService.getOrdersForRestaurant(restaurant.id, 500);
-         if (allOrdersResult.success && allOrdersResult.data) {
-           const customerOrders = allOrdersResult.data.filter(order => {
-             const searchTerms = [customer.name, customer.email, customer.phone].filter(Boolean);
-             return searchTerms.some(term => 
-               order.notes?.toLowerCase().includes(term?.toLowerCase() || '')
-             );
-           });
-           
-           orders = customerOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-           console.log('🎯 Found orders by name/email search:', orders.length);
-         }
-       }
+      // Method 3: Final fallback - check recent orders for any mention of customer
+      if (orders.length === 0 && (customer.name || customer.email)) {
+        console.log('📧 Searching orders by name/email');
+        const allOrdersResult = await OrderService.getOrdersForRestaurant(restaurant.id, 500);
+        if (allOrdersResult.success && allOrdersResult.data) {
+          const customerOrders = allOrdersResult.data.filter(order => {
+            const searchTerms = [customer.name, customer.email, customer.phone].filter(Boolean);
+            return searchTerms.some(term => 
+              order.notes?.toLowerCase().includes(term?.toLowerCase() || '') ||
+              order.customerName?.toLowerCase().includes(term?.toLowerCase() || '') ||
+              order.customerPhone?.includes(term || '') ||
+              order.customerEmail?.toLowerCase().includes(term?.toLowerCase() || '')
+            );
+          });
+          
+          orders = customerOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          console.log('🎯 Found orders by name/email search:', orders.length);
+        }
+      }
       
       setCustomerOrders(orders);
       console.log('✅ Final order count for customer:', orders.length);
+
+      // Load customer credit history
+      if (customer.phone || customer.name) {
+        setLoadingCredits(true);
+        try {
+          const creditResult = await CreditService.getCreditTransactions(restaurant.id);
+          if (creditResult.success && creditResult.data) {
+            // Filter credits for this customer by phone, name, or order IDs
+            const customerCredits = creditResult.data.filter(credit => 
+              (customer.phone && credit.customerPhone?.includes(customer.phone)) ||
+              (customer.name && credit.customerName?.toLowerCase().includes(customer.name.toLowerCase())) ||
+              orders.some(order => order.id === credit.orderId)
+            );
+            
+            setCustomerCreditHistory(customerCredits);
+            console.log('💳 Found credit transactions for customer:', customerCredits.length);
+          } else {
+            setCustomerCreditHistory([]);
+          }
+        } catch (error) {
+          console.error('Error loading credit history:', error);
+          setCustomerCreditHistory([]);
+        } finally {
+          setLoadingCredits(false);
+        }
+      } else {
+        setCustomerCreditHistory([]);
+      }
 
       // Load customer gamification history and loyalty info
       if (customer.phone) {
@@ -321,9 +359,10 @@ export default function Customers() {
     } catch (error) {
       console.error('Error loading customer data:', error);
       toast.error('Failed to load customer data');
-              setCustomerOrders([]);
-        setCustomerGamificationHistory(null);
-        setCustomerLoyaltyInfo(null);
+      setCustomerOrders([]);
+      setCustomerGamificationHistory(null);
+      setCustomerLoyaltyInfo(null);
+      setCustomerCreditHistory([]);
     }
   };
 
@@ -348,6 +387,79 @@ export default function Customers() {
     a.download = `customers-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  // Helper function to get order type display
+  const getOrderTypeInfo = (order: Order) => {
+    // Check for takeaway orders
+    if (order.type === 'takeaway' || order.tableId === 'takeaway-order') {
+      return {
+        type: 'Takeaway',
+        icon: '📦',
+        color: 'bg-orange-100 text-orange-800',
+        description: 'Takeaway Order'
+      };
+    }
+    
+    // Check for menu portal orders
+    if (order.tableId === 'customer-portal' || 
+        (order.notes && order.notes.includes('Customer Portal Order'))) {
+      return {
+        type: 'Menu Portal',
+        icon: '📱',
+        color: 'bg-blue-100 text-blue-800',
+        description: 'Online Menu Portal Order'
+      };
+    }
+    
+    // Check for table-specific portal orders
+    if (order.notes && order.notes.includes('Table:') && order.notes.includes('Customer Portal')) {
+      const tableMatch = order.notes.match(/Table: ([^|]+)/);
+      const tableName = tableMatch ? tableMatch[1].trim() : 'Unknown Table';
+      return {
+        type: 'Table Portal',
+        icon: '🪑',
+        color: 'bg-purple-100 text-purple-800',
+        description: `Table-specific portal order (${tableName})`
+      };
+    }
+    
+    // Default to dine-in
+    return {
+      type: 'Dine In',
+      icon: '🍽️',
+      color: 'bg-green-100 text-green-800',
+      description: 'Restaurant Dine-in Order'
+    };
+  };
+
+  // Calculate credit summary for customer
+  const calculateCreditSummary = () => {
+    if (customerCreditHistory.length === 0) {
+      return {
+        totalCredits: 0,
+        pendingAmount: 0,
+        paidAmount: 0,
+        totalTransactions: 0
+      };
+    }
+
+    const totalCredits = customerCreditHistory.reduce((sum, credit) => sum + (credit.totalAmount - credit.amountReceived), 0);
+    const pendingAmount = customerCreditHistory.reduce((sum, credit) => {
+      const totalPaid = credit.amountReceived + (credit.paymentHistory || []).reduce((pSum, p) => pSum + p.amount, 0);
+      const remaining = credit.totalAmount - totalPaid;
+      return sum + (remaining > 0 ? remaining : 0);
+    }, 0);
+    const paidAmount = customerCreditHistory.reduce((sum, credit) => {
+      return sum + (credit.paymentHistory || []).reduce((pSum, p) => pSum + p.amount, 0);
+    }, 0);
+
+    return {
+      totalCredits,
+      pendingAmount,
+      paidAmount,
+      totalTransactions: customerCreditHistory.length
+    };
   };
 
   if (!restaurant) {
@@ -1312,6 +1424,168 @@ export default function Customers() {
                   )}
                 </div>
 
+                {/* Credit History Section */}
+                <div className="mb-6 sm:mb-8">
+                  <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 flex items-center">
+                    <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-red-600" />
+                    Credit History & Payment Status
+                  </h4>
+                  
+                  {loadingCredits ? (
+                    <div className="flex items-center justify-center py-6">
+                      <div className="animate-spin rounded-full h-5 w-5 sm:h-6 sm:w-6 border-b-2 border-red-600 mr-2"></div>
+                      <span className="text-gray-600 text-sm sm:text-base">Loading credit information...</span>
+                    </div>
+                  ) : customerCreditHistory.length > 0 ? (
+                    <div className="space-y-4">
+                      {/* Credit Summary Stats */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 hover:bg-red-100 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-lg sm:text-2xl font-bold text-red-600">
+                                {formatCurrency(calculateCreditSummary().totalCredits)}
+                              </div>
+                              <div className="text-xs sm:text-sm text-red-600 font-medium">Total Credits</div>
+                            </div>
+                            <div className="text-xl sm:text-3xl">💳</div>
+                          </div>
+                          <div className="text-xs text-red-500 mt-1">
+                            {calculateCreditSummary().totalTransactions} transactions
+                          </div>
+                        </div>
+                        
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4 hover:bg-orange-100 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-lg sm:text-2xl font-bold text-orange-600">
+                                {formatCurrency(calculateCreditSummary().pendingAmount)}
+                              </div>
+                              <div className="text-xs sm:text-sm text-orange-600 font-medium">Pending</div>
+                            </div>
+                            <div className="text-xl sm:text-3xl">⏳</div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4 hover:bg-green-100 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-lg sm:text-2xl font-bold text-green-600">
+                                {formatCurrency(calculateCreditSummary().paidAmount)}
+                              </div>
+                              <div className="text-xs sm:text-sm text-green-600 font-medium">Paid Back</div>
+                            </div>
+                            <div className="text-xl sm:text-3xl">✅</div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 hover:bg-blue-100 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-lg sm:text-2xl font-bold text-blue-600">
+                                {calculateCreditSummary().pendingAmount > 0 ? 
+                                  `${((calculateCreditSummary().paidAmount / (calculateCreditSummary().paidAmount + calculateCreditSummary().pendingAmount)) * 100).toFixed(1)}%` : 
+                                  '100%'
+                                }
+                              </div>
+                              <div className="text-xs sm:text-sm text-blue-600 font-medium">Payment Rate</div>
+                            </div>
+                            <div className="text-xl sm:text-3xl">📊</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Credit Transactions */}
+                      <div>
+                        <h5 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Credit Transactions</h5>
+                        <div className="space-y-3 max-h-64 overflow-y-auto">
+                          {customerCreditHistory.map((credit) => {
+                            const totalPaid = credit.amountReceived + (credit.paymentHistory || []).reduce((sum, p) => sum + p.amount, 0);
+                            const remainingAmount = credit.totalAmount - totalPaid;
+                            
+                            return (
+                              <div key={credit.id} className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2 mb-2">
+                                      <div className="text-lg">💳</div>
+                                      <div>
+                                        <h6 className="font-medium text-gray-900 text-sm">
+                                          Order #{credit.orderId} - Table {credit.tableNumber}
+                                        </h6>
+                                        <div className="text-xs text-gray-500">
+                                          {new Date(credit.createdAt instanceof Date ? credit.createdAt : credit.createdAt.toDate()).toLocaleDateString()} at {new Date(credit.createdAt instanceof Date ? credit.createdAt : credit.createdAt.toDate()).toLocaleTimeString()}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-3 gap-2 text-xs">
+                                      <div>
+                                        <span className="text-gray-600">Total:</span>
+                                        <div className="font-medium">{formatCurrency(credit.totalAmount)}</div>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-600">Paid:</span>
+                                        <div className="font-medium text-green-600">{formatCurrency(totalPaid)}</div>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-600">Remaining:</span>
+                                        <div className="font-medium text-red-600">{formatCurrency(remainingAmount)}</div>
+                                      </div>
+                                    </div>
+
+                                    {/* Payment History */}
+                                    {credit.paymentHistory && credit.paymentHistory.length > 0 && (
+                                      <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <div className="text-xs text-gray-600 mb-1">Payment History:</div>
+                                        <div className="space-y-1">
+                                          {credit.paymentHistory.map((payment, idx) => (
+                                            <div key={idx} className="flex justify-between text-xs">
+                                              <span>{formatCurrency(payment.amount)} via {payment.paymentMethod}</span>
+                                              <span className="text-gray-500">
+                                                {new Date(payment.paidAt instanceof Date ? payment.paidAt : payment.paidAt.toDate()).toLocaleDateString()}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="text-right">
+                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                      credit.status === 'paid' 
+                                        ? 'bg-green-100 text-green-800'
+                                        : credit.status === 'partially_paid'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-red-100 text-red-800'
+                                    }`}>
+                                      {credit.status === 'paid' ? 'Fully Paid' : 
+                                       credit.status === 'partially_paid' ? 'Partially Paid' : 'Pending'}
+                                    </span>
+                                    
+                                    {credit.notes && (
+                                      <div className="text-xs text-gray-500 mt-1 max-w-32">
+                                        {credit.notes}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg">
+                      <DollarSign className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <h5 className="text-lg font-medium text-gray-600 mb-2">No Credit History</h5>
+                      <p className="text-gray-500">This customer has no credit transactions on record.</p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Order Analytics */}
                 {customerOrders.length > 0 && (
                   <div className="mb-6 sm:mb-8">
@@ -1322,7 +1596,7 @@ export default function Customers() {
                     
                     <div className="space-y-4 sm:space-y-6">
                       {/* Order Stats */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4">
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
                           <div className="flex items-center justify-between">
                             <div>
@@ -1371,6 +1645,69 @@ export default function Customers() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Order Type Breakdown */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-lg sm:text-2xl font-bold text-green-600">
+                                {customerOrders.filter(order => getOrderTypeInfo(order).type === 'Dine In').length}
+                              </div>
+                              <div className="text-xs sm:text-sm text-green-600 font-medium">Dine In</div>
+                            </div>
+                            <div className="text-xl sm:text-2xl">🍽️</div>
+                          </div>
+                          <div className="text-xs text-green-500 mt-1">
+                            {customerOrders.length > 0 ? ((customerOrders.filter(order => getOrderTypeInfo(order).type === 'Dine In').length / customerOrders.length) * 100).toFixed(1) : 0}% of orders
+                          </div>
+                        </div>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-lg sm:text-2xl font-bold text-blue-600">
+                                {customerOrders.filter(order => getOrderTypeInfo(order).type === 'Menu Portal').length}
+                              </div>
+                              <div className="text-xs sm:text-sm text-blue-600 font-medium">Menu Portal</div>
+                            </div>
+                            <div className="text-xl sm:text-2xl">📱</div>
+                          </div>
+                          <div className="text-xs text-blue-500 mt-1">
+                            {customerOrders.length > 0 ? ((customerOrders.filter(order => getOrderTypeInfo(order).type === 'Menu Portal').length / customerOrders.length) * 100).toFixed(1) : 0}% of orders
+                          </div>
+                        </div>
+                        
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-lg sm:text-2xl font-bold text-orange-600">
+                                {customerOrders.filter(order => getOrderTypeInfo(order).type === 'Takeaway').length}
+                              </div>
+                              <div className="text-xs sm:text-sm text-orange-600 font-medium">Takeaway</div>
+                            </div>
+                            <div className="text-xl sm:text-2xl">📦</div>
+                          </div>
+                          <div className="text-xs text-orange-500 mt-1">
+                            {customerOrders.length > 0 ? ((customerOrders.filter(order => getOrderTypeInfo(order).type === 'Takeaway').length / customerOrders.length) * 100).toFixed(1) : 0}% of orders
+                          </div>
+                        </div>
+                        
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-lg sm:text-2xl font-bold text-purple-600">
+                                {customerOrders.filter(order => getOrderTypeInfo(order).type === 'Table Portal').length}
+                              </div>
+                              <div className="text-xs sm:text-sm text-purple-600 font-medium">Table Portal</div>
+                            </div>
+                            <div className="text-xl sm:text-2xl">🪑</div>
+                          </div>
+                          <div className="text-xs text-purple-500 mt-1">
+                            {customerOrders.length > 0 ? ((customerOrders.filter(order => getOrderTypeInfo(order).type === 'Table Portal').length / customerOrders.length) * 100).toFixed(1) : 0}% of orders
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Order History */}
@@ -1388,10 +1725,21 @@ export default function Customers() {
                                    order.status === 'preparing' ? '👨‍🍳' : 
                                    order.status === 'ready' ? '🔔' : '⏳'}
                                 </div>
-                                <div>
-                                  <h6 className="font-semibold text-gray-900 text-sm sm:text-lg">
-                                    Order #{order.orderNumber}
-                                  </h6>
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2 mb-1">
+                                    <h6 className="font-semibold text-gray-900 text-sm sm:text-lg">
+                                      Order #{order.orderNumber}
+                                    </h6>
+                                    {/* Order Type Badge */}
+                                    {(() => {
+                                      const orderTypeInfo = getOrderTypeInfo(order);
+                                      return (
+                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${orderTypeInfo.color}`}>
+                                          {orderTypeInfo.icon} {orderTypeInfo.type}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
                                   <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0 text-xs sm:text-sm text-gray-500">
                                     <div className="flex items-center space-x-1">
                                       <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -1401,10 +1749,47 @@ export default function Customers() {
                                       <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
                                       <span>{new Date(order.createdAt).toLocaleTimeString()}</span>
                                     </div>
-                                    {order.tableId && (
+                                    {/* Enhanced Table/Location Info */}
+                                    {(() => {
+                                      const orderTypeInfo = getOrderTypeInfo(order);
+                                      if (orderTypeInfo.type === 'Takeaway') {
+                                        return (
+                                          <div className="flex items-center space-x-1">
+                                            <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
+                                            <span>Takeaway Counter</span>
+                                          </div>
+                                        );
+                                      } else if (orderTypeInfo.type === 'Menu Portal') {
+                                        return (
+                                          <div className="flex items-center space-x-1">
+                                            <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
+                                            <span>Online Portal</span>
+                                          </div>
+                                        );
+                                      } else if (orderTypeInfo.type === 'Table Portal' && order.notes) {
+                                        const tableMatch = order.notes.match(/Table: ([^|]+)/);
+                                        const tableName = tableMatch ? tableMatch[1].trim() : 'Table Portal';
+                                        return (
+                                          <div className="flex items-center space-x-1">
+                                            <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
+                                            <span>{tableName}</span>
+                                          </div>
+                                        );
+                                      } else if (order.tableId && order.tableId !== 'customer-portal' && order.tableId !== 'takeaway-order') {
+                                        return (
+                                          <div className="flex items-center space-x-1">
+                                            <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
+                                            <span>Table {order.tableId}</span>
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
+                                    {/* Customer Name if available */}
+                                    {(order.customerName || order.customerPhone) && (
                                       <div className="flex items-center space-x-1">
-                                        <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
-                                        <span>Table {order.tableId}</span>
+                                        <User className="w-3 h-3 sm:w-4 sm:h-4" />
+                                        <span>{order.customerName || order.customerPhone}</span>
                                       </div>
                                     )}
                                   </div>

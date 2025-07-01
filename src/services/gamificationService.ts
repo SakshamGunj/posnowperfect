@@ -645,12 +645,13 @@ export class GamificationService {
       },
       {
         id: '5',
-        label: 'Better Luck',
-        value: 'Try again tomorrow!',
+        label: 'Try Again',
+        value: 'Better luck next time!',
         color: '#FFEAA7',
         probability: 10,
         rewardType: 'custom',
         customMessage: 'Better luck next time! Come back tomorrow.',
+        noCoupon: true,
       },
       {
         id: '6',

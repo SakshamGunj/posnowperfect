@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Brain, Loader2 } from 'lucide-react';
 import { useVoice } from '@/contexts/VoiceContext';
 import { VoiceService } from '@/services/voiceService';
@@ -37,6 +37,9 @@ const VoiceButtonInner: React.FC<any> = ({
 }) => {
 
   const [showTranscript, setShowTranscript] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
+  const [pressStartTime, setPressStartTime] = useState<number | null>(null);
+  const isPressedRef = useRef(false);
 
   // Auto-hide transcript after 3 seconds
   useEffect(() => {
@@ -47,22 +50,71 @@ const VoiceButtonInner: React.FC<any> = ({
     }
   }, [transcript]);
 
+  // Effects for handling mouse/touch events
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      handleRecordStop();
+    };
+
+    const handleGlobalTouchEnd = () => {
+      handleRecordStop();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Start recording on spacebar press
+      if (e.code === 'Space' && !isPressedRef.current && hasPermission) {
+        e.preventDefault();
+        handleRecordStart({} as React.MouseEvent);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Stop recording on spacebar release
+      if (e.code === 'Space' && isPressedRef.current) {
+        e.preventDefault();
+        handleRecordStop();
+      }
+    };
+
+    if (isPressed) {
+      // Add global listeners when recording
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+      document.addEventListener('touchend', handleGlobalTouchEnd);
+      document.addEventListener('touchcancel', handleGlobalTouchEnd);
+    }
+
+    // Add keyboard listeners
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+      document.removeEventListener('touchend', handleGlobalTouchEnd);
+      document.removeEventListener('touchcancel', handleGlobalTouchEnd);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isPressed, hasPermission]);
+
   // Handle permission request on first use
   const handleFirstUse = async () => {
     if (!hasPermission) {
       const granted = await requestPermission();
       if (!granted) return;
     }
-    handleRecordStart();
+    handleRecordStart({} as React.MouseEvent);
   };
 
-  // Handle button click - now works like WhatsApp voice message
-  const handleClick = () => {
-    // Don't do anything on click - we use mouse/touch events instead
+  // Handle button click - prevent default click behavior
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // Don't do anything on click - we use mouse/touch press/release events instead
   };
 
   // Handle mouse/touch down - start push-to-talk recording
-  const handleRecordStart = () => {
+  const handleRecordStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    
     if (!isSupported) {
       toast.error('Voice commands not supported in this browser.');
       return;
@@ -73,26 +125,48 @@ const VoiceButtonInner: React.FC<any> = ({
       return;
     }
 
-    console.log('🎙️ VoiceButton: Starting push-to-talk recording');
+    if (isPressed) {
+      return; // Already recording, prevent duplicate starts
+    }
+
+    console.log('🎙️ VoiceButton: Hold started, beginning recording immediately');
     
-    // Start push-to-talk recording mode using VoiceService directly
+    setIsPressed(true);
+    isPressedRef.current = true;
+    setPressStartTime(Date.now());
+    
+    // Start recording immediately when hold starts
     const voiceService = VoiceService.getInstance();
     voiceService.startPushToTalkRecording();
   };
 
   // Handle mouse/touch up - stop push-to-talk recording and process
-  const handleRecordStop = () => {
-    if (isListening) {
-      console.log('🛑 VoiceButton: Stopping push-to-talk recording');
+  const handleRecordStop = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    
+    if (!isPressed) {
+      return; // Not recording, nothing to stop
+    }
+
+    console.log('🛑 VoiceButton: Release detected, stopping recording');
       
-      // Stop push-to-talk recording using VoiceService directly
+    setIsPressed(false);
+    isPressedRef.current = false;
+    setPressStartTime(null);
+    
+    // Stop recording since we started it immediately
       const voiceService = VoiceService.getInstance();
       voiceService.stopPushToTalkRecording();
-    }
   };
 
   // Get button color based on state
   const getButtonColor = () => {
+    if (isPressed) {
+      return 'bg-red-600 shadow-red-600/60 ring-4 ring-red-300 ring-opacity-60';
+    }
+    
     switch (state) {
       case 'listening':
         return 'bg-red-500 hover:bg-red-600 shadow-red-500/50';
@@ -137,9 +211,9 @@ const VoiceButtonInner: React.FC<any> = ({
       case 'executing':
         return 'Executing...';
       case 'error':
-        return 'Error';
+        return 'Error - Try again';
       default:
-        return 'Hold to record';
+        return 'Hold to record (or hold Space)';
     }
   };
 
@@ -178,22 +252,26 @@ const VoiceButtonInner: React.FC<any> = ({
 
         {/* Main Voice Button */}
         <button
+          onClick={handleClick}
           onMouseDown={hasPermission ? handleRecordStart : handleFirstUse}
           onMouseUp={handleRecordStop}
           onMouseLeave={handleRecordStop}
           onTouchStart={hasPermission ? handleRecordStart : handleFirstUse}
           onTouchEnd={handleRecordStop}
+          onTouchCancel={handleRecordStop}
+          onContextMenu={(e) => e.preventDefault()}
           disabled={!isSupported}
           className={`
-            relative h-20 w-20 rounded-full shadow-2xl transition-all duration-300 transform
+            relative h-20 w-20 rounded-full shadow-2xl transition-all duration-200 transform
             ${getButtonColor()}
-            ${isListening ? 'ring-4 ring-red-300 ring-opacity-50 scale-110' : ''}
-            active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-300 focus:ring-opacity-50
+            ${isListening || isPressed ? 'scale-110' : ''}
+            ${isPressed ? 'scale-105' : 'active:scale-95'}
+            focus:outline-none focus:ring-4 focus:ring-blue-300 focus:ring-opacity-50
             backdrop-blur-lg border-2 border-white/30
-            hover:shadow-3xl hover:scale-105
+            hover:shadow-3xl ${!isPressed ? 'hover:scale-105' : ''}
             before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-r 
             before:from-white/20 before:to-transparent before:opacity-50
-            select-none
+            select-none user-select-none
           `}
           style={{
             background: state === 'listening' || isListening ? 
@@ -204,10 +282,10 @@ const VoiceButtonInner: React.FC<any> = ({
               'linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%)' :
               'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)'
           }}
-          aria-label={`Voice command button - Hold to record`}
+          aria-label={`Voice command button - Hold to record continuously or press Space key`}
         >
-          {/* Animated ripple effects for listening */}
-          {isListening && (
+          {/* Animated ripple effects for listening or pressed */}
+          {(isListening || isPressed) && (
             <>
               <div className="absolute inset-0 rounded-full bg-red-400 animate-ping opacity-30"></div>
               <div className="absolute inset-2 rounded-full bg-red-300 animate-ping opacity-20 animation-delay-150"></div>

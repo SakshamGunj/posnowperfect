@@ -51,6 +51,7 @@ export default function KitchenDisplay() {
   // State management
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuPortalOrders, setMenuPortalOrders] = useState<Order[]>([]);
+  const [takeawayOrders, setTakeawayOrders] = useState<Order[]>([]);
   const [regularOrders, setRegularOrders] = useState<Order[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -143,14 +144,18 @@ export default function KitchenDisplay() {
           .filter(order => !hiddenOrderIds.has(order.id))
           .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-        // Separate menu portal orders from regular orders
+        // Separate orders by type: menu portal, takeaway, and dine-in
         const menuPortalOrders = activeOrders.filter(order => 
           order.tableId === 'customer-portal' || 
           (order.notes && order.notes.includes('Customer Portal Order'))
         );
+        const takeawayOrders = activeOrders.filter(order => 
+          order.type === 'takeaway' || order.tableId === 'takeaway-order'
+        );
         const regularOrders = activeOrders.filter(order => 
           order.tableId !== 'customer-portal' && 
-          !(order.notes && order.notes.includes('Customer Portal Order'))
+          !(order.notes && order.notes.includes('Customer Portal Order')) &&
+          order.type !== 'takeaway' && order.tableId !== 'takeaway-order'
         );
 
         // Check for new orders
@@ -191,6 +196,7 @@ export default function KitchenDisplay() {
 
         setOrders(activeOrders);
         setMenuPortalOrders(menuPortalOrders);
+        setTakeawayOrders(takeawayOrders);
         setRegularOrders(regularOrders);
         setLastOrderCount(activeOrders.length);
         setIsInitialized(true);
@@ -1024,6 +1030,120 @@ export default function KitchenDisplay() {
                             <span>Process Payment</span>
                           </button>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Takeaway Orders Section */}
+        {takeawayOrders.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-yellow-600 rounded-xl flex items-center justify-center">
+                <Package className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">Takeaway Orders</h2>
+              <div className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-medium">
+                {takeawayOrders.length} order{takeawayOrders.length !== 1 ? 's' : ''}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              {takeawayOrders.map((order) => {
+                const statusConfig = getStatusConfig(order.status);
+                const StatusIcon = statusConfig.icon;
+                const orderAge = getOrderAge(order.createdAt);
+                const isUrgent = orderAge > 15; // Takeaway orders are more urgent
+
+                return (
+                  <div
+                    key={order.id}
+                    className={`bg-gradient-to-br from-orange-50 to-yellow-50 rounded-xl shadow-lg border-2 ${statusConfig.color} transition-all duration-200 hover:shadow-xl ${
+                      isUrgent ? 'ring-2 ring-red-500 ring-opacity-50' : ''
+                    }`}
+                  >
+                    {/* Takeaway Header */}
+                    <div className="p-4 border-b border-orange-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <Package className="w-5 h-5 text-orange-600" />
+                          <span className="text-lg font-bold text-gray-900">#{order.orderNumber}</span>
+                        </div>
+                        <div className={`flex items-center space-x-2 ${statusConfig.textColor}`}>
+                          <StatusIcon className="w-5 h-5" />
+                          <span className="text-sm font-medium">{statusConfig.label}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center space-x-1 text-orange-600">
+                          <User className="w-4 h-4" />
+                          <span className="font-medium">
+                            {order.customerName || 'Walk-in Customer'}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Timer className="w-4 h-4" />
+                          <span className={isUrgent ? 'text-red-600 font-medium' : 'text-gray-600'}>
+                            {orderAge}m ago
+                          </span>
+                          {isUrgent && <AlertTriangle className="w-4 h-4 text-red-500" />}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-sm text-gray-500 mt-1">
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-4 h-4" />
+                          <span>{formatTime(order.createdAt)}</span>
+                        </div>
+                        <div className="flex items-center space-x-1 text-orange-600">
+                          <Package className="w-4 h-4" />
+                          <span className="font-medium text-xs bg-orange-100 px-2 py-1 rounded-full">TAKEAWAY</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Order Items */}
+                    <div className="p-4">
+                      <div className="space-y-2 mb-4">
+                        {order.items.map((item, index) => (
+                          <div key={index} className="flex justify-between items-center">
+                            <div className="flex-1">
+                              <span className="font-medium text-gray-900">{item.name}</span>
+                              {item.notes && (
+                                <div className="text-sm text-gray-600 mt-1">
+                                  <em>"{item.notes}"</em>
+                                </div>
+                              )}
+                            </div>
+                            <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-sm font-medium">
+                              x{item.quantity}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {order.notes && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                          <p className="text-sm text-yellow-800">
+                            <strong>Special Instructions:</strong> {order.notes}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Action Button */}
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => updateOrderStatus(order.id, 'completed')}
+                          className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4 rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 font-medium flex items-center justify-center space-x-2 shadow-lg"
+                        >
+                          <CheckCircle className="w-5 h-5" />
+                          <span>Ready for Pickup</span>
+                        </button>
                       </div>
                     </div>
                   </div>

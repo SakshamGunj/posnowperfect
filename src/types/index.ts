@@ -121,6 +121,65 @@ export interface UpdateEmployeeRequest {
   isActive?: boolean;
 }
 
+// Employee Activity & Shift Management Types
+export interface EmployeeActivity {
+  id: string;
+  employeeId: string;
+  restaurantId: string;
+  action: string;
+  details?: any;
+  timestamp: Date;
+  createdAt: Date;
+}
+
+export interface EmployeeShift {
+  id: string;
+  employeeId: string;
+  restaurantId: string;
+  clockInTime: Date;
+  clockOutTime?: Date;
+  breakTime: number; // minutes
+  totalHours: number;
+  date: string; // YYYY-MM-DD format
+  notes?: string;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+export interface EmployeePerformance {
+  totalOrders: number;
+  totalRevenue: number;
+  averageOrderValue: number;
+  completionRate: number;
+  cancellationRate: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  period: {
+    start: Date | null;
+    end: Date | null;
+  };
+}
+
+export interface ShiftStatus {
+  isClocked: boolean;
+  shift?: {
+    id: string;
+    clockInTime: Date;
+    currentHours: number;
+  } | null;
+}
+
+export interface EmployeeAnalytics {
+  employee: {
+    id: string;
+    name: string;
+    email: string;
+    role: 'manager' | 'staff';
+    isActive: boolean;
+  };
+  performance: EmployeePerformance | null;
+}
+
 // Available modules for permission assignment
 export interface ModulePermission {
   id: string;
@@ -577,6 +636,7 @@ export interface SpinWheelSegment {
   rewardValue?: number; // For discount percentages or fixed amounts
   menuItemId?: string; // For free item rewards
   customMessage?: string; // For custom rewards
+  noCoupon?: boolean; // If true, no coupon will be generated for this segment
 }
 
 export interface PointsThreshold {
@@ -1082,4 +1142,462 @@ export interface CustomerPortalSettings {
     address: string;
     radius: number;
   };
+} 
+
+// Expense Management Types
+export type ExpenseCategoryType = 
+  | 'staff' 
+  | 'inventory' 
+  | 'utilities' 
+  | 'rent' 
+  | 'marketing' 
+  | 'equipment' 
+  | 'maintenance' 
+  | 'supplies' 
+  | 'food_beverage' 
+  | 'transportation' 
+  | 'insurance' 
+  | 'taxes' 
+  | 'professional_services' 
+  | 'technology' 
+  | 'custom';
+
+export type ExpenseStatus = 'pending' | 'approved' | 'rejected' | 'paid';
+
+export type ExpensePaymentMethod = 'cash' | 'bank_transfer' | 'credit_card' | 'upi' | 'cheque' | 'other';
+
+export type ExpenseRecurrence = 'none' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+
+export interface ExpenseCategory {
+  id: string;
+  restaurantId: string;
+  name: string;
+  description?: string;
+  color: string; // Hex color for visual distinction
+  icon: string; // Lucide icon name
+  isDefault: boolean; // Whether it's a system default category
+  isActive: boolean;
+  budget?: {
+    monthlyLimit?: number;
+    yearlyLimit?: number;
+    alertThreshold?: number; // Percentage (e.g., 80 for 80%)
+  };
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;
+}
+
+export interface Expense {
+  id: string;
+  restaurantId: string;
+  categoryId: string;
+  categoryName: string;
+  title: string;
+  description?: string;
+  amount: number;
+  currency: string;
+  paymentMethod: ExpensePaymentMethod;
+  
+  // Date information
+  expenseDate: Date;
+  dueDate?: Date;
+  paidDate?: Date;
+  
+  // Status and approval
+  status: ExpenseStatus;
+  approvedBy?: string;
+  approvedAt?: Date;
+  rejectionReason?: string;
+  
+  // Vendor information
+  vendor?: {
+    name: string;
+    contact?: string;
+    email?: string;
+    phone?: string;
+  };
+  
+  // Receipt and documentation
+  receiptImage?: string;
+  invoiceNumber?: string;
+  reference?: string;
+  notes?: string;
+  
+  // Recurring expense settings
+  isRecurring: boolean;
+  recurrence?: {
+    type: ExpenseRecurrence;
+    interval: number; // e.g., every 2 weeks
+    endDate?: Date;
+    nextDueDate?: Date;
+    totalOccurrences?: number;
+    completedOccurrences?: number;
+  };
+  
+  // Tags for better organization
+  tags?: string[];
+  
+  // Metadata
+  createdBy: string;
+  updatedBy?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ExpenseBudget {
+  id: string;
+  restaurantId: string;
+  categoryId: string;
+  categoryName: string;
+  period: 'monthly' | 'quarterly' | 'yearly';
+  budgetAmount: number;
+  spentAmount: number;
+  remainingAmount: number;
+  alertThreshold: number; // Percentage
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;
+}
+
+export interface ExpenseAnalytics {
+  totalExpenses: number;
+  monthlyExpenses: number;
+  yearlyExpenses: number;
+  averageMonthlyExpense: number;
+  
+  // Category breakdown
+  categoryBreakdown: {
+    categoryId: string;
+    categoryName: string;
+    amount: number;
+    percentage: number;
+    count: number;
+  }[];
+  
+  // Monthly trends
+  monthlyTrends: {
+    month: string;
+    amount: number;
+    count: number;
+  }[];
+  
+  // Top vendors
+  topVendors: {
+    vendorName: string;
+    amount: number;
+    count: number;
+  }[];
+  
+  // Budget performance
+  budgetPerformance: {
+    categoryId: string;
+    categoryName: string;
+    budgetAmount: number;
+    spentAmount: number;
+    percentage: number;
+    status: 'under_budget' | 'on_track' | 'over_budget';
+  }[];
+  
+  // Payment method breakdown
+  paymentMethodBreakdown: {
+    method: ExpensePaymentMethod;
+    amount: number;
+    percentage: number;
+    count: number;
+  }[];
+}
+
+export interface CreateExpenseRequest {
+  categoryId: string;
+  title: string;
+  description?: string;
+  amount: number;
+  paymentMethod: ExpensePaymentMethod;
+  expenseDate: Date;
+  dueDate?: Date;
+  vendor?: {
+    name: string;
+    contact?: string;
+    email?: string;
+    phone?: string;
+  };
+  receiptImage?: string;
+  invoiceNumber?: string;
+  reference?: string;
+  notes?: string;
+  isRecurring?: boolean;
+  recurrence?: {
+    type: ExpenseRecurrence;
+    interval: number;
+    endDate?: Date;
+    totalOccurrences?: number;
+  };
+  tags?: string[];
+}
+
+export interface UpdateExpenseRequest {
+  categoryId?: string;
+  title?: string;
+  description?: string;
+  amount?: number;
+  paymentMethod?: ExpensePaymentMethod;
+  expenseDate?: Date;
+  dueDate?: Date;
+  vendor?: {
+    name: string;
+    contact?: string;
+    email?: string;
+    phone?: string;
+  };
+  receiptImage?: string;
+  invoiceNumber?: string;
+  reference?: string;
+  notes?: string;
+  status?: ExpenseStatus;
+  tags?: string[];
+}
+
+export interface ExpenseFilters {
+  categoryIds?: string[];
+  status?: ExpenseStatus[];
+  paymentMethods?: ExpensePaymentMethod[];
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+  amountRange?: {
+    min: number;
+    max: number;
+  };
+  vendors?: string[];
+  tags?: string[];
+  isRecurring?: boolean;
+  searchTerm?: string;
+}
+
+export interface ExpenseStats {
+  todayExpenses: number;
+  weekExpenses: number;
+  monthExpenses: number;
+  yearExpenses: number;
+  pendingExpenses: number;
+  overdueExpenses: number;
+  recurringExpenses: number;
+  avgDailyExpense: number;
+  avgMonthlyExpense: number;
+  topCategory: {
+    name: string;
+    amount: number;
+  };
+  recentExpenses: Expense[];
+}
+
+// Expense Management Types
+
+
+export interface Expense {
+  id: string;
+  restaurantId: string;
+  categoryId: string;
+  categoryName: string;
+  title: string;
+  description?: string;
+  amount: number;
+  currency: string;
+  paymentMethod: ExpensePaymentMethod;
+  
+  // Date information
+  expenseDate: Date;
+  dueDate?: Date;
+  paidDate?: Date;
+  
+  // Status and approval
+  status: ExpenseStatus;
+  approvedBy?: string;
+  approvedAt?: Date;
+  rejectionReason?: string;
+  
+  // Vendor information
+  vendor?: {
+    name: string;
+    contact?: string;
+    email?: string;
+    phone?: string;
+  };
+  
+  // Receipt and documentation
+  receiptImage?: string;
+  invoiceNumber?: string;
+  reference?: string;
+  notes?: string;
+  
+  // Recurring expense settings
+  isRecurring: boolean;
+  recurrence?: {
+    type: ExpenseRecurrence;
+    interval: number; // e.g., every 2 weeks
+    endDate?: Date;
+    nextDueDate?: Date;
+    totalOccurrences?: number;
+    completedOccurrences?: number;
+  };
+  
+  // Tags for better organization
+  tags?: string[];
+  
+  // Metadata
+  createdBy: string;
+  updatedBy?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ExpenseBudget {
+  id: string;
+  restaurantId: string;
+  categoryId: string;
+  categoryName: string;
+  period: 'monthly' | 'quarterly' | 'yearly';
+  budgetAmount: number;
+  spentAmount: number;
+  remainingAmount: number;
+  alertThreshold: number; // Percentage
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;
+}
+
+export interface ExpenseAnalytics {
+  totalExpenses: number;
+  monthlyExpenses: number;
+  yearlyExpenses: number;
+  averageMonthlyExpense: number;
+  
+  // Category breakdown
+  categoryBreakdown: {
+    categoryId: string;
+    categoryName: string;
+    amount: number;
+    percentage: number;
+    count: number;
+  }[];
+  
+  // Monthly trends
+  monthlyTrends: {
+    month: string;
+    amount: number;
+    count: number;
+  }[];
+  
+  // Top vendors
+  topVendors: {
+    vendorName: string;
+    amount: number;
+    count: number;
+  }[];
+  
+  // Budget performance
+  budgetPerformance: {
+    categoryId: string;
+    categoryName: string;
+    budgetAmount: number;
+    spentAmount: number;
+    percentage: number;
+    status: 'under_budget' | 'on_track' | 'over_budget';
+  }[];
+  
+  // Payment method breakdown
+  paymentMethodBreakdown: {
+    method: ExpensePaymentMethod;
+    amount: number;
+    percentage: number;
+    count: number;
+  }[];
+}
+
+export interface CreateExpenseRequest {
+  categoryId: string;
+  title: string;
+  description?: string;
+  amount: number;
+  paymentMethod: ExpensePaymentMethod;
+  expenseDate: Date;
+  dueDate?: Date;
+  vendor?: {
+    name: string;
+    contact?: string;
+    email?: string;
+    phone?: string;
+  };
+  receiptImage?: string;
+  invoiceNumber?: string;
+  reference?: string;
+  notes?: string;
+  isRecurring?: boolean;
+  recurrence?: {
+    type: ExpenseRecurrence;
+    interval: number;
+    endDate?: Date;
+    totalOccurrences?: number;
+  };
+  tags?: string[];
+}
+
+export interface UpdateExpenseRequest {
+  categoryId?: string;
+  title?: string;
+  description?: string;
+  amount?: number;
+  paymentMethod?: ExpensePaymentMethod;
+  expenseDate?: Date;
+  dueDate?: Date;
+  vendor?: {
+    name: string;
+    contact?: string;
+    email?: string;
+    phone?: string;
+  };
+  receiptImage?: string;
+  invoiceNumber?: string;
+  reference?: string;
+  notes?: string;
+  status?: ExpenseStatus;
+  tags?: string[];
+}
+
+export interface ExpenseFilters {
+  categoryIds?: string[];
+  status?: ExpenseStatus[];
+  paymentMethods?: ExpensePaymentMethod[];
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+  amountRange?: {
+    min: number;
+    max: number;
+  };
+  vendors?: string[];
+  tags?: string[];
+  isRecurring?: boolean;
+  searchTerm?: string;
+}
+
+export interface ExpenseStats {
+  todayExpenses: number;
+  weekExpenses: number;
+  monthExpenses: number;
+  yearExpenses: number;
+  pendingExpenses: number;
+  overdueExpenses: number;
+  recurringExpenses: number;
+  avgDailyExpense: number;
+  avgMonthlyExpense: number;
+  topCategory: {
+    name: string;
+    amount: number;
+  };
+  recentExpenses: Expense[];
 } 

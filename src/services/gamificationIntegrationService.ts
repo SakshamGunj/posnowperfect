@@ -45,7 +45,18 @@ export class GamificationIntegrationService {
         preferences: crmResult.customer?.preferences
       });
 
-      // Step 2: Create coupon in coupon system
+      // Step 2: Check if this is a "no coupon" segment (e.g., "Try Again")
+      if (spinResult.noCoupon) {
+        console.log('🚫 No coupon segment detected - skipping coupon creation');
+        console.log('🎉 Integration completed successfully (no coupon created)!');
+        
+        return {
+          success: true,
+          message: 'Try again segment processed successfully - no coupon created'
+        };
+      }
+
+      // Step 3: Create coupon in coupon system (only if not a no-coupon segment)
       const couponResult = await this.createGamificationCoupon(
         restaurantId,
         user,

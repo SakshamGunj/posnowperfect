@@ -22,6 +22,9 @@ import {
   Smartphone,
   Receipt,
   ShoppingCart,
+  ClipboardList,
+  Gamepad2,
+  UserCheck,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -63,6 +66,27 @@ export default function RestaurantNavbar() {
 
   const allQuickMenuItems = [
     {
+      name: 'Manage Tables',
+      href: `/${restaurant.slug}/tables`,
+      icon: Grid3X3,
+      description: 'View and manage tables',
+      moduleId: 'tables',
+    },
+    {
+      name: 'Orders Dashboard',
+      href: `/${restaurant.slug}/orders`,
+      icon: ClipboardList,
+      description: 'View and analyze orders',
+      moduleId: 'orders',
+    },
+    {
+      name: 'Takeaway Orders',
+      href: `/${restaurant.slug}/takeaway`,
+      icon: Package,
+      description: 'Manage takeaway orders',
+      moduleId: 'orders',
+    },
+    {
       name: 'Menu Management',
       href: `/${restaurant.slug}/menu`,
       icon: ChefHat,
@@ -70,39 +94,11 @@ export default function RestaurantNavbar() {
       moduleId: 'menu',
     },
     {
-      name: 'Inventory',
+      name: 'Inventory Management',
       href: `/${restaurant.slug}/inventory`,
       icon: Package,
       description: 'Track stock & inventory',
       moduleId: 'inventory',
-    },
-    {
-      name: 'Customers',
-      href: `/${restaurant.slug}/customers`,
-      icon: CreditCard,
-      description: 'Manage customer database',
-      moduleId: 'customers',
-    },
-    {
-      name: 'Credits',
-      href: `/${restaurant.slug}/credits`,
-      icon: Receipt,
-      description: 'Manage customer credits & payments',
-      moduleId: 'credits',
-    },
-    {
-      name: 'Coupons',
-      href: `/${restaurant.slug}/coupons`,
-      icon: Gift,
-      description: 'Manage coupons & promotions',
-      moduleId: 'coupons',
-    },
-    {
-      name: 'Gamification',
-      href: `/${restaurant.slug}/gamification`,
-      icon: Grid3X3,
-      description: 'Spin wheel & customer games',
-      moduleId: 'gamification',
     },
     {
       name: 'Kitchen Display',
@@ -119,16 +115,37 @@ export default function RestaurantNavbar() {
       moduleId: 'customer_portal',
     },
     {
-      name: 'Analytics',
-      href: `/${restaurant.slug}/analytics`,
-      icon: TrendingUp,
-      description: 'View performance analytics',
-      moduleId: 'reports',
+      name: 'Customer Management',
+      href: `/${restaurant.slug}/customers`,
+      icon: Users,
+      description: 'Manage customer database',
+      moduleId: 'customers',
+    },
+    {
+      name: 'Credit Management',
+      href: `/${restaurant.slug}/credits`,
+      icon: CreditCard,
+      description: 'Manage customer credits & payments',
+      moduleId: 'credits',
+    },
+    {
+      name: 'Coupon Dashboard',
+      href: `/${restaurant.slug}/coupons`,
+      icon: Gift,
+      description: 'Manage coupons & promotions',
+      moduleId: 'coupons',
+    },
+    {
+      name: 'Gamification Tools',
+      href: `/${restaurant.slug}/gamification`,
+      icon: Gamepad2,
+      description: 'Spin wheel & customer engagement',
+      moduleId: 'gamification',
     },
     {
       name: 'Employee Management',
       href: `/${restaurant.slug}/employees`,
-      icon: Users,
+      icon: UserCheck,
       description: 'Manage staff & permissions',
       moduleId: 'employees',
     },
@@ -136,8 +153,22 @@ export default function RestaurantNavbar() {
       name: 'Marketplace',
       href: `/${restaurant.slug}/marketplace`,
       icon: ShoppingCart,
-      description: 'Order bulk supplies',
+      description: 'Order bulk supplies & wholesale',
       moduleId: 'marketplace',
+    },
+    {
+      name: 'Expense Tracker',
+      href: `/${restaurant.slug}/expenses`,
+      icon: Receipt,
+      description: 'Track business expenses & budgets',
+      moduleId: 'expenses',
+    },
+    {
+      name: 'Business Reports',
+      href: `/${restaurant.slug}/reports`,
+      icon: TrendingUp,
+      description: 'Generate comprehensive reports',
+      moduleId: 'reports',
     },
     {
       name: 'Settings',
@@ -226,13 +257,13 @@ export default function RestaurantNavbar() {
                       className="fixed inset-0 z-10" 
                       onClick={() => setIsQuickMenuOpen(false)}
                     ></div>
-                    <div className="absolute top-full mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-20">
-                      <div className="px-4 py-2 border-b border-gray-100">
-                        <h3 className="text-sm font-semibold text-gray-900">Quick Access</h3>
-                        <p className="text-xs text-gray-500">Manage your restaurant operations</p>
+                    <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-xl shadow-2xl border border-gray-200 py-4 z-20 max-h-[80vh] overflow-y-auto custom-scrollbar" style={{ minWidth: '800px' }}>
+                      <div className="px-6 pb-4 border-b border-gray-100">
+                        <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
+                        <p className="text-sm text-gray-500">Access all restaurant management tools</p>
                       </div>
                       
-                      <div className="py-2">
+                      <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                         {quickMenuItems.map((item) => {
                           const Icon = item.icon;
                           const isCurrentPage = location.pathname === item.href;
@@ -240,21 +271,27 @@ export default function RestaurantNavbar() {
                             <button
                               key={item.name}
                               onClick={() => handleNavigation(item.href)}
-                              className={`flex items-start w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
-                                isCurrentPage ? 'bg-blue-50 border-r-2 border-blue-500' : ''
+                              className={`group flex flex-col items-center p-4 rounded-xl border-2 transition-all duration-200 hover:shadow-md ${
+                                isCurrentPage 
+                                  ? 'bg-blue-50 border-blue-200 shadow-md' 
+                                  : 'bg-gray-50 border-gray-200 hover:bg-white hover:border-blue-200'
                               }`}
                             >
-                              <Icon className={`w-5 h-5 mr-3 mt-0.5 flex-shrink-0 ${
-                                isCurrentPage ? 'text-blue-600' : 'text-gray-400'
-                              }`} />
-                              <div>
-                                <p className={`text-sm font-medium ${
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-3 transition-colors ${
+                                isCurrentPage 
+                                  ? 'bg-blue-500 text-white' 
+                                  : 'bg-white text-gray-600 group-hover:bg-blue-500 group-hover:text-white'
+                              }`}>
+                                <Icon className="w-6 h-6" />
+                              </div>
+                              <h4 className={`text-sm font-medium text-center mb-1 ${
                                   isCurrentPage ? 'text-blue-900' : 'text-gray-900'
                                 }`}>
                                   {item.name}
+                              </h4>
+                              <p className="text-xs text-gray-500 text-center line-clamp-2">
+                                {item.description}
                                 </p>
-                                <p className="text-xs text-gray-500">{item.description}</p>
-                              </div>
                             </button>
                           );
                         })}
@@ -359,7 +396,7 @@ export default function RestaurantNavbar() {
             </div>
 
             {/* Navigation Items */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-6 space-y-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-6 space-y-2" style={{ WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}>
               {/* Primary Items */}
               <div className="mb-6">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">

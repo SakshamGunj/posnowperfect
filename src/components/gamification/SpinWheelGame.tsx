@@ -1393,7 +1393,9 @@ export default function SpinWheelGame({ wheelConfig, restaurantName, onSpinCompl
     return subtitle;
   };
 
-  const isWinningSegment = spinResult && !(spinResult.rewardType === 'custom' && spinResult.label.toLowerCase().includes('luck'));
+  const isWinningSegment = spinResult && 
+    !(spinResult.rewardType === 'custom' && spinResult.label.toLowerCase().includes('luck')) &&
+    !spinResult.noCoupon;
 
   console.log('🎯 Result Modal Debug:', {
     showResultModal,

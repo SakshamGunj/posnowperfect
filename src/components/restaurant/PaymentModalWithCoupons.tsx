@@ -39,6 +39,7 @@ export default function PaymentModalWithCoupons({
   // Credit functionality states
   const [creditCustomerName, setCreditCustomerName] = useState('');
   const [creditCustomerPhone, setCreditCustomerPhone] = useState('');
+  const [addWholeAmountAsCredit, setAddWholeAmountAsCredit] = useState(false);
   
   // Split payment functionality states
   const [isSplitPayment, setIsSplitPayment] = useState(false);
@@ -54,6 +55,7 @@ export default function PaymentModalWithCoupons({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [showCreditCustomerDropdown, setShowCreditCustomerDropdown] = useState(false);
   
   // Manual discount
   const [manualDiscount, setManualDiscount] = useState<{type: 'percentage' | 'fixed', value: number, reason: string}>({
@@ -135,9 +137,9 @@ export default function PaymentModalWithCoupons({
   const isSplitAmountValid = Math.abs(totalSplitAmount - finalTotal) < 0.01; // Allow for small rounding differences
   const splitPaymentShortfall = finalTotal - totalSplitAmount;
 
-  // Check if payment is credit (amount received is less than total)
-  const actualAmountReceived = isSplitPayment ? totalSplitAmount : parseFloat(amountReceived);
-  const isCredit = actualAmountReceived < finalTotal && actualAmountReceived > 0;
+  // Check if payment is credit (amount received is less than total OR whole amount as credit is selected)
+  const actualAmountReceived = addWholeAmountAsCredit ? 0 : (isSplitPayment ? totalSplitAmount : (parseFloat(amountReceived) || finalTotal));
+  const isCredit = (actualAmountReceived < finalTotal && actualAmountReceived >= 0) || addWholeAmountAsCredit;
   const creditAmount = isCredit ? finalTotal - actualAmountReceived : 0;
 
   const handleApplyCoupon = async () => {
@@ -184,7 +186,10 @@ export default function PaymentModalWithCoupons({
 
   const handleCustomerSearch = (searchTerm: string) => {
     setCustomerSearchTerm(searchTerm);
-    setShowCustomerDropdown(true);
+    setShowCustomerDropdown(searchTerm.length > 0);
+    if (searchTerm.length === 0) {
+      setSelectedCustomerId('');
+    }
   };
 
   const selectCustomer = (customer: Customer) => {
@@ -197,6 +202,40 @@ export default function PaymentModalWithCoupons({
     setSelectedCustomerId('');
     setCustomerSearchTerm('');
     setShowCustomerDropdown(false);
+  };
+
+  const handleCreateNewCustomer = async (name: string, phone: string) => {
+    if (!restaurant?.id) return;
+    
+    try {
+      const result = await CustomerService.createCustomer(restaurant.id, {
+        name: name.trim(),
+        phone: phone.trim(),
+      });
+
+      if (result.success && result.data) {
+        // Add to local customers list
+        setCustomers(prev => [result.data!, ...prev]);
+        
+        // Select the new customer
+        setSelectedCustomerId(result.data.id);
+        setCustomerSearchTerm(result.data.name || result.data.phone || '');
+        setShowCustomerDropdown(false);
+        
+        // Update credit customer details if in credit mode
+        if (isCredit || addWholeAmountAsCredit) {
+          setCreditCustomerName(result.data.name || '');
+          setCreditCustomerPhone(result.data.phone || '');
+        }
+        
+        toast.success('Customer created and added to CRM successfully!');
+      } else {
+        toast.error(result.error || 'Failed to create customer');
+      }
+    } catch (error) {
+      console.error('Error creating customer:', error);
+      toast.error('Failed to create customer');
+    }
   };
 
   const handleTipSelect = (tipAmount: number) => {
@@ -218,15 +257,41 @@ export default function PaymentModalWithCoupons({
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
-  const handlePayment = () => {
-    const actualAmountReceivedNum = isSplitPayment ? totalSplitAmount : (parseFloat(amountReceived) || finalTotal);
+  const handlePayment = async () => {
+    const actualAmountReceivedNum = addWholeAmountAsCredit ? 0 : (isSplitPayment ? totalSplitAmount : (parseFloat(amountReceived) || finalTotal));
+    
+    let creditCustomerId = selectedCustomerId;
+    
+    // If credit mode and no customer selected but credit customer details provided, create customer in CRM
+    if (isCredit && !selectedCustomerId && creditCustomerName.trim() && creditCustomerPhone.trim()) {
+      try {
+        const result = await CustomerService.createCustomer(restaurant.id, {
+          name: creditCustomerName.trim(),
+          phone: creditCustomerPhone.trim(),
+        });
+
+        if (result.success && result.data) {
+          creditCustomerId = result.data.id;
+          setCustomers(prev => [result.data!, ...prev]);
+          setSelectedCustomerId(result.data.id);
+          toast.success(`Customer "${creditCustomerName}" created and linked to credit!`);
+        } else {
+          toast.error(result.error || 'Failed to create customer');
+          return; // Stop payment if customer creation fails
+        }
+      } catch (error) {
+        console.error('Error creating customer for credit:', error);
+        toast.error('Failed to create customer. Please try again.');
+        return; // Stop payment if customer creation fails
+      }
+    }
     
     const paymentData = {
       method: isSplitPayment ? 'split' : paymentMethod,
       amountReceived: actualAmountReceivedNum,
       appliedCoupon,
       manualDiscount: manualDiscount.value > 0 ? manualDiscount : null,
-      customerId: selectedCustomerId || null,
+      customerId: creditCustomerId || null,
       tip: tip > 0 ? tip : null,
       finalTotal,
       originalTotal,
@@ -249,6 +314,8 @@ export default function PaymentModalWithCoupons({
       creditAmount,
       creditCustomerName: isCredit ? creditCustomerName : null,
       creditCustomerPhone: isCredit ? creditCustomerPhone : null,
+      addWholeAmountAsCredit,
+      creditCustomerId, // Add this to link credit to specific customer
     };
 
     onPayment(paymentData);
@@ -261,6 +328,7 @@ export default function PaymentModalWithCoupons({
           className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" 
           onClick={() => {
             setShowCustomerDropdown(false);
+            setShowCreditCustomerDropdown(false);
             onClose();
           }}
         ></div>
@@ -355,7 +423,7 @@ export default function PaymentModalWithCoupons({
                   </div>
                 )}
                 
-                {showCustomerDropdown && customerSearchTerm && !selectedCustomer && (
+                {showCustomerDropdown && customerSearchTerm && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                     {filteredCustomers.length > 0 ? (
                       filteredCustomers.slice(0, 10).map((customer) => (
@@ -371,7 +439,31 @@ export default function PaymentModalWithCoupons({
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-gray-500 text-xs sm:text-sm">No customers found</div>
+                      <>
+                        <div className="px-3 py-2 text-gray-500 text-xs sm:text-sm border-b border-gray-100">
+                          No customers found for "{customerSearchTerm}"
+                        </div>
+                        {customerSearchTerm.length >= 2 && (
+                          <button
+                            onClick={() => {
+                              const isPhone = /^\d+$/.test(customerSearchTerm);
+                              if (isPhone) {
+                                handleCreateNewCustomer('', customerSearchTerm);
+                              } else {
+                                handleCreateNewCustomer(customerSearchTerm, '');
+                              }
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-blue-50 text-blue-600 border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-sm">+ Create New Customer</div>
+                            <div className="text-xs">
+                              {/^\d+$/.test(customerSearchTerm) 
+                                ? `Phone: ${customerSearchTerm}` 
+                                : `Name: ${customerSearchTerm}`}
+                            </div>
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -615,15 +707,34 @@ export default function PaymentModalWithCoupons({
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-medium text-gray-900 text-sm sm:text-base">Payment Method</h4>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={isSplitPayment}
-                    onChange={(e) => setIsSplitPayment(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">Split Payment</span>
-                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={isSplitPayment}
+                      onChange={(e) => setIsSplitPayment(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">Split Payment</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={addWholeAmountAsCredit}
+                      onChange={(e) => {
+                        setAddWholeAmountAsCredit(e.target.checked);
+                        if (e.target.checked) {
+                          setAmountReceived('0');
+                          setIsSplitPayment(false);
+                        } else {
+                          setAmountReceived(finalTotal.toString());
+                        }
+                      }}
+                      className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                    />
+                    <span className="text-sm text-orange-700">Add Whole Amount as Credit</span>
+                  </label>
+                </div>
               </div>
 
               {!isSplitPayment ? (
@@ -753,6 +864,7 @@ export default function PaymentModalWithCoupons({
             </div>
 
             {/* Amount Received - Show for all payment methods */}
+            {!isSplitPayment && (
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                   Amount Received
@@ -760,66 +872,189 @@ export default function PaymentModalWithCoupons({
                 <input
                   type="number"
                   value={amountReceived}
-                onChange={(e) => setAmountReceived(e.target.value)}
-                min="0"
+                  onChange={(e) => setAmountReceived(e.target.value)}
+                  min="0"
                   step="0.01"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  disabled={addWholeAmountAsCredit}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder={finalTotal.toString()}
                 />
-              {parseFloat(amountReceived) > finalTotal && (
+                {addWholeAmountAsCredit && (
+                  <div className="mt-2 text-xs sm:text-sm text-orange-600 font-medium">
+                    ✓ Whole amount will be added as credit
+                  </div>
+                )}
+                {parseFloat(amountReceived) > finalTotal && !addWholeAmountAsCredit && (
                   <div className="mt-2 text-xs sm:text-sm text-gray-600">
-                  Change: {formatCurrency(parseFloat(amountReceived) - finalTotal)}
-                </div>
-              )}
-              {isCredit && (
-                <div className="mt-2 text-xs sm:text-sm text-orange-600 font-medium">
-                  Credit Amount: {formatCurrency(creditAmount)}
-                </div>
-              )}
-            </div>
+                    Change: {formatCurrency(parseFloat(amountReceived) - finalTotal)}
+                  </div>
+                )}
+                {isCredit && !addWholeAmountAsCredit && (
+                  <div className="mt-2 text-xs sm:text-sm text-orange-600 font-medium">
+                    Credit Amount: {formatCurrency(creditAmount)}
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* Credit Customer Details - Show when amount is less than total */}
+            {/* Credit Customer Details - Show when amount is less than total OR whole amount as credit */}
             {isCredit && (
               <div className="border border-orange-200 rounded-lg p-3 sm:p-4 bg-orange-50">
                 <h4 className="font-medium text-orange-900 mb-3 flex items-center text-sm sm:text-base">
                   <CreditCard className="w-4 h-4 mr-2" />
                   Credit Customer Details
                 </h4>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-orange-700 mb-1">
-                      Customer Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={creditCustomerName}
-                      onChange={(e) => setCreditCustomerName(e.target.value)}
-                      placeholder="Enter customer name"
-                      className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                      required
-                    />
+                
+                {selectedCustomer ? (
+                  <div className="space-y-3">
+                    <div className="bg-white border border-orange-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-orange-900">{selectedCustomer.name}</div>
+                          <div className="text-sm text-orange-700">{selectedCustomer.phone}</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            clearCustomer();
+                            setCreditCustomerName('');
+                            setCreditCustomerPhone('');
+                          }}
+                          className="text-orange-600 hover:text-orange-800 p-1 rounded"
+                          title="Change customer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="bg-orange-100 border border-orange-200 rounded p-3">
+                      <p className="text-xs sm:text-sm text-orange-800">
+                        <strong>Credit Summary:</strong><br />
+                        Total Bill: {formatCurrency(finalTotal)}<br />
+                        Amount Received: {formatCurrency(actualAmountReceived)}<br />
+                        Credit Amount: {formatCurrency(creditAmount)}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-orange-700 mb-1">
-                      Phone Number (Optional)
-                    </label>
-                    <input
-                      type="tel"
-                      value={creditCustomerPhone}
-                      onChange={(e) => setCreditCustomerPhone(e.target.value)}
-                      placeholder="Enter phone number"
-                      className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                    />
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-sm text-orange-700 bg-orange-100 border border-orange-200 rounded p-2">
+                      💡 Tip: Search for a customer above or enter details manually below
+                    </div>
+                    <div className="relative">
+                      <label className="block text-xs sm:text-sm font-medium text-orange-700 mb-1">
+                        Customer Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={creditCustomerName}
+                        onChange={(e) => {
+                          setCreditCustomerName(e.target.value);
+                          setShowCreditCustomerDropdown(e.target.value.length > 0);
+                        }}
+                        onFocus={() => setShowCreditCustomerDropdown(creditCustomerName.length > 0)}
+                        onBlur={(e) => {
+                          // Close dropdown after a small delay to allow clicks on dropdown items
+                          setTimeout(() => {
+                            if (!e.relatedTarget?.closest('[data-dropdown="credit-customer"]')) {
+                              setShowCreditCustomerDropdown(false);
+                            }
+                          }, 150);
+                        }}
+                        placeholder="Enter customer name"
+                        className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                        required
+                      />
+                      
+                      {/* Credit Customer Search Dropdown */}
+                      {showCreditCustomerDropdown && creditCustomerName && (
+                        <div 
+                          data-dropdown="credit-customer"
+                          className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-40 overflow-y-auto"
+                        >
+                          {customers.filter(customer =>
+                            customer.name?.toLowerCase().includes(creditCustomerName.toLowerCase()) ||
+                            customer.phone?.includes(creditCustomerName) ||
+                            customer.email?.toLowerCase().includes(creditCustomerName.toLowerCase())
+                          ).length > 0 ? (
+                            customers.filter(customer =>
+                              customer.name?.toLowerCase().includes(creditCustomerName.toLowerCase()) ||
+                              customer.phone?.includes(creditCustomerName) ||
+                              customer.email?.toLowerCase().includes(creditCustomerName.toLowerCase())
+                            ).slice(0, 5).map((customer) => (
+                              <button
+                                key={customer.id}
+                                onMouseDown={() => {
+                                  setSelectedCustomerId(customer.id);
+                                  setCustomerSearchTerm(customer.name || customer.phone || '');
+                                  setCreditCustomerName(customer.name || '');
+                                  setCreditCustomerPhone(customer.phone || '');
+                                  setShowCreditCustomerDropdown(false);
+                                  toast.success(`Customer "${customer.name}" linked to credit!`);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="font-medium text-sm">{customer.name || 'Unknown'}</div>
+                                <div className="text-xs text-gray-600">
+                                  {customer.phone} • {customer.visitCount} visits
+                                </div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2">
+                              <div className="text-gray-500 text-xs sm:text-sm mb-2">
+                                No customers found for "{creditCustomerName}"
+                              </div>
+                              <div className="text-blue-600 text-xs bg-blue-50 border border-blue-200 rounded p-2">
+                                💡 Please enter both name and phone number below to create customer
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Add spacing between name and phone inputs */}
+                    <div className="pt-3">
+                      <label className="block text-xs sm:text-sm font-medium text-orange-700 mb-1">
+                        Phone Number *
+                      </label>
+                      <input
+                        type="tel"
+                        value={creditCustomerPhone}
+                        onChange={(e) => setCreditCustomerPhone(e.target.value)}
+                        placeholder="Enter phone number"
+                        className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                        required
+                      />
+                    </div>
+                    {creditCustomerName.trim() && creditCustomerPhone.trim() && !selectedCustomerId && (
+                      <button
+                        onClick={() => {
+                          handleCreateNewCustomer(creditCustomerName, creditCustomerPhone);
+                          setShowCreditCustomerDropdown(false);
+                        }}
+                        className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                      >
+                        📝 Add "{creditCustomerName}" to CRM & Link Credit
+                      </button>
+                    )}
+                    
+                    {/* Validation message */}
+                    {creditCustomerName.trim() && !creditCustomerPhone.trim() && !selectedCustomerId && (
+                      <div className="text-xs text-orange-600 bg-orange-100 border border-orange-200 rounded p-2">
+                        ⚠️ Please enter phone number to create customer in CRM
+                      </div>
+                    )}
+                    <div className="bg-orange-100 border border-orange-200 rounded p-3">
+                      <p className="text-xs sm:text-sm text-orange-800">
+                        <strong>Credit Summary:</strong><br />
+                        Total Bill: {formatCurrency(finalTotal)}<br />
+                        Amount Received: {formatCurrency(actualAmountReceived)}<br />
+                        Credit Amount: {formatCurrency(creditAmount)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="bg-orange-100 border border-orange-200 rounded p-3">
-                    <p className="text-xs sm:text-sm text-orange-800">
-                      <strong>Credit Summary:</strong><br />
-                      Total Bill: {formatCurrency(finalTotal)}<br />
-                      Amount Received: {formatCurrency(parseFloat(amountReceived))}<br />
-                      Credit Amount: {formatCurrency(creditAmount)}
-                    </p>
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>
@@ -843,19 +1078,25 @@ export default function PaymentModalWithCoupons({
               </button>
               <button
                 onClick={handlePayment}
-                disabled={isProcessing || (isCredit && !creditCustomerName.trim()) || (isSplitPayment && (splitAmount1 <= 0 || splitAmount2 <= 0))}
+                disabled={isProcessing || 
+                  (isCredit && !selectedCustomer && (!creditCustomerName.trim() || !creditCustomerPhone.trim())) || 
+                  (isSplitPayment && (splitAmount1 <= 0 || splitAmount2 <= 0)) ||
+                  (addWholeAmountAsCredit && !selectedCustomer && (!creditCustomerName.trim() || !creditCustomerPhone.trim()))
+                }
                 className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 <span className="block sm:hidden">
                   {isProcessing ? 'Processing...' : 
+                   addWholeAmountAsCredit ? `Add ${formatCurrency(finalTotal)} as Credit` :
                    isSplitPayment ? `Pay ${formatCurrency(totalSplitAmount)}${!isSplitAmountValid ? ` (${splitPaymentShortfall > 0 ? 'Short' : 'Over'})` : ''}` :
-                   isCredit ? `Pay ${formatCurrency(parseFloat(amountReceived))}` : 
+                   isCredit ? `Pay ${formatCurrency(actualAmountReceived)}` : 
                    `Pay ${formatCurrency(finalTotal)}`}
                 </span>
                 <span className="hidden sm:block">
                   {isProcessing ? 'Processing...' : 
+                   addWholeAmountAsCredit ? `Add ${formatCurrency(finalTotal)} as Credit` :
                    isSplitPayment ? `Pay ${formatCurrency(totalSplitAmount)}${!isSplitAmountValid ? ` (${splitPaymentShortfall > 0 ? 'Shortfall' : 'Overpayment'}: ${formatCurrency(Math.abs(splitPaymentShortfall))})` : ''}` :
-                   isCredit ? `Pay ${formatCurrency(parseFloat(amountReceived))} (Credit: ${formatCurrency(creditAmount)})` : 
+                   isCredit ? `Pay ${formatCurrency(actualAmountReceived)} (Credit: ${formatCurrency(creditAmount)})` : 
                    `Pay ${formatCurrency(finalTotal)}`}
                 </span>
               </button>

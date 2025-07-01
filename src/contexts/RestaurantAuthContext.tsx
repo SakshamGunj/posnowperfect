@@ -35,6 +35,7 @@ export function RestaurantAuthProvider({ children }: RestaurantAuthProviderProps
   // Use refs to track current state for Firebase auth listener
   const userRef = useRef<User | null>(null);
   const isPinAuthenticatedRef = useRef<boolean>(false);
+  const authInitializedRef = useRef<boolean>(false);
   
   // Update refs when state changes
   useEffect(() => {
@@ -45,36 +46,74 @@ export function RestaurantAuthProvider({ children }: RestaurantAuthProviderProps
     isPinAuthenticatedRef.current = isPinAuthenticated;
   }, [isPinAuthenticated]);
 
+  // Fallback initialization timeout to prevent infinite loading
+  useEffect(() => {
+    const fallbackTimeout = setTimeout(() => {
+      if (!authInitializedRef.current) {
+        console.log('🚨 Fallback auth initialization - preventing infinite loading');
+        setLoading(false);
+        authInitializedRef.current = true;
+      }
+    }, 8000); // 8 second absolute fallback
+
+    return () => clearTimeout(fallbackTimeout);
+  }, []);
+
   // Initialize state from localStorage on mount
   useEffect(() => {
     console.log('🔄 RestaurantAuthContext: Initializing from localStorage');
     
-    try {
-      const storedUser = storage.get<User | null>(USER_STORAGE_KEY, null);
-      const storedPinAuth = storage.get<boolean>(PIN_AUTH_STORAGE_KEY, false);
-      
-      if (storedUser && storedPinAuth) {
-        console.log('✅ Restored PIN authenticated user from localStorage:', storedUser.name);
-        setUser(storedUser);
-        setIsPinAuthenticated(true);
-      } else if (storedUser && !storedPinAuth) {
-        console.log('✅ Found stored user (Firebase auth mode)');
-        setUser(storedUser);
-        setIsPinAuthenticated(false);
+    const initializeAuth = async () => {
+      try {
+        const storedUser = storage.get<User | null>(USER_STORAGE_KEY, null);
+        const storedPinAuth = storage.get<boolean>(PIN_AUTH_STORAGE_KEY, false);
+        
+        if (storedUser && storedPinAuth) {
+          console.log('✅ Restored PIN authenticated user from localStorage:', storedUser.name);
+          setUser(storedUser);
+          setIsPinAuthenticated(true);
+        } else if (storedUser && !storedPinAuth) {
+          console.log('✅ Found stored user (Firebase auth mode)');
+          setUser(storedUser);
+          setIsPinAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('Failed to restore auth state from localStorage:', error);
+        storage.remove(USER_STORAGE_KEY);
+        storage.remove(PIN_AUTH_STORAGE_KEY);
       }
-    } catch (error) {
-      console.error('Failed to restore auth state from localStorage:', error);
-      storage.remove(USER_STORAGE_KEY);
-      storage.remove(PIN_AUTH_STORAGE_KEY);
-    }
+    };
+
+    // Add timeout for localStorage initialization
+    const initTimeout = setTimeout(() => {
+      console.log('⏰ localStorage initialization timeout - proceeding without stored auth');
+    }, 2000);
+
+    initializeAuth().finally(() => {
+      clearTimeout(initTimeout);
+    });
+
+    return () => {
+      clearTimeout(initTimeout);
+    };
   }, []);
 
   useEffect(() => {
     console.log('🔄 RestaurantAuthContext: Setting up Firebase auth listener');
     
+    // Set up a timeout fallback to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      console.log('⏰ Auth initialization timeout reached - setting loading to false');
+      setLoading(false);
+      authInitializedRef.current = true;
+    }, 5000); // 5 second timeout
+    
     // Listen to Firebase auth state changes
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
       try {
+        // Clear the timeout since auth state change fired
+        clearTimeout(loadingTimeout);
+        
         console.log('🔄 Firebase auth state changed:', { 
           hasFirebaseUser: !!firebaseUser, 
           firebaseUserId: firebaseUser?.uid,
@@ -89,6 +128,7 @@ export function RestaurantAuthProvider({ children }: RestaurantAuthProviderProps
           if (userRef.current && userRef.current.id === firebaseUser.uid && !isPinAuthenticatedRef.current) {
             console.log('✅ Firebase user matches current user, no action needed');
             setLoading(false);
+            authInitializedRef.current = true;
             return;
           }
           
@@ -96,6 +136,7 @@ export function RestaurantAuthProvider({ children }: RestaurantAuthProviderProps
           if (isPinAuthenticatedRef.current) {
             console.log('⚠️ Ignoring Firebase auth change - user is PIN authenticated');
             setLoading(false);
+            authInitializedRef.current = true;
             return;
           }
           
@@ -166,11 +207,13 @@ export function RestaurantAuthProvider({ children }: RestaurantAuthProviderProps
         }
       } finally {
         setLoading(false);
+        authInitializedRef.current = true;
       }
     });
 
     return () => {
       console.log('🔄 RestaurantAuthContext: Cleaning up Firebase auth listener');
+      clearTimeout(loadingTimeout);
       unsubscribe();
     };
   }, []); // Remove dependencies to prevent re-renders
@@ -201,6 +244,7 @@ export function RestaurantAuthProvider({ children }: RestaurantAuthProviderProps
       throw error;
     } finally {
       setLoading(false);
+      authInitializedRef.current = true;
     }
   };
 
@@ -230,6 +274,7 @@ export function RestaurantAuthProvider({ children }: RestaurantAuthProviderProps
       throw error;
     } finally {
       setLoading(false);
+      authInitializedRef.current = true;
     }
   };
 

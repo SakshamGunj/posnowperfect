@@ -305,12 +305,18 @@ export class OrderService {
       const tax = (subtotal * taxRate) / 100;
       const total = subtotal + tax;
       
+      // Determine order type based on tableId
+      const orderType: 'dine_in' | 'takeaway' | 'delivery' = 
+        tableId === 'takeaway-order' ? 'takeaway' :
+        tableId === 'delivery-order' ? 'delivery' :
+        'dine_in';
+
       const order: Order = {
         id: orderId,
         restaurantId,
         orderNumber,
-        tableId,
-        type: 'dine_in',
+        tableId: orderType === 'takeaway' ? undefined : tableId, // Don't store tableId for takeaway
+        type: orderType,
         status: 'placed',
         items: orderItems,
         subtotal,
@@ -331,8 +337,7 @@ export class OrderService {
         id: orderId,
         restaurantId,
         orderNumber,
-        tableId,
-        type: 'dine_in',
+        type: orderType,
         status: 'placed',
         items: orderItems,
         subtotal,
@@ -344,6 +349,11 @@ export class OrderService {
         createdAt: Timestamp.fromDate(order.createdAt),
         updatedAt: Timestamp.fromDate(order.updatedAt),
       };
+
+      // Only add tableId for dine-in orders
+      if (orderType === 'dine_in') {
+        firestoreData.tableId = tableId;
+      }
       
       // Only add optional fields if they have values
       if (notes && notes.trim() !== '') {
@@ -354,41 +364,12 @@ export class OrderService {
       
       await setDoc(orderRef, firestoreData);
       
-      // Automatically deduct inventory for order items
-      // NOTE: Inventory deduction is now handled during order completion to prevent double deduction
-      try {
-
-        
-        /* COMMENTED OUT TO PREVENT DOUBLE DEDUCTION
-        const inventoryOrderItems = orderItems.map(item => ({
-          menuItemId: item.menuItemId,
-          quantity: item.quantity,
-        }));
-        
-        const inventoryResult = await InventoryService.deductInventoryForOrder(
-          orderId,
-          inventoryOrderItems,
-          restaurantId,
-          staffId
-        );
-        
-        if (inventoryResult.success) {
-
-        } else {
-          console.warn('⚠️ ORDER CREATION - Failed to deduct inventory for order:', inventoryResult.error);
-          // Don't fail the order creation, just log the warning
-        }
-        */
-      } catch (inventoryError) {
-        console.warn('⚠️ ORDER CREATION - Inventory deduction error (order still created):', inventoryError);
-        // Continue with order creation even if inventory deduction fails
-      }
-      
       // Add to cache
       OrderCache.addOrder(restaurantId, order);
       
       // Clear cart after successful order
-      CartManager.clearCart(restaurantId, tableId);
+      const cartId = orderType === 'takeaway' ? 'takeaway' : tableId;
+      CartManager.clearCart(restaurantId, cartId);
       
       console.log('✅ Order created and cached:', order.orderNumber);
       

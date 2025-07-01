@@ -763,6 +763,25 @@ export default function GamificationDashboard() {
                               />
                             </div>
                           )}
+
+                          {/* No Coupon Option */}
+                          <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`noCoupon-${index}`}
+                                checked={segment.noCoupon || false}
+                                onChange={(e) => updateCreateSegment(index, 'noCoupon', e.target.checked)}
+                                className="rounded border-gray-300 h-4 w-4 text-orange-600 focus:ring-orange-500"
+                              />
+                              <label htmlFor={`noCoupon-${index}`} className="text-sm font-medium text-orange-800">
+                                No Coupon (Try Again segment)
+                              </label>
+                            </div>
+                            <p className="text-xs text-orange-600 mt-1">
+                              Check this for "Try Again" or "Better Luck" segments where no coupon should be awarded
+                            </p>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1115,6 +1134,25 @@ export default function GamificationDashboard() {
                               />
                             </div>
                           )}
+
+                          {/* No Coupon Option for Edit Modal */}
+                          <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`editNoCoupon-${index}`}
+                                checked={segment.noCoupon || false}
+                                onChange={(e) => updateSegment(index, 'noCoupon', e.target.checked)}
+                                className="rounded border-gray-300 h-4 w-4 text-orange-600 focus:ring-orange-500"
+                              />
+                              <label htmlFor={`editNoCoupon-${index}`} className="text-sm font-medium text-orange-800">
+                                No Coupon (Try Again segment)
+                              </label>
+                            </div>
+                            <p className="text-xs text-orange-600 mt-1">
+                              Check this for "Try Again" or "Better Luck" segments where no coupon should be awarded
+                            </p>
+                          </div>
                         </div>
                       </div>
                     ))}

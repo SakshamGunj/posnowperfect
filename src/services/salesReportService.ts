@@ -309,9 +309,7 @@ export interface SalesAnalytics {
 
   // Financial KPIs
   financialKPIs?: {
-    grossMargin: number;
     netProfit: number;
-    costOfGoodsSold: number;
     operatingExpenses: number;
     breakEvenPoint: number;
     cashFlowFromOperations: number;
@@ -813,6 +811,12 @@ export class SalesReportService {
 
       let orders = ordersResult.data;
 
+      // Filter to only include completed orders with paid status
+      orders = orders.filter(order => 
+        order.status === 'completed' && 
+        (order.paymentStatus === 'paid' || order.paymentMethod)
+      );
+
       // If no orders found, generate comprehensive sample data for demonstration
       if (orders.length === 0) {
         console.log('🎯 No orders found, generating comprehensive sample data for analytics...');
@@ -826,6 +830,12 @@ export class SalesReportService {
       
       const prevOrdersResult = await this.getOrdersInRange(restaurantId, prevStartDate, prevEndDate);
       let prevOrders = prevOrdersResult.data || [];
+
+      // Filter previous orders to only include completed orders with paid status
+      prevOrders = prevOrders.filter(order => 
+        order.status === 'completed' && 
+        (order.paymentStatus === 'paid' || order.paymentMethod)
+      );
 
       // If no previous orders and we generated sample data, generate previous period sample data too
       if (prevOrders.length === 0 && orders.length > 0 && orders[0].id.startsWith('sample_order_')) {
@@ -1389,12 +1399,10 @@ export class SalesReportService {
       if (creditAnalytics.revenueCollectionRate < 90) recommendedActions.push('Improve credit collection processes');
       if (itemCombinations.length > 0) recommendedActions.push('Create combo offers for popular item combinations');
 
-      // Financial KPIs (basic calculations - can be enhanced with actual cost data)
-      const estimatedCOGS = totalRevenue * 0.35; // Typical restaurant COGS 30-40%
+      // Financial KPIs (basic calculations based on revenue and operating expenses only)
       const estimatedOperatingExpenses = totalRevenue * 0.45; // Typical restaurant operating expenses
-      const grossMargin = ((totalRevenue - estimatedCOGS) / totalRevenue) * 100;
-      const netProfit = totalRevenue - estimatedCOGS - estimatedOperatingExpenses;
-      const breakEvenPoint = estimatedOperatingExpenses / (averageOrderValue - (averageOrderValue * 0.35));
+      const netProfit = totalRevenue - estimatedOperatingExpenses;
+      const breakEvenPoint = estimatedOperatingExpenses / averageOrderValue;
 
       // ===== NEW: ENHANCED ANALYTICS SECTIONS =====
 
@@ -1625,9 +1633,7 @@ export class SalesReportService {
         
         // Financial KPIs
         financialKPIs: {
-          grossMargin,
           netProfit,
-          costOfGoodsSold: estimatedCOGS,
           operatingExpenses: estimatedOperatingExpenses,
           breakEvenPoint,
           cashFlowFromOperations: netProfit, // Simplified - actual would include depreciation, etc.
@@ -1765,58 +1771,292 @@ export class SalesReportService {
 
     yPosition = (doc as any).lastAutoTable.finalY + 20;
 
-    // Menu Analysis
+    // Enhanced Menu Performance Analysis
     if (config.includeMenuAnalysis && analytics.menuItemSales.length > 0) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
       }
 
-      doc.setFontSize(16);
+      // Main Menu Performance Header
+      doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(33, 37, 41);
-      doc.text('Top Selling Items', 20, yPosition);
-      yPosition += 12;
+      doc.text('DETAILED MENU PERFORMANCE ANALYSIS', 20, yPosition);
+      yPosition += 15;
 
-      const menuData = analytics.menuItemSales.slice(0, 10).map(item => [
-        item.name,
-        item.quantitySold.toString(),
-        formatCurrencyForPDF(item.revenue),
-        `${item.percentage.toFixed(1)}%`
-      ]);
+      // Menu Performance Summary
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(40, 167, 69);
+      doc.text('Menu Performance Summary', 20, yPosition);
+      yPosition += 8;
+
+      const totalMenuItems = analytics.menuItemSales.length;
+      const topPerformers = analytics.menuItemSales.slice(0, 5);
+      const bottomPerformers = analytics.menuItemSales.slice(-5);
+      const averageRevenue = analytics.menuItemSales.reduce((sum, item) => sum + item.revenue, 0) / totalMenuItems;
+      const averageQuantity = analytics.menuItemSales.reduce((sum, item) => sum + item.quantitySold, 0) / totalMenuItems;
+
+      const summaryData = [
+        ['Total Menu Items Analyzed', totalMenuItems.toString()],
+        ['Average Revenue per Item', formatCurrencyForPDF(averageRevenue)],
+        ['Average Quantity Sold per Item', averageQuantity.toFixed(1)],
+        ['Top Performer', topPerformers[0]?.name || 'N/A'],
+        ['Top Performer Revenue', formatCurrencyForPDF(topPerformers[0]?.revenue || 0)],
+        ['Items Contributing 80% Revenue', analytics.menuItemSales.filter((_, index) => {
+          const runningTotal = analytics.menuItemSales.slice(0, index + 1)
+            .reduce((sum, item) => sum + item.revenue, 0);
+          return runningTotal <= analytics.totalRevenue * 0.8;
+        }).length.toString()],
+        ['Menu Diversity Index', `${((totalMenuItems / 10) * 10).toFixed(0)}%`]
+      ];
 
       safeAutoTable(doc, {
         startY: yPosition,
-        head: [['Item Name', 'Qty Sold', 'Revenue', '% of Total']],
-        body: menuData,
+        head: [['Metric', 'Value']],
+        body: summaryData,
         theme: 'grid',
         styles: { 
-          fontSize: 11,
+          fontSize: 10,
           font: 'helvetica',
           textColor: [33, 37, 41],
-          cellPadding: 8,
-          lineColor: [220, 220, 220],
-          lineWidth: 0.5
+          cellPadding: 6
         },
         headStyles: { 
           fillColor: [40, 167, 69],
           textColor: [255, 255, 255],
-          fontSize: 12,
+          fontSize: 11,
+          fontStyle: 'bold'
+        },
+        columnStyles: {
+          0: { cellWidth: 80, fontStyle: 'bold' },
+          1: { cellWidth: 60, halign: 'right', fontStyle: 'bold' }
+        }
+      });
+
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+      // Top Selling Items (Enhanced)
+      if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(40, 167, 69);
+      doc.text('Top Selling Items (Top 15)', 20, yPosition);
+      yPosition += 8;
+
+      const menuData = analytics.menuItemSales.slice(0, 15).map((item, index) => [
+        `${index + 1}`,
+        item.name,
+        item.quantitySold.toString(),
+        formatCurrencyForPDF(item.revenue),
+        `${item.percentage.toFixed(1)}%`,
+        item.profit ? formatCurrencyForPDF(item.profit) : 'N/A',
+        item.revenue / item.quantitySold ? formatCurrencyForPDF(item.revenue / item.quantitySold) : 'N/A'
+      ]);
+
+      safeAutoTable(doc, {
+        startY: yPosition,
+        head: [['Rank', 'Item Name', 'Qty Sold', 'Revenue', '% Total', 'Profit', 'Avg Price']],
+        body: menuData,
+        theme: 'grid',
+        styles: { 
+          fontSize: 9,
+          font: 'helvetica',
+          textColor: [33, 37, 41],
+          cellPadding: 5
+        },
+        headStyles: { 
+          fillColor: [40, 167, 69],
+          textColor: [255, 255, 255],
+          fontSize: 10,
           fontStyle: 'bold',
           halign: 'center'
         },
         columnStyles: {
-          0: { cellWidth: 90, fontStyle: 'normal' },
-          1: { halign: 'center', cellWidth: 30, fontStyle: 'bold' },
-          2: { halign: 'right', cellWidth: 45, fontStyle: 'bold' },
-          3: { halign: 'center', cellWidth: 25, fontStyle: 'bold' }
+          0: { halign: 'center', cellWidth: 20, fontStyle: 'bold' },
+          1: { cellWidth: 70 },
+          2: { halign: 'center', cellWidth: 25, fontStyle: 'bold' },
+          3: { halign: 'right', cellWidth: 30, fontStyle: 'bold' },
+          4: { halign: 'center', cellWidth: 25, fontStyle: 'bold' },
+          5: { halign: 'right', cellWidth: 25 },
+          6: { halign: 'right', cellWidth: 25 }
         },
         alternateRowStyles: {
           fillColor: [248, 249, 250]
         }
       });
 
-      yPosition = (doc as any).lastAutoTable.finalY + 20;
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+      // Menu Engineering Analysis
+      if (yPosition > 220) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 193, 7);
+      doc.text('Menu Engineering Analysis', 20, yPosition);
+      yPosition += 8;
+
+      // Classify items by performance
+      const highRevenue = analytics.menuItemSales.filter(item => item.revenue > averageRevenue);
+      const highVolume = analytics.menuItemSales.filter(item => item.quantitySold > averageQuantity);
+      
+      const stars = analytics.menuItemSales.filter(item => 
+        item.revenue > averageRevenue && item.quantitySold > averageQuantity
+      );
+      const plowhorses = analytics.menuItemSales.filter(item => 
+        item.revenue <= averageRevenue && item.quantitySold > averageQuantity
+      );
+      const puzzles = analytics.menuItemSales.filter(item => 
+        item.revenue > averageRevenue && item.quantitySold <= averageQuantity
+      );
+      const dogs = analytics.menuItemSales.filter(item => 
+        item.revenue <= averageRevenue && item.quantitySold <= averageQuantity
+      );
+
+      const engineeringData = [
+        ['Stars (High Revenue + High Volume)', stars.length.toString(), `${((stars.length / totalMenuItems) * 100).toFixed(1)}%`],
+        ['Plowhorses (Low Revenue + High Volume)', plowhorses.length.toString(), `${((plowhorses.length / totalMenuItems) * 100).toFixed(1)}%`],
+        ['Puzzles (High Revenue + Low Volume)', puzzles.length.toString(), `${((puzzles.length / totalMenuItems) * 100).toFixed(1)}%`],
+        ['Dogs (Low Revenue + Low Volume)', dogs.length.toString(), `${((dogs.length / totalMenuItems) * 100).toFixed(1)}%`]
+      ];
+
+      safeAutoTable(doc, {
+        startY: yPosition,
+        head: [['Category', 'Count', 'Percentage']],
+        body: engineeringData,
+        theme: 'grid',
+        styles: { 
+          fontSize: 10,
+          font: 'helvetica',
+          textColor: [33, 37, 41],
+          cellPadding: 8
+        },
+        headStyles: { 
+          fillColor: [255, 193, 7],
+          textColor: [33, 37, 41],
+          fontSize: 11,
+          fontStyle: 'bold'
+        },
+        columnStyles: {
+          0: { cellWidth: 100, fontStyle: 'bold' },
+          1: { halign: 'center', cellWidth: 40, fontStyle: 'bold' },
+          2: { halign: 'center', cellWidth: 40, fontStyle: 'bold' }
+        }
+      });
+
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+      // Low Performing Items Analysis
+      if (yPosition > 220) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(220, 53, 69);
+      doc.text('⚠️ Low Performing Items (Bottom 10)', 20, yPosition);
+      yPosition += 8;
+
+      const lowPerformingData = bottomPerformers.slice(0, 10).map((item, index) => [
+        item.name,
+        item.quantitySold.toString(),
+        formatCurrencyForPDF(item.revenue),
+        `${item.percentage.toFixed(2)}%`,
+        item.quantitySold < (averageQuantity * 0.3) ? 'Very Low' : 
+        item.quantitySold < (averageQuantity * 0.6) ? 'Low' : 'Below Avg'
+      ]);
+
+      safeAutoTable(doc, {
+        startY: yPosition,
+        head: [['Item Name', 'Qty Sold', 'Revenue', '% Total', 'Status']],
+        body: lowPerformingData,
+        theme: 'grid',
+        styles: { 
+          fontSize: 10,
+          font: 'helvetica',
+          textColor: [33, 37, 41],
+          cellPadding: 6
+        },
+        headStyles: { 
+          fillColor: [220, 53, 69],
+          textColor: [255, 255, 255],
+          fontSize: 11,
+          fontStyle: 'bold'
+        },
+        columnStyles: {
+          0: { cellWidth: 70 },
+          1: { halign: 'center', cellWidth: 25 },
+          2: { halign: 'right', cellWidth: 35 },
+          3: { halign: 'center', cellWidth: 25 },
+          4: { halign: 'center', cellWidth: 35, fontStyle: 'bold' }
+        }
+      });
+
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+
+      // Menu Optimization Recommendations
+      if (yPosition > 200) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(52, 144, 220);
+      doc.text('Menu Optimization Recommendations', 20, yPosition);
+      yPosition += 10;
+
+      const recommendations = [];
+      
+      if (stars.length > 0) {
+        recommendations.push(`✅ Promote ${stars.slice(0, 3).map(s => s.name).join(', ')} - your star performers`);
+      }
+      
+      if (puzzles.length > 0) {
+        recommendations.push(`🔄 Reposition or reprice ${puzzles.slice(0, 2).map(p => p.name).join(', ')} to increase volume`);
+      }
+      
+      if (plowhorses.length > 0) {
+        recommendations.push(`💰 Consider raising prices for ${plowhorses.slice(0, 2).map(p => p.name).join(', ')} - they sell well`);
+      }
+      
+      if (dogs.length > 0) {
+        recommendations.push(`❌ Consider removing ${dogs.slice(0, 3).map(d => d.name).join(', ')} from menu`);
+      }
+
+      if (analytics.menuItemSales.length > 20) {
+        recommendations.push('📋 Menu is quite extensive - consider streamlining to 15-20 core items');
+      }
+
+      if (topPerformers[0] && topPerformers[0].percentage > 30) {
+        recommendations.push(`⚖️ Over-reliance on ${topPerformers[0].name} (${topPerformers[0].percentage.toFixed(1)}%) - diversify offerings`);
+      }
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(52, 58, 64);
+      
+      recommendations.forEach((rec, index) => {
+        if (yPosition > 270) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        const lines = doc.splitTextToSize(`${index + 1}. ${rec}`, 170);
+        doc.text(lines, 20, yPosition);
+        yPosition += lines.length * 5 + 3;
+      });
+
+      yPosition += 10;
     }
 
     // Category Analysis
@@ -2602,32 +2842,124 @@ export class SalesReportService {
     
     // Add financial KPIs
     if (analytics.financialKPIs) {
-      doc.text(`Gross Margin: ${analytics.financialKPIs.grossMargin.toFixed(1)}%`, 20, yPosition);
       yPosition += 7;
       doc.text(`Net Profit: ${formatCurrencyForPDF(analytics.financialKPIs.netProfit)}`, 20, yPosition);
       yPosition += 7;
     }
     yPosition += 8;
 
-    // Top Menu Items
+    // Enhanced Menu Performance Analysis (Simple Version)
     if (config.includeMenuAnalysis && analytics.menuItemSales.length > 0) {
-      doc.setFontSize(15);
+      doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(33, 37, 41);
-      doc.text('Top Selling Items', 20, yPosition);
+      doc.text('Menu Performance Analysis', 20, yPosition);
       yPosition += 12;
+
+      // Menu Summary
+      const totalItems = analytics.menuItemSales.length;
+      const avgRevenue = analytics.menuItemSales.reduce((sum, item) => sum + item.revenue, 0) / totalItems;
+      const avgQuantity = analytics.menuItemSales.reduce((sum, item) => sum + item.quantitySold, 0) / totalItems;
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(40, 167, 69);
+      doc.text('Performance Summary:', 20, yPosition);
+      yPosition += 8;
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(52, 58, 64);
-      analytics.menuItemSales.slice(0, 10).forEach((item, index) => {
+      doc.text(`Total Menu Items: ${totalItems}`, 20, yPosition);
+      yPosition += 5;
+      doc.text(`Average Revenue per Item: ${formatCurrencyForPDF(avgRevenue)}`, 20, yPosition);
+      yPosition += 5;
+      doc.text(`Top Performer: ${analytics.menuItemSales[0]?.name || 'N/A'}`, 20, yPosition);
+      yPosition += 10;
+
+      // Top Performers
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(40, 167, 69);
+      doc.text('Top Selling Items:', 20, yPosition);
+      yPosition += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(52, 58, 64);
+      analytics.menuItemSales.slice(0, 12).forEach((item, index) => {
         if (yPosition > 270) {
           doc.addPage();
           yPosition = 20;
         }
-        doc.text(`${index + 1}. ${item.name} - Qty: ${item.quantitySold} - Revenue: ${formatCurrencyForPDF(item.revenue)}`, 20, yPosition);
-        yPosition += 6;
+        doc.text(`${index + 1}. ${item.name}`, 20, yPosition);
+        doc.text(`Qty: ${item.quantitySold}`, 120, yPosition);
+        doc.text(`Revenue: ${formatCurrencyForPDF(item.revenue)}`, 150, yPosition);
+        doc.text(`${item.percentage.toFixed(1)}%`, 185, yPosition);
+        yPosition += 5;
       });
+      yPosition += 10;
+
+      // Menu Engineering Analysis
+      const stars = analytics.menuItemSales.filter(item => 
+        item.revenue > avgRevenue && item.quantitySold > avgQuantity
+      );
+      const puzzles = analytics.menuItemSales.filter(item => 
+        item.revenue > avgRevenue && item.quantitySold <= avgQuantity
+      );
+      const plowhorses = analytics.menuItemSales.filter(item => 
+        item.revenue <= avgRevenue && item.quantitySold > avgQuantity
+      );
+      const dogs = analytics.menuItemSales.filter(item => 
+        item.revenue <= avgRevenue && item.quantitySold <= avgQuantity
+      );
+
+      if (yPosition > 240) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 193, 7);
+      doc.text('Menu Engineering Categories:', 20, yPosition);
+      yPosition += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(52, 58, 64);
+      doc.text(`Stars (High Revenue + Volume): ${stars.length} items`, 20, yPosition);
+      yPosition += 5;
+      doc.text(`Puzzles (High Revenue, Low Volume): ${puzzles.length} items`, 20, yPosition);
+      yPosition += 5;
+      doc.text(`Plowhorses (Low Revenue, High Volume): ${plowhorses.length} items`, 20, yPosition);
+      yPosition += 5;
+      doc.text(`Dogs (Low Revenue + Volume): ${dogs.length} items`, 20, yPosition);
+      yPosition += 10;
+
+      // Recommendations
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(52, 144, 220);
+      doc.text('Quick Recommendations:', 20, yPosition);
+      yPosition += 8;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(52, 58, 64);
+      
+      if (stars.length > 0) {
+        doc.text(`• Promote ${stars[0]?.name} - your top star performer`, 20, yPosition);
+        yPosition += 5;
+      }
+      if (dogs.length > 0) {
+        doc.text(`• Consider removing ${dogs[0]?.name} - low performance`, 20, yPosition);
+        yPosition += 5;
+      }
+      if (totalItems > 20) {
+        doc.text('• Menu might be too extensive - consider streamlining', 20, yPosition);
+        yPosition += 5;
+      }
       yPosition += 10;
     }
 

@@ -36,13 +36,14 @@ export const initializeOfflineSupport = async (): Promise<boolean> => {
     return true;
   } catch (error: any) {
     if (error.code === 'failed-precondition') {
-      console.log('ℹ️ Multiple tabs detected - offline persistence disabled for this tab');
+      console.log('ℹ️ Multiple tabs detected - offline persistence disabled for this tab (this is normal)');
     } else if (error.code === 'unimplemented') {
       console.log('ℹ️ Browser does not support offline persistence');
     } else {
       console.log('ℹ️ Offline persistence not available:', error.message);
     }
-    return false;
+    // Return true even if offline persistence fails - the app should still work
+    return true;
   }
 };
 
@@ -162,19 +163,25 @@ export const handleFirestoreCorruption = (error: any): never => {
 // Initialize app-level services with connection monitoring
 const initializeFirebaseServices = async (): Promise<void> => {
   try {
-    await initializeOfflineSupport();
+    // Initialize offline support but don't wait for it or let it block startup
+    initializeOfflineSupport().catch(error => {
+      console.log('Offline support initialization failed (non-blocking):', error.message);
+    });
     
-    // Note: Removed automatic connection health checks and retries 
-    // as they were causing Firestore internal assertion failures
-    console.log('✅ Firebase services initialized without automatic retries');
+    console.log('✅ Firebase services initialized successfully');
     
   } catch (error) {
-    console.error('Failed to initialize Firebase services:', error);
+    console.error('Failed to initialize Firebase services (non-blocking):', error);
+    // Don't throw - let the app continue even if some Firebase features fail
   }
 };
 
-// Initialize services
-initializeFirebaseServices();
+// Initialize services in a non-blocking way
+try {
+  initializeFirebaseServices();
+} catch (error) {
+  console.error('Firebase initialization error (ignored):', error);
+}
 
 export { initializeFirebaseServices };
 export default app; 

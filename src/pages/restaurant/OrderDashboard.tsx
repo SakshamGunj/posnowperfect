@@ -39,7 +39,7 @@ import { generateUPIPaymentString, generateQRCodeDataURL } from '@/utils/upiUtil
 import ReportGenerationModal from '@/components/restaurant/ReportGenerationModal';
 
 interface FilterForm {
-  dateRange: 'today' | 'yesterday' | 'week' | 'last_week' | 'month' | 'this_month' | 'last_month' | 'quarter' | 'custom';
+  dateRange: 'all' | 'today' | 'yesterday' | 'week' | 'last_week' | 'month' | 'this_month' | 'last_month' | 'quarter' | 'custom';
   startDate?: string;
   endDate?: string;
   tableId?: string;
@@ -1370,7 +1370,7 @@ export default function OrderDashboard() {
 
   const { register, handleSubmit, watch } = useForm<FilterForm>({
     defaultValues: {
-      dateRange: 'today',
+      dateRange: 'all', // Show all orders by default to avoid date issues
       status: 'all',
       orderType: 'all',
       menuItemId: 'all',
@@ -1423,12 +1423,16 @@ export default function OrderDashboard() {
 
   const calculateStats = useCallback(async (orderList: Order[]) => {
     if (!restaurant) return;
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     
-    const todayOrders = orderList.filter(order => 
-      new Date(order.createdAt) >= todayStart
-    );
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart);
+    todayEnd.setHours(23, 59, 59, 999);
+    
+    const todayOrders = orderList.filter(order => {
+      const orderDate = new Date(order.createdAt);
+      return orderDate >= todayStart && orderDate <= todayEnd;
+    });
 
     const totalRevenue = orderList.reduce((sum, order) => sum + order.total, 0);
     const todayRevenue = todayOrders.reduce((sum, order) => sum + order.total, 0);
@@ -1509,32 +1513,39 @@ export default function OrderDashboard() {
   const applyFilters = useCallback(async () => {
     let filtered = [...orders];
 
-    // Date range filter
+    // Date range filter - Fixed date comparison logic
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
     switch (dateRange) {
-      case 'today':
-        filtered = filtered.filter(order => 
-          new Date(order.createdAt) >= today
-        );
+      case 'all':
+        // No date filtering - show all orders
         break;
-      case 'yesterday':
-        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-        const yesterdayEnd = new Date(yesterday.getTime() + 24 * 60 * 60 * 1000);
+      case 'today':
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayEnd = new Date(todayStart);
+        todayEnd.setHours(23, 59, 59, 999);
         filtered = filtered.filter(order => {
           const orderDate = new Date(order.createdAt);
-          return orderDate >= yesterday && orderDate < yesterdayEnd;
+          return orderDate >= todayStart && orderDate <= todayEnd;
+        });
+        break;
+      case 'yesterday':
+        const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        const yesterdayEnd = new Date(yesterdayStart);
+        yesterdayEnd.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(order => {
+          const orderDate = new Date(order.createdAt);
+          return orderDate >= yesterdayStart && orderDate <= yesterdayEnd;
         });
         break;
       case 'week':
-        const weekStart = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         filtered = filtered.filter(order => 
           new Date(order.createdAt) >= weekStart
         );
         break;
       case 'last_week':
-        const lastWeekEnd = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const lastWeekEnd = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const lastWeekStart = new Date(lastWeekEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
         filtered = filtered.filter(order => {
           const orderDate = new Date(order.createdAt);
@@ -1542,27 +1553,27 @@ export default function OrderDashboard() {
         });
         break;
       case 'month':
-        const monthStart = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const monthStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         filtered = filtered.filter(order => 
           new Date(order.createdAt) >= monthStart
         );
         break;
       case 'this_month':
-        const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         filtered = filtered.filter(order => 
           new Date(order.createdAt) >= thisMonthStart
         );
         break;
       case 'last_month':
-        const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 1);
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
         filtered = filtered.filter(order => {
           const orderDate = new Date(order.createdAt);
           return orderDate >= lastMonthStart && orderDate < lastMonthEnd;
         });
         break;
       case 'quarter':
-        const quarterStart = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
+        const quarterStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
         filtered = filtered.filter(order => 
           new Date(order.createdAt) >= quarterStart
         );
@@ -1627,10 +1638,15 @@ export default function OrderDashboard() {
 
   // Group orders function - groups related orders from same table/session based on payment status
   const groupRelatedOrders = useCallback((ordersList: Order[]) => {
+    // Remove any potential duplicates based on order ID first
+    const uniqueOrders = ordersList.filter((order, index, self) => 
+      index === self.findIndex(o => o.id === order.id)
+    );
+    
     const groups = new Map<string, Order[]>();
     
     // Sort orders by creation time globally (all tables together)
-    const sortedOrders = [...ordersList].sort((a, b) => {
+    const sortedOrders = [...uniqueOrders].sort((a, b) => {
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
 
@@ -1683,10 +1699,10 @@ export default function OrderDashboard() {
             const previousOrderTime = new Date(previousOrder.createdAt).getTime();
             const creationTimeDiff = currentOrderTime - previousOrderTime;
             
-            // Allow longer time for Add More sessions (5 minutes)
-            const fiveMinutes = 5 * 60 * 1000;
+            // Allow longer time for Add More sessions (15 minutes)
+            const fifteenMinutes = 15 * 60 * 1000;
             
-            if (creationTimeDiff <= fiveMinutes) {
+            if (creationTimeDiff <= fifteenMinutes) {
               // Find the group that contains this previous order
               for (const [groupKey, groupOrders] of groups.entries()) {
                 if (groupOrders.some(o => o.id === previousOrder.id)) {
@@ -1706,9 +1722,8 @@ export default function OrderDashboard() {
       }
 
       if (!foundGroup) {
-        // Create new group with unique key (new payment session)
-        const groupKey = `${order.tableId}-${new Date(order.createdAt).getTime()}`;
-        groups.set(groupKey, [order]);
+        // Create new group with unique key using order ID to prevent duplicates
+        groups.set(order.id, [order]);
       }
     });
 
@@ -2442,7 +2457,7 @@ export default function OrderDashboard() {
               </div>
               
               <button
-                onClick={loadData}
+                onClick={() => loadData()}
                 className="btn btn-secondary"
                 disabled={isLoading}
               >
@@ -2550,7 +2565,9 @@ export default function OrderDashboard() {
                       {...register('dateRange')}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
+                      <option value="all">All Orders</option>
                       <option value="today">Today</option>
+                      <option value="yesterday">Yesterday</option>
                       <option value="week">This Week</option>
                       <option value="month">This Month</option>
                       <option value="custom">Custom Range</option>

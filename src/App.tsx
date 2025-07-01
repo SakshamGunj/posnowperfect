@@ -34,6 +34,10 @@ import EmployeePage from '@/pages/restaurant/EmployeePage';
 import MarketplacePage from '@/pages/restaurant/MarketplacePage';
 import KitchenDisplay from '@/pages/restaurant/KitchenDisplay';
 import CustomerMenuPortal from '@/pages/restaurant/CustomerMenuPortal';
+import ExpenseTracker from '@/pages/restaurant/ExpenseTracker';
+import ReportsDashboard from '@/pages/restaurant/ReportsDashboard';
+import TakeawayOrders from '@/pages/restaurant/TakeawayOrders';
+import NewTakeawayOrder from '@/pages/restaurant/NewTakeawayOrder';
 import CustomerOrderingPage from '@/pages/public/CustomerOrderingPage';
 import CustomerOrderStatus from '@/pages/public/CustomerOrderStatus';
 import SpinWheelPage from '@/pages/public/SpinWheelPage';
@@ -218,6 +222,10 @@ export default function App() {
                       <Route path="marketplace" element={<MarketplacePage />} />
                       <Route path="kitchen" element={<KitchenDisplay />} />
                       <Route path="customer-portal" element={<CustomerMenuPortal />} />
+                      <Route path="expenses" element={<ExpenseTracker />} />
+                      <Route path="reports" element={<ReportsDashboard />} />
+                      <Route path="takeaway" element={<TakeawayOrders />} />
+                      <Route path="takeaway/new" element={<NewTakeawayOrder />} />
                       <Route path="order/:tableId" element={<TakeOrder />} />
                     </Route>
                     

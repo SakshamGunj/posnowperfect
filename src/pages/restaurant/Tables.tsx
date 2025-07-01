@@ -1644,6 +1644,16 @@ export default function Tables() {
               >
                 <Settings className="w-5 h-5" />
               </button>
+
+              {/* Takeaway Orders Button */}
+              <button
+                onClick={() => navigate(`/${restaurant?.slug}/takeaway`)}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                title="Manage takeaway orders"
+              >
+                <User className="w-4 h-4 mr-2" />
+                Takeaway Orders
+              </button>
               
               <button
                 onClick={() => navigate('settings')}
@@ -1694,6 +1704,16 @@ export default function Tables() {
                   title="Fix table statuses (occupied tables without orders)"
                 >
                   <Settings className="w-5 h-5" />
+                </button>
+
+                {/* Takeaway Orders Button - Mobile */}
+                <button
+                  onClick={() => navigate(`/${restaurant?.slug}/takeaway`)}
+                  className="btn btn-secondary text-sm px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
+                  title="Manage takeaway orders"
+                >
+                  <User className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Takeaway</span>
                 </button>
                 
                 <button
@@ -1830,7 +1850,7 @@ export default function Tables() {
                     {area} ({areaTables.length})
                   </h2>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
                     {areaTables.map(table => (
                       <TableCard
                         key={table.id}

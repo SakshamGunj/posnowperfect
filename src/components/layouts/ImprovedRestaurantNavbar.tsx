@@ -21,6 +21,10 @@ import {
   TrendingUp,
   Receipt,
   ShoppingCart,
+  ClipboardList,
+  Gamepad2,
+  UserCheck,
+  Smartphone,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -62,6 +66,20 @@ export default function ImprovedRestaurantNavbar() {
 
   const allQuickMenuItems = [
     {
+      name: 'Manage Tables',
+      href: `/${restaurant.slug}/tables`,
+      icon: Grid3X3,
+      description: 'View and manage tables',
+      moduleId: 'tables',
+    },
+    {
+      name: 'Orders Dashboard',
+      href: `/${restaurant.slug}/orders`,
+      icon: ClipboardList,
+      description: 'View and analyze orders',
+      moduleId: 'orders',
+    },
+    {
       name: 'Menu Management',
       href: `/${restaurant.slug}/menu`,
       icon: ChefHat,
@@ -69,39 +87,11 @@ export default function ImprovedRestaurantNavbar() {
       moduleId: 'menu',
     },
     {
-      name: 'Inventory',
+      name: 'Inventory Management',
       href: `/${restaurant.slug}/inventory`,
       icon: Package,
       description: 'Track stock & inventory',
       moduleId: 'inventory',
-    },
-    {
-      name: 'Customers',
-      href: `/${restaurant.slug}/customers`,
-      icon: CreditCard,
-      description: 'Manage customer database',
-      moduleId: 'customers',
-    },
-    {
-      name: 'Credits',
-      href: `/${restaurant.slug}/credits`,
-      icon: Receipt,
-      description: 'Manage customer credits & payments',
-      moduleId: 'credits',
-    },
-    {
-      name: 'Coupons',
-      href: `/${restaurant.slug}/coupons`,
-      icon: Gift,
-      description: 'Manage coupons & promotions',
-      moduleId: 'coupons',
-    },
-    {
-      name: 'Gamification',
-      href: `/${restaurant.slug}/gamification`,
-      icon: Grid3X3,
-      description: 'Spin wheel & customer games',
-      moduleId: 'gamification',
     },
     {
       name: 'Kitchen Display',
@@ -111,16 +101,44 @@ export default function ImprovedRestaurantNavbar() {
       moduleId: 'kitchen',
     },
     {
-      name: 'Analytics',
-      href: `/${restaurant.slug}/analytics`,
-      icon: TrendingUp,
-      description: 'View performance analytics',
-      moduleId: 'reports',
+      name: 'Customer Portal',
+      href: `/${restaurant.slug}/customer-portal`,
+      icon: Smartphone,
+      description: 'Configure menu portal & QR codes',
+      moduleId: 'customer_portal',
+    },
+    {
+      name: 'Customer Management',
+      href: `/${restaurant.slug}/customers`,
+      icon: Users,
+      description: 'Manage customer database',
+      moduleId: 'customers',
+    },
+    {
+      name: 'Credit Management',
+      href: `/${restaurant.slug}/credits`,
+      icon: CreditCard,
+      description: 'Manage customer credits & payments',
+      moduleId: 'credits',
+    },
+    {
+      name: 'Coupon Dashboard',
+      href: `/${restaurant.slug}/coupons`,
+      icon: Gift,
+      description: 'Manage coupons & promotions',
+      moduleId: 'coupons',
+    },
+    {
+      name: 'Gamification Tools',
+      href: `/${restaurant.slug}/gamification`,
+      icon: Gamepad2,
+      description: 'Spin wheel & customer engagement',
+      moduleId: 'gamification',
     },
     {
       name: 'Employee Management',
       href: `/${restaurant.slug}/employees`,
-      icon: Users,
+      icon: UserCheck,
       description: 'Manage staff & permissions',
       moduleId: 'employees',
     },
@@ -128,8 +146,22 @@ export default function ImprovedRestaurantNavbar() {
       name: 'Marketplace',
       href: `/${restaurant.slug}/marketplace`,
       icon: ShoppingCart,
-      description: 'Order bulk supplies',
+      description: 'Order bulk supplies & wholesale',
       moduleId: 'marketplace',
+    },
+    {
+      name: 'Expense Tracker',
+      href: `/${restaurant.slug}/expenses`,
+      icon: Receipt,
+      description: 'Track business expenses & budgets',
+      moduleId: 'expenses',
+    },
+    {
+      name: 'Business Reports',
+      href: `/${restaurant.slug}/reports`,
+      icon: TrendingUp,
+      description: 'Generate comprehensive reports',
+      moduleId: 'reports',
     },
     {
       name: 'Settings',
@@ -215,16 +247,32 @@ export default function ImprovedRestaurantNavbar() {
                 {isQuickMenuOpen && (
                   <>
                     <div 
-                      className="fixed inset-0 z-10" 
-                      onClick={() => setIsQuickMenuOpen(false)}
+                      className="fixed inset-0 z-40" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsQuickMenuOpen(false);
+                      }}
+                      style={{ 
+                        background: 'transparent',
+                        width: '100vw',
+                        height: '100vh',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0
+                      }}
                     ></div>
-                    <div className="absolute top-full mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-20">
+                    <div 
+                      className="absolute top-full mt-2 w-80 max-h-96 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="px-4 py-2 border-b border-gray-100">
                         <h3 className="text-sm font-semibold text-gray-900">Quick Access</h3>
                         <p className="text-xs text-gray-500">Manage your restaurant operations</p>
                       </div>
                       
-                      <div className="py-2">
+                      <div className="py-2 max-h-80 overflow-y-auto custom-scrollbar">
                         {quickMenuItems.map((item) => {
                           const Icon = item.icon;
                           const isCurrentPage = location.pathname === item.href;

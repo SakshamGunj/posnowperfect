@@ -21,7 +21,8 @@ import {
   Grid3X3,
   Receipt,
   ShoppingCart,
-  Smartphone
+  Smartphone,
+  BarChart3
 } from 'lucide-react';
 import { formatCurrency, getBusinessTypeDisplayName } from '@/lib/utils';
 import { OrderService } from '@/services/orderService';
@@ -277,6 +278,14 @@ export default function RestaurantDashboard() {
       moduleId: 'orders',
     },
     {
+      title: 'Takeaway Orders',
+      description: 'Manage takeaway orders',
+      icon: Package,
+      href: `/${restaurant.slug}/takeaway`,
+      color: 'from-orange-500 to-red-600',
+      moduleId: 'orders',
+    },
+    {
       title: 'Menu Management',
       description: 'Manage menu items & categories',
       icon: ChefHat,
@@ -357,6 +366,22 @@ export default function RestaurantDashboard() {
       moduleId: 'marketplace',
     },
     {
+      title: 'Expense Tracker',
+      description: 'Track business expenses & budgets',
+      icon: Receipt,
+      href: `/${restaurant.slug}/expenses`,
+      color: 'from-violet-500 to-violet-600',
+      moduleId: 'expenses',
+    },
+    {
+      title: 'Business Reports',
+      description: 'Generate comprehensive reports',
+      icon: BarChart3,
+      href: `/${restaurant.slug}/reports`,
+      color: 'from-rose-500 to-rose-600',
+      moduleId: 'reports',
+    },
+    {
       title: 'Settings',
       description: 'Restaurant settings',
       icon: Settings,
@@ -420,92 +445,32 @@ export default function RestaurantDashboard() {
           })}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-          {/* Quick Actions */}
-          <div className="lg:col-span-2">
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Quick Actions</h2>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {quickActions.map((action, index) => {
-                const IconComponent = action.icon;
-                return (
-                  <div
-                    key={index}
-                    className="card card-hover p-4 sm:p-6 cursor-pointer group"
-                    onClick={() => window.location.href = action.href}
-                  >
-                    <div className="flex items-center space-x-3 sm:space-x-4">
-                      <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r ${action.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0`}>
-                        <IconComponent className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                      </div>
-                      
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{action.title}</h3>
-                        <p className="text-xs sm:text-sm text-gray-600 line-clamp-2">{action.description}</p>
-                      </div>
+        {/* Quick Actions - Full Width */}
+        <div>
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Quick Actions</h2>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+            {quickActions.map((action, index) => {
+              const IconComponent = action.icon;
+              return (
+                <div
+                  key={index}
+                  className="card card-hover p-4 sm:p-6 cursor-pointer group"
+                  onClick={() => window.location.href = action.href}
+                >
+                  <div className="flex items-center space-x-3 sm:space-x-4">
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r ${action.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0`}>
+                      <IconComponent className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{action.title}</h3>
+                      <p className="text-xs sm:text-sm text-gray-600 line-clamp-2">{action.description}</p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Restaurant Info */}
-          <div>
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Restaurant Information</h2>
-            
-            <div className="card p-4 sm:p-6 space-y-4">
-              <div className="text-center pb-4 border-b border-gray-200">
-                <div 
-                  className="w-12 h-12 sm:w-16 sm:h-16 mx-auto rounded-2xl flex items-center justify-center text-white mb-3"
-                  style={{ background: 'var(--gradient-primary)' }}
-                >
-                  <Store className="w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
-                <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{restaurant.name}</h3>
-                <p className="text-xs sm:text-sm text-gray-600">{getBusinessTypeDisplayName(restaurant.businessType)}</p>
-              </div>
-              
-              <div className="space-y-3">
-                {restaurant.settings.address && (
-                  <div className="flex items-start space-x-3">
-                    <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm text-gray-600 break-words">{restaurant.settings.address}</span>
-                  </div>
-                )}
-                
-                {restaurant.settings.phone && (
-                  <div className="flex items-center space-x-3">
-                    <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm text-gray-600">{restaurant.settings.phone}</span>
-                  </div>
-                )}
-                
-                {restaurant.settings.email && (
-                  <div className="flex items-center space-x-3">
-                    <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm text-gray-600 break-all">{restaurant.settings.email}</span>
-                  </div>
-                )}
-                
-                <div className="flex items-center space-x-3">
-                  <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-xs sm:text-sm text-gray-600">
-                    Created {new Date(restaurant.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="pt-4 border-t border-gray-200">
-                <button 
-                  className="w-full btn btn-theme-primary text-sm"
-                  onClick={() => window.location.href = `/${restaurant.slug}/settings`}
-                >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Manage Settings
-                </button>
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
       </main>

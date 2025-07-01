@@ -98,6 +98,12 @@ export default function TakeOrder() {
     items: Array<{ name: string; quantity: number }>;
   } | null>(null);
 
+  // WhatsApp functionality state
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [useWhatsAppWeb, setUseWhatsAppWeb] = useState(true); // Default to web since user mentioned they have it open
+
   const { register, handleSubmit, reset } = useForm<OrderNotes>();
   const { setValue: setPaymentValue } = useForm<PaymentForm>({
     defaultValues: { method: 'cash' }
@@ -854,6 +860,201 @@ export default function TakeOrder() {
     } catch (error) {
       console.error('❌ Error generating bill:', error);
       toast.error('Failed to generate bill');
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!whatsappNumber.trim()) {
+      toast.error('Please enter a WhatsApp number');
+      return;
+    }
+
+    if (!restaurant || !table) {
+      toast.error('Restaurant or table data not available');
+      return;
+    }
+
+    setIsSendingWhatsApp(true);
+
+    try {
+      // Import WhatsApp utilities
+      const { WhatsAppUtils } = await import('@/utils/whatsappUtils');
+
+      // Get orders data - use current state or fetch recent completed orders
+      let ordersToUse = allOrders;
+      
+      if (ordersToUse.length === 0) {
+        // Fallback: fetch recent completed orders for this table
+        console.log('🔄 WhatsApp: No orders in state, fetching recent completed orders...');
+        const ordersResult = await OrderService.getOrdersByTable(restaurant.id, tableId);
+        
+        if (ordersResult.success && ordersResult.data) {
+          // Get completed orders from today
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const recentCompletedOrders = ordersResult.data.filter(order => 
+            order.status === 'completed' && 
+            new Date(order.createdAt) >= today
+          ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          
+          if (recentCompletedOrders.length > 0) {
+            ordersToUse = recentCompletedOrders;
+            console.log(`✅ WhatsApp: Found ${ordersToUse.length} recent completed orders`);
+          }
+        }
+      }
+
+      if (ordersToUse.length === 0) {
+        toast.error('No recent orders found for this table');
+        return;
+      }
+
+      // Generate bill content for WhatsApp
+      const lastPaymentData = {
+        method: 'cash', // Default, can be enhanced to store actual payment data
+        amountReceived: ordersToUse.reduce((sum, order) => sum + order.total, 0),
+        finalTotal: ordersToUse.reduce((sum, order) => sum + order.total, 0),
+        originalTotal: ordersToUse.reduce((sum, order) => sum + order.total, 0)
+      };
+
+      const billContent = await generateCombinedBillContent(ordersToUse, restaurant, table, lastPaymentData);
+      
+      // Create formatted message using utility
+      const messageData = {
+        restaurantName: restaurant.name || 'Restaurant',
+        tableNumber: table.number,
+        orderNumbers: ordersToUse.map(order => order.orderNumber),
+        totalAmount: ordersToUse.reduce((sum, order) => sum + order.total, 0),
+        billContent: billContent
+      };
+
+      const messageText = WhatsAppUtils.generateBillMessage(messageData);
+
+      // Create WhatsApp URL using utility
+      const whatsappUrl = WhatsAppUtils.createWhatsAppUrl(whatsappNumber, messageText, useWhatsAppWeb);
+      
+      // Open WhatsApp in a new window/tab
+      window.open(whatsappUrl, '_blank');
+      
+      const successMessage = useWhatsAppWeb 
+        ? 'WhatsApp Web opened! Send the bill to complete sharing.'
+        : 'WhatsApp opened! Send the bill to complete sharing.';
+      toast.success(successMessage);
+      
+      // Clear the WhatsApp number after successful operation
+      setWhatsappNumber('');
+      
+    } catch (error) {
+      console.error('Error preparing WhatsApp bill:', error);
+      if (error instanceof Error && error.message.includes('Invalid phone number')) {
+        toast.error('Please enter a valid phone number');
+      } else {
+        toast.error('Failed to prepare WhatsApp bill');
+      }
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
+
+  const handleDownloadPDFAndShare = async () => {
+    if (!whatsappNumber.trim()) {
+      toast.error('Please enter a WhatsApp number');
+      return;
+    }
+
+    if (!restaurant || !table) {
+      toast.error('Restaurant or table data not available');
+      return;
+    }
+
+    setIsGeneratingPDF(true);
+
+    try {
+      // Import WhatsApp utilities
+      const { WhatsAppUtils } = await import('@/utils/whatsappUtils');
+
+      // Get orders data - use current state or fetch recent completed orders
+      let ordersToUse = allOrders;
+      
+      if (ordersToUse.length === 0) {
+        // Fallback: fetch recent completed orders for this table
+        console.log('🔄 PDF: No orders in state, fetching recent completed orders...');
+        const ordersResult = await OrderService.getOrdersByTable(restaurant.id, tableId);
+        
+        if (ordersResult.success && ordersResult.data) {
+          // Get completed orders from today
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const recentCompletedOrders = ordersResult.data.filter(order => 
+            order.status === 'completed' && 
+            new Date(order.createdAt) >= today
+          ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          
+          if (recentCompletedOrders.length > 0) {
+            ordersToUse = recentCompletedOrders;
+            console.log(`✅ PDF: Found ${ordersToUse.length} recent completed orders`);
+          }
+        }
+      }
+
+      if (ordersToUse.length === 0) {
+        toast.error('No recent orders found for this table');
+        return;
+      }
+
+      // Generate bill content for PDF
+      const lastPaymentData = {
+        method: 'cash', // Default, can be enhanced to store actual payment data
+        amountReceived: ordersToUse.reduce((sum, order) => sum + order.total, 0),
+        finalTotal: ordersToUse.reduce((sum, order) => sum + order.total, 0),
+        originalTotal: ordersToUse.reduce((sum, order) => sum + order.total, 0)
+      };
+
+      const billContent = await generateCombinedBillContent(ordersToUse, restaurant, table, lastPaymentData);
+      
+      // Generate and download PDF
+      const timestamp = new Date().toISOString().split('T')[0];
+      const fileName = `${restaurant.name.replace(/\s+/g, '_')}_Table_${table.number}_${timestamp}.pdf`;
+      
+      await WhatsAppUtils.generateBillPDF(billContent, fileName);
+      
+      // Create short message for PDF sharing
+      const messageData = {
+        restaurantName: restaurant.name || 'Restaurant',
+        tableNumber: table.number,
+        orderNumbers: ordersToUse.map(order => order.orderNumber),
+        totalAmount: ordersToUse.reduce((sum, order) => sum + order.total, 0)
+      };
+
+      const messageText = WhatsAppUtils.generatePDFSharingMessage(messageData);
+
+      // Create WhatsApp URL with message
+      const whatsappUrl = WhatsAppUtils.createWhatsAppUrl(whatsappNumber, messageText, useWhatsAppWeb);
+      
+      // Open WhatsApp in a new window/tab
+      window.open(whatsappUrl, '_blank');
+      
+      const successMessage = useWhatsAppWeb 
+        ? 'PDF downloaded! WhatsApp Web opened - please attach the downloaded PDF file.'
+        : 'PDF downloaded! WhatsApp opened - please attach the downloaded PDF file.';
+      toast.success(successMessage, { duration: 5000 });
+      
+      // Clear the WhatsApp number after successful operation
+      setWhatsappNumber('');
+      
+    } catch (error) {
+      console.error('Error generating PDF or preparing WhatsApp:', error);
+      if (error instanceof Error && error.message.includes('Invalid phone number')) {
+        toast.error('Please enter a valid phone number');
+      } else if (error instanceof Error && error.message.includes('Failed to generate PDF')) {
+        toast.error('Failed to generate PDF. Please try the text version instead.');
+      } else {
+        toast.error('Failed to generate PDF bill');
+      }
+    } finally {
+      setIsGeneratingPDF(false);
     }
   };
 
@@ -1852,64 +2053,7 @@ export default function TakeOrder() {
         {/* Main Content - Full Width */}
         <div className="h-full overflow-hidden">
           <main className="h-full px-4 sm:px-6 lg:px-8 py-6">
-            {/* Order Side Panel for Adding More */}
-            {showSidePanel && orderState === 'adding_more' && (
-              <div className="fixed inset-y-0 right-0 w-96 bg-white shadow-xl z-50 border-l border-gray-200">
-                <div className="h-full flex flex-col">
-                  <div className="p-4 border-b border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-900">Order Summary</h3>
-                      <button
-                        onClick={() => setShowSidePanel(false)}
-                        className="p-2 text-gray-400 hover:text-gray-600"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <p className="text-sm text-gray-600">Existing orders on Table {table.number}</p>
-                  </div>
-                  
-                  <div className="flex-1 overflow-y-auto p-4">
-                    {allOrders.map((order) => (
-                      <div key={order.id} className="mb-4 bg-gray-50 rounded-lg p-3">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-medium text-gray-900">
-                            Order #{order.orderNumber}
-                          </span>
-                          <span className="text-gray-600">
-                            {formatCurrency(order.total)}
-                          </span>
-                        </div>
-                        <div className="space-y-1">
-                          {order.items.map(item => (
-                            <div key={item.id} className="flex justify-between text-sm">
-                              <span className="text-gray-600">
-                                {item.quantity}x {item.name}
-                              </span>
-                              <span className="text-gray-600">
-                                {formatCurrency(item.total)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="border-t border-gray-200 p-4">
-                    <button
-                      onClick={() => {
-                        setShowSidePanel(false);
-                        setOrderState('placed');
-                      }}
-                      className="w-full btn btn-secondary"
-                    >
-                      Back to Orders
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+
 
             {(orderState === 'cart' || orderState === 'adding_more') && (
           <>
@@ -2164,7 +2308,7 @@ export default function TakeOrder() {
                 ) : (
                   <div 
                     key={`mobile-grid-${searchTerm}-${filteredItems.length}`}
-                    className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                    className="grid grid-cols-2 sm:grid-cols-2 gap-4"
                   >
                     {filteredItems.map((item, index) => {
                       const cartItem = cartItems.find(ci => ci.menuItemId === item.id);
@@ -2391,6 +2535,127 @@ export default function TakeOrder() {
                   <p className="text-gray-600 mb-6">
                     All orders for Table {table.number} have been paid and completed.
                   </p>
+
+                  {/* WhatsApp Bill Sharing Section */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-2">
+                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.787"/>
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-semibold text-green-800">Share Bill on WhatsApp</h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label htmlFor="whatsappNumber" className="block text-sm font-medium text-gray-700 mb-2">
+                          WhatsApp Number
+                        </label>
+                        <input
+                          type="tel"
+                          id="whatsappNumber"
+                          value={whatsappNumber}
+                          onChange={(e) => {
+                            // Only allow numbers and limit to 10 digits
+                            const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+                            setWhatsappNumber(value);
+                          }}
+                          placeholder="Enter WhatsApp number (e.g., 9876543210)"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          disabled={isSendingWhatsApp}
+                          maxLength={10}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Enter 10-digit mobile number without country code
+                        </p>
+                      </div>
+
+                      {/* WhatsApp Platform Choice */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Choose WhatsApp Platform
+                        </label>
+                        <div className="space-y-2">
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name="whatsappPlatform"
+                              checked={useWhatsAppWeb}
+                              onChange={() => setUseWhatsAppWeb(true)}
+                              className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+                              disabled={isSendingWhatsApp}
+                            />
+                            <span className="ml-2 text-sm text-gray-700">
+                              <strong>WhatsApp Web</strong> - Open in browser (recommended if you have WhatsApp Web open)
+                            </span>
+                          </label>
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name="whatsappPlatform"
+                              checked={!useWhatsAppWeb}
+                              onChange={() => setUseWhatsAppWeb(false)}
+                              className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+                              disabled={isSendingWhatsApp}
+                            />
+                            <span className="ml-2 text-sm text-gray-700">
+                              <strong>WhatsApp App</strong> - Open mobile/desktop app
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <button
+                          onClick={handleSendWhatsApp}
+                          disabled={isSendingWhatsApp || isGeneratingPDF || !whatsappNumber.trim() || whatsappNumber.length !== 10}
+                          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                        >
+                          {isSendingWhatsApp ? (
+                            <>
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                              Preparing...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.787"/>
+                              </svg>
+                              Send Text Bill
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          onClick={handleDownloadPDFAndShare}
+                          disabled={isSendingWhatsApp || isGeneratingPDF || !whatsappNumber.trim() || whatsappNumber.length !== 10}
+                          className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                        >
+                          {isGeneratingPDF ? (
+                            <>
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                              Creating PDF...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Download PDF & Share
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="text-center">
+                        <p className="text-xs text-gray-600">
+                          <span className="font-medium">Text Bill:</span> Send formatted bill text directly in WhatsApp<br/>
+                          <span className="font-medium">PDF Bill:</span> Download PDF and manually attach to WhatsApp
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                   
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <button

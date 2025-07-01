@@ -16,10 +16,21 @@ export function RestaurantProvider({ children }: RestaurantProviderProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const subscriptionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Initialize the context after a short delay to prevent race conditions
+  useEffect(() => {
+    const initTimer = setTimeout(() => {
+      setIsInitialized(true);
+    }, 150); // 150ms delay to ensure Firebase is ready
+
+    return () => clearTimeout(initTimer);
+  }, []);
 
   // Extract restaurant slug from URL path
   const getSlugFromPath = useCallback((): string | null => {
@@ -62,6 +73,20 @@ export function RestaurantProvider({ children }: RestaurantProviderProps) {
       setError(null);
       setIsSubscribed(false); // Reset subscription state
 
+      // Clear any existing loading timeout
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+
+      // Set up a timeout to prevent infinite loading
+      loadingTimeoutRef.current = setTimeout(() => {
+        console.log('⏰ Restaurant loading timeout reached - setting loading to false');
+        setLoading(false);
+        setError('Restaurant loading timed out. Please try refreshing the page.');
+        loadingTimeoutRef.current = null;
+      }, 8000); // 8 second timeout
+
       const result = await RestaurantService.getRestaurantBySlug(slug);
       
       if (result.success && result.data) {
@@ -89,6 +114,11 @@ export function RestaurantProvider({ children }: RestaurantProviderProps) {
       setRestaurant(null);
       console.error('Error loading restaurant:', err);
     } finally {
+      // Clear the timeout since we're done loading
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
       setLoading(false);
     }
   }, [navigate, location.pathname, applyTheme]);
@@ -136,8 +166,11 @@ export function RestaurantProvider({ children }: RestaurantProviderProps) {
     }
   }, [restaurant]);
 
-  // Load restaurant on route change
+  // Load restaurant on route change (only after initialization)
   useEffect(() => {
+    // Don't proceed until context is initialized
+    if (!isInitialized) return;
+
     const slug = getSlugFromPath();
     
     if (slug) {
@@ -163,7 +196,7 @@ export function RestaurantProvider({ children }: RestaurantProviderProps) {
       root.style.removeProperty('--gradient-primary');
       root.style.removeProperty('--gradient-secondary');
     }
-  }, [location.pathname]);
+  }, [location.pathname, restaurant, switchRestaurant, isInitialized]);
 
   // Set up real-time listener for restaurant updates
   useEffect(() => {
@@ -215,6 +248,16 @@ export function RestaurantProvider({ children }: RestaurantProviderProps) {
       }
     };
   }, [restaurant?.slug]);
+
+  // Cleanup loading timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const contextValue: RestaurantContextType = {
     restaurant,

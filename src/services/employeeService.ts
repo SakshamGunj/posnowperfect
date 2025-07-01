@@ -81,6 +81,14 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     defaultAccess: false
   },
   {
+    id: 'refunds',
+    name: 'Process Refunds',
+    description: 'Issue refunds and handle returns',
+    category: 'core',
+    icon: 'RotateCcw',
+    defaultAccess: false
+  },
+  {
     id: 'kot_print',
     name: 'KOT Printing',
     description: 'Print Kitchen Order Tickets',
@@ -198,6 +206,26 @@ export const AVAILABLE_MODULES: ModulePermission[] = [
     description: 'Restock inventory items',
     category: 'management',
     icon: 'RefreshCw',
+    defaultAccess: false
+  },
+  
+  // ===== EXPENSE MANAGEMENT =====
+  {
+    id: 'expenses',
+    name: 'Expense Tracker',
+    description: 'View and manage business expenses',
+    category: 'management',
+    icon: 'Receipt',
+    defaultAccess: false
+  },
+  
+  // ===== BUSINESS REPORTS =====
+  {
+    id: 'reports',
+    name: 'Business Reports',
+    description: 'Generate and download comprehensive business reports',
+    category: 'reports',
+    icon: 'FileText',
     defaultAccess: false
   },
   {
@@ -1068,5 +1096,348 @@ export class EmployeeService {
       const permission = employee.permissions.find(p => p.module === module.id);
       return permission ? permission.access : false;
     });
+  }
+
+  // ===== ADVANCED EMPLOYEE MANAGEMENT FUNCTIONS =====
+
+  // Track employee activity
+  static async logEmployeeActivity(
+    employeeId: string,
+    restaurantId: string,
+    action: string,
+    details?: any
+  ): Promise<ApiResponse<void>> {
+    try {
+      await addDoc(collection(db, 'employee_activity'), {
+        employeeId,
+        restaurantId,
+        action,
+        details: details || {},
+        timestamp: Timestamp.now(),
+        createdAt: Timestamp.now()
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error logging employee activity:', error);
+      return {
+        success: false,
+        error: 'Failed to log employee activity'
+      };
+    }
+  }
+
+  // Get employee activity logs
+  static async getEmployeeActivity(
+    employeeId: string,
+    restaurantId: string,
+    limit: number = 50
+  ): Promise<ApiResponse<any[]>> {
+    try {
+      const activityQuery = query(
+        collection(db, 'employee_activity'),
+        where('employeeId', '==', employeeId),
+        where('restaurantId', '==', restaurantId)
+      );
+      
+      const snapshot = await getDocs(activityQuery);
+      const activities = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate(),
+        createdAt: doc.data().createdAt?.toDate()
+      }));
+
+      // Sort by timestamp (most recent first) and limit
+      const sortedActivities = activities
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, limit);
+
+      return {
+        success: true,
+        data: sortedActivities
+      };
+    } catch (error) {
+      console.error('Error fetching employee activity:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch employee activity'
+      };
+    }
+  }
+
+  // Clock in/out functions for shift management
+  static async clockIn(
+    employeeId: string,
+    restaurantId: string
+  ): Promise<ApiResponse<any>> {
+    try {
+      // Check if already clocked in
+      const existingShiftQuery = query(
+        collection(db, 'employee_shifts'),
+        where('employeeId', '==', employeeId),
+        where('restaurantId', '==', restaurantId),
+        where('clockOutTime', '==', null)
+      );
+      
+      const existingShifts = await getDocs(existingShiftQuery);
+      
+      if (!existingShifts.empty) {
+        return {
+          success: false,
+          error: 'Employee is already clocked in'
+        };
+      }
+
+      const shiftData = {
+        employeeId,
+        restaurantId,
+        clockInTime: Timestamp.now(),
+        clockOutTime: null,
+        breakTime: 0,
+        totalHours: 0,
+        date: new Date().toISOString().split('T')[0],
+        createdAt: Timestamp.now()
+      };
+
+      const docRef = await addDoc(collection(db, 'employee_shifts'), shiftData);
+
+      // Log activity
+      await this.logEmployeeActivity(employeeId, restaurantId, 'clock_in', {
+        shiftId: docRef.id,
+        timestamp: new Date()
+      });
+
+      return {
+        success: true,
+        data: { id: docRef.id, ...shiftData }
+      };
+    } catch (error) {
+      console.error('Error clocking in employee:', error);
+      return {
+        success: false,
+        error: 'Failed to clock in'
+      };
+    }
+  }
+
+  // Clock out function
+  static async clockOut(
+    employeeId: string,
+    restaurantId: string
+  ): Promise<ApiResponse<any>> {
+    try {
+      // Find active shift
+      const activeShiftQuery = query(
+        collection(db, 'employee_shifts'),
+        where('employeeId', '==', employeeId),
+        where('restaurantId', '==', restaurantId),
+        where('clockOutTime', '==', null)
+      );
+      
+      const activeShifts = await getDocs(activeShiftQuery);
+      
+      if (activeShifts.empty) {
+        return {
+          success: false,
+          error: 'No active shift found'
+        };
+      }
+
+      const shiftDoc = activeShifts.docs[0];
+      const shiftData = shiftDoc.data();
+      const clockOutTime = Timestamp.now();
+      
+      // Calculate total hours
+      const clockInTime = shiftData.clockInTime.toDate();
+      const totalHours = (clockOutTime.toDate().getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+
+      await updateDoc(doc(db, 'employee_shifts', shiftDoc.id), {
+        clockOutTime,
+        totalHours: Math.round(totalHours * 100) / 100,
+        updatedAt: Timestamp.now()
+      });
+
+      // Log activity
+      await this.logEmployeeActivity(employeeId, restaurantId, 'clock_out', {
+        shiftId: shiftDoc.id,
+        totalHours,
+        timestamp: new Date()
+      });
+
+      return {
+        success: true,
+        data: {
+          shiftId: shiftDoc.id,
+          totalHours,
+          clockInTime: clockInTime,
+          clockOutTime: clockOutTime.toDate()
+        }
+      };
+    } catch (error) {
+      console.error('Error clocking out employee:', error);
+      return {
+        success: false,
+        error: 'Failed to clock out'
+      };
+    }
+  }
+
+  // Get current shift status for employee
+  static async getCurrentShiftStatus(
+    employeeId: string,
+    restaurantId: string
+  ): Promise<ApiResponse<any>> {
+    try {
+      const activeShiftQuery = query(
+        collection(db, 'employee_shifts'),
+        where('employeeId', '==', employeeId),
+        where('restaurantId', '==', restaurantId),
+        where('clockOutTime', '==', null)
+      );
+      
+      const activeShifts = await getDocs(activeShiftQuery);
+      
+      if (activeShifts.empty) {
+        return {
+          success: true,
+          data: {
+            isClocked: false,
+            shift: null
+          }
+        };
+      }
+
+      const shiftDoc = activeShifts.docs[0];
+      const shiftData = shiftDoc.data();
+
+      return {
+        success: true,
+        data: {
+          isClocked: true,
+          shift: {
+            id: shiftDoc.id,
+            clockInTime: shiftData.clockInTime?.toDate(),
+            currentHours: (new Date().getTime() - shiftData.clockInTime.toDate().getTime()) / (1000 * 60 * 60)
+          }
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching current shift status:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch shift status'
+      };
+    }
+  }
+
+  // Get employee performance analytics
+  static async getEmployeePerformance(
+    employeeId: string,
+    restaurantId: string,
+    dateRange?: { start: Date; end: Date }
+  ): Promise<ApiResponse<any>> {
+    try {
+      // Get employee's orders
+      let ordersQuery = query(
+        collection(db, 'orders'),
+        where('staffId', '==', employeeId),
+        where('restaurantId', '==', restaurantId)
+      );
+
+      const ordersSnapshot = await getDocs(ordersQuery);
+      const orders = ordersSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate()
+      }));
+
+      // Filter by date range if provided
+      const filteredOrders = dateRange
+        ? orders.filter(order => 
+            order.createdAt >= dateRange.start && 
+            order.createdAt <= dateRange.end
+          )
+        : orders;
+
+      // Calculate performance metrics
+      const totalOrders = filteredOrders.length;
+      const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+      
+      const completedOrders = filteredOrders.filter(order => order.status === 'completed');
+      const cancelledOrders = filteredOrders.filter(order => order.status === 'cancelled');
+      
+      const completionRate = totalOrders > 0 ? (completedOrders.length / totalOrders) * 100 : 0;
+      const cancellationRate = totalOrders > 0 ? (cancelledOrders.length / totalOrders) * 100 : 0;
+
+      return {
+        success: true,
+        data: {
+          totalOrders,
+          totalRevenue,
+          averageOrderValue,
+          completionRate,
+          cancellationRate,
+          completedOrders: completedOrders.length,
+          cancelledOrders: cancelledOrders.length,
+          period: dateRange || { start: null, end: null }
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching employee performance:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch employee performance'
+      };
+    }
+  }
+
+  // Get all employees performance summary
+  static async getAllEmployeesPerformance(
+    restaurantId: string,
+    dateRange?: { start: Date; end: Date }
+  ): Promise<ApiResponse<any[]>> {
+    try {
+      const employeesResult = await this.getEmployees(restaurantId);
+      if (!employeesResult.success || !employeesResult.data) {
+        return {
+          success: false,
+          error: 'Failed to fetch employees'
+        };
+      }
+
+      const performancePromises = employeesResult.data.map(async (employee) => {
+        const performanceResult = await this.getEmployeePerformance(
+          employee.id,
+          restaurantId,
+          dateRange
+        );
+
+        return {
+          employee: {
+            id: employee.id,
+            name: employee.name,
+            email: employee.email,
+            role: employee.role,
+            isActive: employee.isActive
+          },
+          performance: performanceResult.success ? performanceResult.data : null
+        };
+      });
+
+      const performanceData = await Promise.all(performancePromises);
+
+      return {
+        success: true,
+        data: performanceData
+      };
+    } catch (error) {
+      console.error('Error fetching all employees performance:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch employees performance'
+      };
+    }
   }
 } 
