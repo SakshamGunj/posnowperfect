@@ -886,7 +886,7 @@ export default function TakeOrder() {
       if (ordersToUse.length === 0) {
         // Fallback: fetch recent completed orders for this table
         console.log('🔄 WhatsApp: No orders in state, fetching recent completed orders...');
-        const ordersResult = await OrderService.getOrdersByTable(restaurant.id, tableId);
+        const ordersResult = await OrderService.getOrdersByTable(restaurant.id, tableId || '');
         
         if (ordersResult.success && ordersResult.data) {
           // Get completed orders from today
@@ -980,7 +980,7 @@ export default function TakeOrder() {
       if (ordersToUse.length === 0) {
         // Fallback: fetch recent completed orders for this table
         console.log('🔄 PDF: No orders in state, fetching recent completed orders...');
-        const ordersResult = await OrderService.getOrdersByTable(restaurant.id, tableId);
+        const ordersResult = await OrderService.getOrdersByTable(restaurant.id, tableId || '');
         
         if (ordersResult.success && ordersResult.data) {
           // Get completed orders from today
@@ -1575,7 +1575,7 @@ export default function TakeOrder() {
         
         // Check if it's a duplicate customer error
         if (result.error?.includes('already exists') || result.error?.includes('duplicate')) {
-          toast.error(`🎤 Customer with this information already exists in CRM`);
+          toast.error(`�� Customer with this information already exists in CRM`);
         } else {
           toast.error(`🎤 Failed to add customer: ${result.error || 'Unknown error'}`);
         }

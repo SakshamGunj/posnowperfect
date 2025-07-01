@@ -39,7 +39,6 @@ import {
   Zap,
   Briefcase,
   UserCheck,
-  ClockIn,
   PlayCircle,
   Pause,
   StopCircle
@@ -876,7 +875,7 @@ export default function EmployeeManagement({}: EmployeeManagementProps) {
         <EditEmployeeModal
           employee={editingEmployee}
           onClose={() => setEditingEmployee(null)}
-          onSubmit={handleUpdateEmployee}
+          onSubmit={(updates) => handleUpdateEmployee(editingEmployee.id, updates)}
         />
       )}
     </div>

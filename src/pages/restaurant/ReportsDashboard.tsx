@@ -750,8 +750,8 @@ export default function ReportsDashboard() {
     
     // Advanced KPIs
     const avgItemsPerOrder = totalOrders > 0 ? (totalItems / totalOrders).toFixed(1) : '0';
-    const completedOrders = orders.filter(o => o.status === 'completed').length;
-    const cancelledOrders = orders.filter(o => o.status === 'cancelled').length;
+    const completedOrders = orders.filter((o: any) => o.status === 'completed').length;
+    const cancelledOrders = orders.filter((o: any) => o.status === 'cancelled').length;
     const orderCompletionRate = totalOrders > 0 ? ((completedOrders / totalOrders) * 100).toFixed(1) : '0';
     const orderCancellationRate = totalOrders > 0 ? ((cancelledOrders / totalOrders) * 100).toFixed(1) : '0';
     
@@ -1456,10 +1456,10 @@ export default function ReportsDashboard() {
     // Calculate summary metrics
     const totalItems = enhancedInventory.length;
     const lowStockItems = enhancedInventory.filter(item => 
-      item.currentStock < item.minStock && item.isTracked !== false
+      item.currentStock < item.minStock && (item as any).isTracked !== false
     ).length;
     const outOfStockItems = enhancedInventory.filter(item => 
-      item.currentStock <= 0 && item.isTracked !== false
+      item.currentStock <= 0 && (item as any).isTracked !== false
     ).length;
     const overstockItems = enhancedInventory.filter(item => 
       item.maxStock > 0 && item.currentStock > item.maxStock
@@ -1475,8 +1475,8 @@ export default function ReportsDashboard() {
     const consumptionData = enhancedInventory.map(item => {
       const consumed = enhancedOrders.reduce((sum, order) => {
         const orderItems = order.items || [];
-        const orderItem = orderItems.find((oi: any) => oi.menuItemId === item.menuItemId);
-        return sum + ((orderItem?.quantity || 0) * (item.consumptionPerOrder || 1));
+        const orderItem = orderItems.find((oi: any) => oi.menuItemId === (item as any).menuItemId);
+        return sum + ((orderItem?.quantity || 0) * ((item as any).consumptionPerOrder || 1));
       }, 0);
       
       const turnoverRate = item.currentStock > 0 ? consumed / item.currentStock : 0;
@@ -1622,9 +1622,9 @@ export default function ReportsDashboard() {
     
     // Use calculated summary metrics
     const totalItems = summary.totalItems || inventory.length;
-    const lowStockItems = inventory.filter(item => item.currentStock < item.minStock);
-    const outOfStockItems = inventory.filter(item => item.currentStock <= 0);
-    const overstockItems = inventory.filter(item => 
+    const lowStockItems = inventory.filter((item: any) => item.currentStock < item.minStock);
+    const outOfStockItems = inventory.filter((item: any) => item.currentStock <= 0);
+    const overstockItems = inventory.filter((item: any) => 
       item.maxStock > 0 && item.currentStock > item.maxStock
     );
     const totalValue = summary.totalValue || 0;
@@ -1633,7 +1633,7 @@ export default function ReportsDashboard() {
     const avgTurnoverRate = summary.avgTurnoverRate || 0;
     
     // Calculate category breakdown
-    const categoryBreakdown = inventory.reduce((acc, item) => {
+    const categoryBreakdown = inventory.reduce((acc: any, item: any) => {
       const category = item.category || 'Uncategorized';
       if (!acc[category]) {
         acc[category] = { count: 0, value: 0, lowStock: 0 };
@@ -1645,7 +1645,7 @@ export default function ReportsDashboard() {
     }, {});
 
     // Add reorder suggestions to consumption data
-    const enrichedConsumptionData = consumptionData.map(item => ({
+    const enrichedConsumptionData = consumptionData.map((item: any) => ({
       ...item,
       reorderSuggestion: item.currentStock <= 0 ? 'Urgent' :
                         item.currentStock < item.minStock ? 'Urgent' : 
@@ -1654,7 +1654,7 @@ export default function ReportsDashboard() {
     }));
 
     // Sort items by priority (low stock first)
-    const sortedItems = enrichedConsumptionData.sort((a, b) => {
+    const sortedItems = enrichedConsumptionData.sort((a: any, b: any) => {
       if (a.currentStock <= 0 && b.currentStock > 0) return -1;
       if (a.currentStock > 0 && b.currentStock <= 0) return 1;
       if (a.currentStock < a.minStock && b.currentStock >= b.minStock) return -1;
@@ -1724,7 +1724,7 @@ export default function ReportsDashboard() {
                 </tr>
               </thead>
               <tbody>
-                ${outOfStockItems.slice(0, 10).map(item => `
+                ${outOfStockItems.slice(0, 10).map((item: any) => `
                   <tr>
                     <td><strong>${item.name}</strong></td>
                     <td>${item.category || 'N/A'}</td>
@@ -1753,8 +1753,8 @@ export default function ReportsDashboard() {
                 </tr>
               </thead>
               <tbody>
-                ${lowStockItems.slice(0, 15).map(item => {
-                  const itemData = enrichedConsumptionData.find(d => d.id === item.id) || item;
+                ${lowStockItems.slice(0, 15).map((item: any) => {
+                  const itemData = enrichedConsumptionData.find((d: any) => d.id === item.id) || item;
                   return `
                     <tr>
                       <td><strong>${item.name}</strong></td>
@@ -1822,7 +1822,7 @@ export default function ReportsDashboard() {
               </tr>
             </thead>
             <tbody>
-              ${sortedItems.slice(0, 20).map(item => `
+              ${sortedItems.slice(0, 20).map((item: any) => `
                 <tr class="${item.currentStock <= 0 ? 'critical-row' : item.currentStock < item.minStock ? 'warning-row' : ''}">
                   <td><strong>${item.name}</strong></td>
                   <td>${item.currentStock} ${item.unit}</td>
@@ -1854,9 +1854,9 @@ export default function ReportsDashboard() {
           <h3 class="subsection-title">📋 Smart Reorder Recommendations</h3>
           <div class="recommendations-grid">
             ${enrichedConsumptionData
-              .filter(item => item.reorderSuggestion !== 'Good')
-              .slice(0, 12)
-              .map(item => `
+              .filter((item: any) => item.reorderSuggestion !== 'Good')
+                              .slice(0, 12)
+                .map((item: any) => `
                 <div class="recommendation-card ${item.reorderSuggestion?.toLowerCase() || 'monitor'}">
                   <h4>${item.name}</h4>
                   <div class="rec-details">
@@ -1879,7 +1879,7 @@ export default function ReportsDashboard() {
               <h4>🔄 Recent Adjustments</h4>
               <p>Manual stock adjustments and corrections in the last 30 days.</p>
               <div class="adjustment-list">
-                ${inventory.slice(0, 5).map(item => `
+                ${inventory.slice(0, 5).map((item: any) => `
                   <div class="adjustment-item">
                     <span class="item-name">${item.name}</span>
                     <span class="adjustment-type">Stock Count</span>
@@ -1895,9 +1895,9 @@ export default function ReportsDashboard() {
               <p>Items with highest consumption rates this period.</p>
               <div class="trend-list">
                 ${enrichedConsumptionData
-                  .sort((a, b) => (b.consumed || 0) - (a.consumed || 0))
+                  .sort((a: any, b: any) => (b.consumed || 0) - (a.consumed || 0))
                   .slice(0, 5)
-                  .map(item => `
+                  .map((item: any) => `
                     <div class="trend-item">
                       <span class="item-name">${item.name}</span>
                       <span class="consumption">${item.consumed || 0} ${item.unit}</span>

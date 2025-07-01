@@ -23,14 +23,36 @@ import {
   CreateExpenseRequest, 
   UpdateExpenseRequest, 
   ExpenseFilters, 
-  ExpenseStats,
   ExpenseAnalytics,
   ApiResponse 
 } from '@/types';
 import { generateId } from '@/lib/utils';
 
+// Local type to avoid conflicts with imported ExpenseStats
+type LocalExpenseStats = {
+  todayExpenses: number;
+  weekExpenses: number;
+  monthExpenses: number;
+  yearExpenses: number;
+  pendingExpenses: number;
+  overdueExpenses: number;
+  recurringExpenses: number;
+  avgDailyExpense: number;
+  avgMonthlyExpense: number;
+  totalExpenseCount: number;
+  approvedExpenses: number;
+  paidExpenses: number;
+  rejectedExpenses: number;
+  topCategory: {
+    name: string;
+    amount: number;
+  };
+  recentExpenses: Expense[];
+}
+
 // Collections
 const EXPENSES_COLLECTION = 'expenses';
+const EXPENSE_CATEGORIES_COLLECTION = 'expense_categories';
 
 // Cache for expenses
 const expenseCache = new Map<string, { 
@@ -391,7 +413,7 @@ export class ExpenseService {
   }
 
   // Get expense statistics for dashboard
-  static async getExpenseStats(restaurantId: string): Promise<ApiResponse<ExpenseStats>> {
+  static async getExpenseStats(restaurantId: string): Promise<ApiResponse<LocalExpenseStats>> {
     try {
       const result = await this.getExpensesForRestaurant(restaurantId);
       if (!result.success || !result.data) {
@@ -467,7 +489,7 @@ export class ExpenseService {
         amount: 0
       };
 
-      const stats: ExpenseStats = {
+      const stats: LocalExpenseStats = {
         todayExpenses,
         weekExpenses,
         monthExpenses,
@@ -477,12 +499,12 @@ export class ExpenseService {
         recurringExpenses,
         avgDailyExpense,
         avgMonthlyExpense,
-        topCategory,
-        totalExpenses: expenses.reduce((sum, e) => sum + e.amount, 0),
         totalExpenseCount: expenses.length,
         approvedExpenses: expenses.filter(e => e.status === 'approved').length,
         paidExpenses: expenses.filter(e => e.status === 'paid').length,
         rejectedExpenses: expenses.filter(e => e.status === 'rejected').length,
+        topCategory,
+        recentExpenses: expenses,
       };
 
       return {

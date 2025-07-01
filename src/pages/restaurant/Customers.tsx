@@ -24,6 +24,12 @@ import {
   Clock,
   TrendingUp,
   Star,
+  User,
+  Tag,
+  FileText,
+  Percent,
+  Trophy,
+  CreditCard,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -254,7 +260,7 @@ export default function Customers() {
             const customerIdMatch = order.customerId === customer.id;
             
             // Check if customer phone/name is in order customer fields
-            const customerMatch = order.customerPhone?.includes(customer.phone || '') ||
+            const customerMatch = (order.customerPhone ? order.customerPhone?.includes(customer.phone || '') : false) ||
                                  order.customerName?.toLowerCase().includes(customer.name?.toLowerCase() || '');
             
             return notesMatch || customerIdMatch || customerMatch;
@@ -275,8 +281,8 @@ export default function Customers() {
             return searchTerms.some(term => 
               order.notes?.toLowerCase().includes(term?.toLowerCase() || '') ||
               order.customerName?.toLowerCase().includes(term?.toLowerCase() || '') ||
-              order.customerPhone?.includes(term || '') ||
-              order.customerEmail?.toLowerCase().includes(term?.toLowerCase() || '')
+              (order.customerPhone ? order.customerPhone?.includes(term || '') : false) ||
+              (order.customerEmail ? order.customerEmail?.toLowerCase().includes(term?.toLowerCase() || '') : false)
             );
           });
           
@@ -1786,10 +1792,10 @@ export default function Customers() {
                                       return null;
                                     })()}
                                     {/* Customer Name if available */}
-                                    {(order.customerName || order.customerPhone) && (
+                                    {(order.customerName || (order.customerPhone ? order.customerPhone : false)) && (
                                       <div className="flex items-center space-x-1">
                                         <User className="w-3 h-3 sm:w-4 sm:h-4" />
-                                        <span>{order.customerName || order.customerPhone}</span>
+                                        <span>{order.customerName || (order.customerPhone ? order.customerPhone : '')}</span>
                                       </div>
                                     )}
                                   </div>

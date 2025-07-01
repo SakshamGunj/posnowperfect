@@ -1362,11 +1362,11 @@ export class EmployeeService {
 
       // Calculate performance metrics
       const totalOrders = filteredOrders.length;
-      const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+      const totalRevenue = filteredOrders.reduce((sum, order) => sum + ((order as any).total || 0), 0);
       const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
       
-      const completedOrders = filteredOrders.filter(order => order.status === 'completed');
-      const cancelledOrders = filteredOrders.filter(order => order.status === 'cancelled');
+      const completedOrders = filteredOrders.filter(order => (order as any).status === 'completed');
+      const cancelledOrders = filteredOrders.filter(order => (order as any).status === 'cancelled');
       
       const completionRate = totalOrders > 0 ? (completedOrders.length / totalOrders) * 100 : 0;
       const cancellationRate = totalOrders > 0 ? (cancelledOrders.length / totalOrders) * 100 : 0;
