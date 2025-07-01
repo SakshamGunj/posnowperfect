@@ -92,13 +92,14 @@ function RevenueGrowthChart({ orders }: { orders: Order[] }) {
       const nextDay = new Date(date);
       nextDay.setDate(date.getDate() + 1);
       
-      // Filter orders for this day
+      // Filter orders for this day (only completed orders count towards revenue)
       const dayOrders = orders.filter(order => {
         const orderDate = new Date(order.createdAt);
         return orderDate >= date && orderDate < nextDay;
       });
       
-      const dailyRevenue = dayOrders.reduce((sum, order) => sum + order.total, 0);
+      const completedDayOrders = dayOrders.filter(order => order.status === 'completed');
+      const dailyRevenue = completedDayOrders.reduce((sum, order) => sum + order.total, 0);
       
       pastWeekData.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -1434,17 +1435,21 @@ export default function OrderDashboard() {
       return orderDate >= todayStart && orderDate <= todayEnd;
     });
 
-    const totalRevenue = orderList.reduce((sum, order) => sum + order.total, 0);
-    const todayRevenue = todayOrders.reduce((sum, order) => sum + order.total, 0);
+    // Only calculate revenue from completed orders
+    const completedOrders = orderList.filter(order => order.status === 'completed');
+    const completedTodayOrders = todayOrders.filter(order => order.status === 'completed');
 
-    // Calculate actual revenue accounting for credits
-    const allRevenueData = await RevenueService.calculateOrdersRevenue(orderList, restaurant.id);
-    const todayRevenueData = await RevenueService.calculateOrdersRevenue(todayOrders, restaurant.id);
+    const totalRevenue = completedOrders.reduce((sum, order) => sum + order.total, 0);
+    const todayRevenue = completedTodayOrders.reduce((sum, order) => sum + order.total, 0);
 
-    // Calculate popular items
+    // Calculate actual revenue accounting for credits (only from completed orders)
+    const allRevenueData = await RevenueService.calculateOrdersRevenue(completedOrders, restaurant.id);
+    const todayRevenueData = await RevenueService.calculateOrdersRevenue(completedTodayOrders, restaurant.id);
+
+    // Calculate popular items (only from completed orders)
     const itemMap = new Map<string, { name: string; quantity: number; revenue: number }>();
     
-    orderList.forEach(order => {
+    completedOrders.forEach(order => {
       order.items.forEach(item => {
         const existing = itemMap.get(item.menuItemId);
         if (existing) {
@@ -1468,10 +1473,10 @@ export default function OrderDashboard() {
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 5);
 
-    // Calculate table stats
+    // Calculate table stats (only from completed orders)
     const tableMap = new Map<string, { tableNumber: string; orderCount: number; revenue: number }>();
     
-    orderList.forEach(order => {
+    completedOrders.forEach(order => {
       if (order.tableId) {
         const table = tables.find(t => t.id === order.tableId);
         const existing = tableMap.get(order.tableId);
@@ -2014,14 +2019,15 @@ export default function OrderDashboard() {
         itemCombinations: []
       };
       
-      // Calculate custom analytics from filtered orders
-      const filteredRevenue = filteredOrders.reduce((sum, order) => sum + order.total, 0);
+      // Calculate custom analytics from filtered orders (only completed orders)
+      const completedFilteredOrders = filteredOrders.filter(order => order.status === 'completed');
+      const filteredRevenue = completedFilteredOrders.reduce((sum, order) => sum + order.total, 0);
       const filteredItems = filteredOrders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
       
-      // Create menu item sales from filtered orders
+      // Create menu item sales from filtered completed orders
       const menuItemSalesMap = new Map<string, { menuItemId: string; name: string; quantitySold: number; revenue: number; }>();
       
-      filteredOrders.forEach(order => {
+      completedFilteredOrders.forEach(order => {
         order.items.forEach(item => {
           const existing = menuItemSalesMap.get(item.menuItemId) || {
             menuItemId: item.menuItemId,
@@ -2054,9 +2060,12 @@ export default function OrderDashboard() {
             revenue: 0
           };
           
-          // Count each group as one transaction, regardless of individual orders within
-          existing.orderCount += 1;
-          existing.revenue += group.totalAmount;
+          // Only count revenue from completed orders in the group
+          const completedGroupOrders = group.orders.filter(order => order.status === 'completed');
+          if (completedGroupOrders.length > 0) {
+            existing.orderCount += 1;
+            existing.revenue += completedGroupOrders.reduce((sum, order) => sum + order.total, 0);
+          }
           tableSalesMap.set(group.primaryOrder.tableId, existing);
         }
       });
@@ -2067,10 +2076,10 @@ export default function OrderDashboard() {
         utilizationRate: 0 // Not calculated in this context
       })).sort((a, b) => b.revenue - a.revenue);
 
-      // Create category sales from filtered orders
+      // Create category sales from filtered completed orders
       const categorySalesMap = new Map<string, { categoryName: string; quantitySold: number; revenue: number; }>();
       
-      filteredOrders.forEach(order => {
+      completedFilteredOrders.forEach(order => {
         order.items.forEach(item => {
           const menuItem = menuItems.find(m => m.id === item.menuItemId);
           const categoryName = menuItem?.categoryName || 'Uncategorized';
@@ -2093,10 +2102,10 @@ export default function OrderDashboard() {
         itemCount: 0 // Not calculated in this context
       })).sort((a, b) => b.revenue - a.revenue);
 
-      // Create order type breakdown from filtered orders
+      // Create order type breakdown from filtered completed orders
       const orderTypeMap = new Map<string, { type: string; count: number; revenue: number; }>();
       
-      filteredOrders.forEach(order => {
+      completedFilteredOrders.forEach(order => {
         const type = order.type || 'dine_in';
         const existing = orderTypeMap.get(type) || {
           type,
@@ -2114,10 +2123,10 @@ export default function OrderDashboard() {
         percentage: filteredRevenue > 0 ? (type.revenue / filteredRevenue) * 100 : 0
       }));
 
-      // Create hourly breakdown from filtered orders
+      // Create hourly breakdown from filtered completed orders
       const hourlyMap = new Map<number, { hour: number; orderCount: number; revenue: number; }>();
       
-      filteredOrders.forEach(order => {
+      completedFilteredOrders.forEach(order => {
         const hour = new Date(order.createdAt).getHours();
         const existing = hourlyMap.get(hour) || {
           hour,
@@ -2132,10 +2141,10 @@ export default function OrderDashboard() {
       
       const customHourlyBreakdown = Array.from(hourlyMap.values()).sort((a, b) => a.hour - b.hour);
 
-      // Create payment method breakdown from filtered orders using actual payment data
+      // Create payment method breakdown from filtered completed orders using actual payment data
       const paymentMethodMap = new Map<string, { method: string; count: number; amount: number; splitDetails?: Array<{method: string, amount: number, count: number}> }>();
       
-      filteredOrders.forEach(order => {
+      completedFilteredOrders.forEach(order => {
         // Use actual payment method from order data
         if (order.paymentMethod === 'split' && (order as any).splitPayments) {
           // Handle split payments - count each split method separately

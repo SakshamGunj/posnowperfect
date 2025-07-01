@@ -105,22 +105,25 @@ export default function RestaurantDashboard() {
           return orderDateTime >= yesterdayStart && orderDateTime < yesterdayEnd;
         });
 
-        // Calculate revenue (both total and actual)
-        const revenueToday = todaysOrders.reduce((sum, order) => {
+        // Calculate revenue (only from completed orders)
+        const completedTodaysOrders = todaysOrders.filter(order => order.status === 'completed');
+        const completedYesterdaysOrders = yesterdaysOrders.filter(order => order.status === 'completed');
+
+        const revenueToday = completedTodaysOrders.reduce((sum, order) => {
           return sum + (order.total || 0);
         }, 0);
 
-        const revenueYesterday = yesterdaysOrders.reduce((sum, order) => {
+        const revenueYesterday = completedYesterdaysOrders.reduce((sum, order) => {
           return sum + (order.total || 0);
         }, 0);
 
-        // Calculate actual revenue accounting for credits
+        // Calculate actual revenue accounting for credits (only from completed orders)
         let todayRevenueData = { actualRevenue: 0, totalCreditAmount: 0 };
         let yesterdayRevenueData = { actualRevenue: 0, totalCreditAmount: 0 };
         
         try {
-          todayRevenueData = await RevenueService.calculateOrdersRevenue(todaysOrders, restaurant.id);
-          yesterdayRevenueData = await RevenueService.calculateOrdersRevenue(yesterdaysOrders, restaurant.id);
+          todayRevenueData = await RevenueService.calculateOrdersRevenue(completedTodaysOrders, restaurant.id);
+          yesterdayRevenueData = await RevenueService.calculateOrdersRevenue(completedYesterdaysOrders, restaurant.id);
         } catch (error) {
           console.error('Error calculating revenue data:', error);
           // Use fallback values

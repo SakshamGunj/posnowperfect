@@ -97,6 +97,7 @@ export default function TakeOrder() {
     tableNumber: string;
     items: Array<{ name: string; quantity: number }>;
   } | null>(null);
+  const [currentOrderForKOT, setCurrentOrderForKOT] = useState<Order | null>(null);
 
   // WhatsApp functionality state
   const [whatsappNumber, setWhatsappNumber] = useState('');
@@ -230,6 +231,7 @@ export default function TakeOrder() {
           OrderService.clearCache(restaurant.id);
           setAllOrders([]);
           setCurrentOrder(null);
+          setCurrentOrderForKOT(null);
           setOrderState('cart');
           CartManager.clearCart(restaurant.id, tableId);
           setCartItems([]);
@@ -238,7 +240,11 @@ export default function TakeOrder() {
           return;
         }
         
-        setAllOrders(activeOrders);
+        // Deduplicate orders by ID before setting
+        const uniqueOrders = activeOrders.filter((order, index, self) => 
+          index === self.findIndex(o => o.id === order.id)
+        );
+        setAllOrders(uniqueOrders);
         
         if (activeOrders.length > 0) {
           // Set the most recent order as current
@@ -270,6 +276,7 @@ export default function TakeOrder() {
             console.log(`🍽️ TakeOrder: Resetting to cart state`);
             setOrderState('cart');
             setCurrentOrder(null);
+            setCurrentOrderForKOT(null);
           }
         }
       }
@@ -440,10 +447,18 @@ export default function TakeOrder() {
         });
 
         setCurrentOrder(newOrder);
+        setCurrentOrderForKOT(newOrder); // Track this order for KOT printing
         
         // Update orders list
         if (orderState === 'adding_more') {
-          setAllOrders(prev => [...prev, newOrder]);
+          setAllOrders(prev => {
+            // Check if order already exists to prevent duplicates
+            const existingOrder = prev.find(order => order.id === newOrder.id);
+            if (existingOrder) {
+              return prev; // Order already exists, don't add duplicate
+            }
+            return [...prev, newOrder];
+          });
           setOrderState('placed');
           setShowSidePanel(false);
         } else {
@@ -556,10 +571,18 @@ export default function TakeOrder() {
         });
 
         setCurrentOrder(newOrder);
+        setCurrentOrderForKOT(newOrder); // Track this order for KOT printing
         
         // Update orders list
         if (orderState === 'adding_more') {
-          setAllOrders(prev => [...prev, newOrder]);
+          setAllOrders(prev => {
+            // Check if order already exists to prevent duplicates
+            const existingOrder = prev.find(order => order.id === newOrder.id);
+            if (existingOrder) {
+              return prev; // Order already exists, don't add duplicate
+            }
+            return [...prev, newOrder];
+          });
           setOrderState('placed');
           setShowSidePanel(false);
         } else {
@@ -605,13 +628,19 @@ export default function TakeOrder() {
 
 
   const handlePrintKOT = () => {
-    if (!restaurant || !table || allOrders.length === 0) return;
+    if (!restaurant || !table || !currentOrderForKOT) return;
 
-    // Print KOT for the most recent order (last placed)
-    const latestOrder = allOrders[allOrders.length - 1];
+    // Use the tracked order that was just placed
+    const orderToPrint = currentOrderForKOT;
+    let kotContent;
     
-    // Create KOT content
-    const kotContent = generateKOTContent(latestOrder, restaurant, table);
+    if (allOrders.length === 1) {
+      // Single order - use regular KOT
+      kotContent = generateKOTContent(orderToPrint, restaurant, table);
+    } else {
+      // Multiple orders - show only the latest order as "ADDITIONAL ORDER"
+      kotContent = generateAdditionalKOTContent(orderToPrint, restaurant, table, allOrders.length);
+    }
     
     // Open print dialog
     const printWindow = window.open('', '_blank');
@@ -793,12 +822,13 @@ export default function TakeOrder() {
         // Update table status back to available
         await TableService.updateTable(tableId, restaurant.id, { status: 'available' });
 
-        // Clear the current orders and cart
-        setAllOrders([]);
-        setCurrentOrder(null);
-        setOrderState('cart');
-        CartManager.clearCart(restaurant.id, tableId);
-        setCartItems([]);
+                  // Clear the current orders and cart
+          setAllOrders([]);
+          setCurrentOrder(null);
+          setCurrentOrderForKOT(null);
+          setOrderState('cart');
+          CartManager.clearCart(restaurant.id, tableId);
+          setCartItems([]);
 
         toast.success(`All orders for Table ${table.number} have been cancelled successfully`);
 
@@ -2441,11 +2471,19 @@ export default function TakeOrder() {
                   <p className="text-gray-600 text-sm sm:text-base">
                     {allOrders.length} active order{allOrders.length > 1 ? 's' : ''} for Table {table.number}
                   </p>
+                  {allOrders.length > 5 && (
+                    <p className="text-blue-600 text-xs mt-1 font-medium">
+                      ↕ Scroll down to see all orders
+                    </p>
+                  )}
                 </div>
 
-                <div className="grid gap-3 sm:gap-4 md:gap-6">
-                  {allOrders.map((order) => (
-                    <div key={order.id} className="card p-4 sm:p-6">
+                <div className="grid gap-3 sm:gap-4 md:gap-6 max-h-[70vh] overflow-y-auto">
+                  {allOrders.map((order, index) => (
+                    <div key={order.id} className="card p-4 sm:p-6 relative">
+                      <div className="absolute top-2 right-2 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">
+                        {index + 1} of {allOrders.length}
+                      </div>
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
                         <h3 className="text-lg font-semibold text-gray-900">
                           Order #{order.orderNumber}
@@ -2761,20 +2799,28 @@ export default function TakeOrder() {
         onClose={() => setShowKOTDialog(false)}
         onPrintKOT={() => {
           // Print KOT for the manually placed order
-          if (kotOrderDetails && restaurant && table) {
-            const latestOrder = allOrders[allOrders.length - 1];
-            if (latestOrder) {
-              const kotContent = generateKOTContent(latestOrder, restaurant, table);
-              const printWindow = window.open('', '_blank');
-              if (printWindow) {
-                printWindow.document.write(kotContent);
-                printWindow.document.close();
-                printWindow.focus();
-                printWindow.print();
-                printWindow.close();
-              }
-              toast.success('KOT sent to kitchen');
+          if (kotOrderDetails && restaurant && table && currentOrderForKOT) {
+            // Use the tracked order that was just placed
+            const orderToPrint = currentOrderForKOT;
+            let kotContent;
+            
+            if (allOrders.length === 1) {
+              // Single order - use regular KOT
+              kotContent = generateKOTContent(orderToPrint, restaurant, table);
+            } else {
+              // Multiple orders - show only the latest order as "ADDITIONAL ORDER"
+              kotContent = generateAdditionalKOTContent(orderToPrint, restaurant, table, allOrders.length);
             }
+            
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+              printWindow.document.write(kotContent);
+              printWindow.document.close();
+              printWindow.focus();
+              printWindow.print();
+              printWindow.close();
+            }
+            toast.success('KOT sent to kitchen');
           }
         }}
         orderDetails={kotOrderDetails}
@@ -2903,6 +2949,166 @@ function OrderItemCard({ item, onUpdateQuantity, onRemove }: OrderItemCardProps)
 
 
 
+
+// Additional KOT Generation Function for Add More Orders
+function generateAdditionalKOTContent(order: Order, restaurant: any, table: Table, totalOrderCount: number): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Additional KOT - ${order.orderNumber}</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+          font-family: 'Courier New', monospace; 
+          font-weight: bold;
+          font-size: 12px;
+          line-height: 1.1;
+          width: 100%;
+          background: #fff;
+          color: #000;
+          padding: 0 5px;
+        }
+        .kot-container {
+          width: 100%;
+          padding: 5px 0;
+        }
+        .header { 
+          text-align: center; 
+          border-bottom: 2px solid #000; 
+          padding-bottom: 3px; 
+          margin-bottom: 5px; 
+        }
+        .restaurant-name { 
+          font-size: 14px; 
+          font-weight: bold; 
+          margin-bottom: 2px;
+        }
+        .kot-title {
+          font-size: 12px;
+          font-weight: bold;
+        }
+        .additional-notice {
+          background-color: #000;
+          color: #fff;
+          text-align: center;
+          padding: 2px;
+          margin: 3px 0;
+          font-weight: bold;
+          font-size: 11px;
+        }
+        .order-info { 
+          margin-bottom: 5px; 
+          line-height: 1.1;
+        }
+        .order-info p {
+          margin: 1px 0;
+          font-weight: bold;
+        }
+        .items { 
+          border-collapse: collapse; 
+          width: 100%; 
+          margin: 5px 0;
+        }
+        .items th, .items td { 
+          border: 1px solid #000; 
+          padding: 3px 4px; 
+          text-align: left; 
+          font-size: 11px;
+          font-weight: bold;
+          line-height: 1.1;
+        }
+        .items th { 
+          background-color: #000; 
+          color: #fff;
+          font-weight: bold;
+        }
+        .footer { 
+          margin-top: 5px; 
+          text-align: center; 
+          font-size: 10px; 
+          border-top: 1px dashed #000;
+          padding-top: 3px;
+          font-weight: bold;
+        }
+        .order-notes {
+          margin-top: 5px; 
+          padding: 3px; 
+          border: 1px solid #000;
+          background: #f0f0f0;
+          font-weight: bold;
+          font-size: 11px;
+          line-height: 1.1;
+        }
+        @media print {
+          body { 
+            margin: 0; 
+            padding: 0 3px;
+            width: 100%;
+            font-size: 11px;
+          }
+          .kot-container {
+            padding: 3px 0;
+            width: 100%;
+          }
+          .no-print { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="kot-container">
+      <div class="header">
+        <div class="restaurant-name">${restaurant.name}</div>
+          <div class="kot-title">KITCHEN ORDER TICKET</div>
+      </div>
+      
+      <div class="additional-notice">
+        *** ADDITIONAL ORDER - NEW ITEMS ONLY ***
+      </div>
+      
+      <div class="order-info">
+        <p><strong>Order #:</strong> ${order.orderNumber}</p>
+        <p><strong>Table:</strong> ${table.number} (${table.area})</p>
+        <p><strong>Date/Time:</strong> ${order.createdAt.toLocaleString()}</p>
+        <p><strong>Staff:</strong> ${order.staffId}</p>
+        <p><strong>Order ${totalOrderCount} of ${totalOrderCount} for this table</strong></p>
+      </div>
+      
+      <table class="items">
+        <thead>
+          <tr>
+            <th>Qty</th>
+            <th>Item</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${order.items.map(item => `
+            <tr>
+              <td>${item.quantity}</td>
+              <td>${item.name}</td>
+              <td>${item.notes || ''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      
+      ${order.notes ? `
+          <div class="order-notes">
+          <strong>Order Notes:</strong><br>
+          ${order.notes}
+        </div>
+      ` : ''}
+      
+      <div class="footer">
+        <p>*** KITCHEN COPY - ADDITIONAL ITEMS ***</p>
+          <p>Printed: ${new Date().toLocaleString()}</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
 
 // KOT Generation Function
 function generateKOTContent(order: Order, restaurant: any, table: Table): string {

@@ -323,7 +323,7 @@ export default function PaymentModalWithCoupons({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+      <div className="flex items-center justify-center min-h-screen px-1 sm:px-4 pt-2 pb-4 sm:pt-4 sm:pb-20 text-center sm:block sm:p-0">
         <div 
           className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" 
           onClick={() => {
@@ -333,7 +333,7 @@ export default function PaymentModalWithCoupons({
           }}
         ></div>
         
-        <div className="inline-block w-full max-w-2xl my-4 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl max-h-[95vh] overflow-y-auto">
+        <div className="inline-block w-full max-w-2xl my-2 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg sm:rounded-2xl max-h-[98vh] sm:max-h-[95vh] overflow-y-auto">
           {/* Header */}
           <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
@@ -705,36 +705,57 @@ export default function PaymentModalWithCoupons({
 
             {/* Payment Method Selection */}
             <div className="border-t pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-medium text-gray-900 text-sm sm:text-base">Payment Method</h4>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={isSplitPayment}
-                      onChange={(e) => setIsSplitPayment(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">Split Payment</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={addWholeAmountAsCredit}
-                      onChange={(e) => {
-                        setAddWholeAmountAsCredit(e.target.checked);
-                        if (e.target.checked) {
-                          setAmountReceived('0');
-                          setIsSplitPayment(false);
-                        } else {
-                          setAmountReceived(finalTotal.toString());
-                        }
-                      }}
-                      className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
-                    />
-                    <span className="text-sm text-orange-700">Add Whole Amount as Credit</span>
-                  </label>
-                </div>
+              <h4 className="font-medium text-gray-900 text-sm sm:text-base mb-4">Payment Method</h4>
+              
+              {/* Mobile-Optimized Payment Options */}
+              <div className="space-y-3 mb-4">
+                {/* Split Payment Option */}
+                <label className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={isSplitPayment}
+                    onChange={(e) => setIsSplitPayment(e.target.checked)}
+                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-0.5 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900">Split Payment</div>
+                    <div className="text-xs text-gray-500 mt-1">Pay using multiple payment methods</div>
+                  </div>
+                </label>
+
+                {/* Add Whole Amount as Credit Option - More Prominent */}
+                <label className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                  addWholeAmountAsCredit 
+                    ? 'border-orange-300 bg-orange-50 hover:bg-orange-100' 
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={addWholeAmountAsCredit}
+                    onChange={(e) => {
+                      setAddWholeAmountAsCredit(e.target.checked);
+                      if (e.target.checked) {
+                        setAmountReceived('0');
+                        setIsSplitPayment(false);
+                      } else {
+                        setAmountReceived(finalTotal.toString());
+                      }
+                    }}
+                    className="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500 mt-0.5 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-orange-900">Add Whole Amount as Credit</div>
+                    <div className="text-xs text-orange-600 mt-1">
+                      Add {formatCurrency(finalTotal)} to customer's credit balance
+                    </div>
+                    {addWholeAmountAsCredit && (
+                      <div className="text-xs font-medium text-orange-700 mt-2 flex items-center">
+                        <CreditCard className="w-3 h-3 mr-1" />
+                        ✓ Credit mode activated
+                      </div>
+                    )}
+                  </div>
+                </label>
               </div>
 
               {!isSplitPayment ? (
