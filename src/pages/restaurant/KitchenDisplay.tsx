@@ -570,14 +570,51 @@ export default function KitchenDisplay() {
     setIsProcessingPayment(true);
 
     try {
-      // Update order status to completed with payment info
+      // Update order status to completed with comprehensive payment and discount info
       const updateData: any = {
         status: 'completed' as OrderStatus,
         paymentMethod: paymentData.method,
         amountReceived: paymentData.amountReceived,
         finalTotal: paymentData.finalTotal,
         originalTotal: paymentData.originalTotal || selectedOrder.total,
+        // Update the main total field to reflect discounted amount
+        total: paymentData.finalTotal
       };
+
+      // Add discount information to preserve it in order record
+      if (paymentData.manualDiscountAmount > 0 || paymentData.couponDiscountAmount > 0) {
+        updateData.discountApplied = true;
+        updateData.totalDiscountAmount = (paymentData.manualDiscountAmount || 0) + (paymentData.couponDiscountAmount || 0);
+        updateData.originalTotalBeforeDiscount = paymentData.originalTotal;
+        
+        // Store manual discount details
+        if (paymentData.manualDiscount) {
+          updateData.manualDiscount = {
+            type: paymentData.manualDiscount.type,
+            value: paymentData.manualDiscount.value,
+            amount: paymentData.manualDiscountAmount,
+            reason: paymentData.manualDiscount.reason || ''
+          };
+        }
+        
+        // Store coupon discount details
+        if (paymentData.couponDiscountAmount > 0) {
+          updateData.couponDiscountAmount = paymentData.couponDiscountAmount;
+        }
+        
+        // Update the discount field for backward compatibility
+        updateData.discount = (paymentData.manualDiscountAmount || 0) + (paymentData.couponDiscountAmount || 0);
+      }
+
+      // Add tip information if provided
+      if (paymentData.tip > 0) {
+        updateData.tip = paymentData.tip;
+      }
+
+      // Add total savings information
+      if (paymentData.totalSavings > 0) {
+        updateData.totalSavings = paymentData.totalSavings;
+      }
 
       // Add coupon information if applied
       if (paymentData.appliedCoupon) {

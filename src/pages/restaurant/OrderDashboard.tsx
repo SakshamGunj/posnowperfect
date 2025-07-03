@@ -30,7 +30,8 @@ import {
   ShoppingCart,
   MapPin,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  CreditCard
 } from 'lucide-react';
 
 import { SalesReportService } from '@/services/salesReportService';
@@ -894,6 +895,7 @@ function OrderDetailsModal({ order, isOpen, onClose, onStatusUpdate, tables }: O
 
             {/* Order Total */}
             <div className="border-t pt-4">
+              <h4 className="font-medium text-gray-900 mb-3">Order Summary</h4>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
@@ -902,8 +904,15 @@ function OrderDetailsModal({ order, isOpen, onClose, onStatusUpdate, tables }: O
                 
                 {order.discount > 0 && (
                   <div className="flex justify-between text-green-600">
-                    <span>Discount</span>
+                    <span>Discount Applied</span>
                     <span>-{formatCurrency(order.discount)}</span>
+                  </div>
+                )}
+                
+                {(order as any).tip > 0 && (
+                  <div className="flex justify-between text-blue-600">
+                    <span>Tip/Gratuity</span>
+                    <span>+{formatCurrency((order as any).tip)}</span>
                   </div>
                 )}
                 
@@ -916,6 +925,44 @@ function OrderDetailsModal({ order, isOpen, onClose, onStatusUpdate, tables }: O
                   <span>Total</span>
                   <span>{formatCurrency(order.total)}</span>
                 </div>
+
+                {/* Credit Information */}
+                {(order as any).isCredit && (
+                  <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <h5 className="font-medium text-orange-800 mb-2 flex items-center">
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Credit Payment Details
+                    </h5>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-orange-700">Amount Received:</span>
+                        <span className="font-medium text-green-600">{formatCurrency((order as any).amountReceived || 0)}</span>
+              </div>
+                      <div className="flex justify-between">
+                        <span className="text-orange-700">Credit Amount:</span>
+                        <span className="font-medium text-orange-600">{formatCurrency((order as any).creditAmount || 0)}</span>
+                      </div>
+                      {(order as any).creditCustomerName && (
+                        <div className="pt-2 border-t border-orange-200">
+                          <div className="text-orange-700">Customer: <span className="font-medium">{(order as any).creditCustomerName}</span></div>
+                          {(order as any).creditCustomerPhone && (
+                            <div className="text-orange-600 text-xs">{(order as any).creditCustomerPhone}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Savings Information */}
+                {(order as any).totalSavings > 0 && (
+                  <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-green-800">💰 Total Customer Savings</span>
+                      <span className="font-bold text-green-600">{formatCurrency((order as any).totalSavings)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1798,14 +1845,62 @@ export default function OrderDashboard() {
     try {
       setIsUpdatingPayment(true);
 
-      // Prepare update data for order
+      // Prepare update data for order with comprehensive payment and discount information
       const updateData: any = {
         paymentMethod: paymentData.paymentMethod,
         amountReceived: paymentData.amountReceived,
         finalTotal: paymentData.finalTotal,
         originalTotal: paymentData.originalTotal,
+        // Update the main total field to reflect discounted amount
+        total: paymentData.finalTotal,
         updatedAt: new Date()
       };
+
+      // Add discount information to preserve it in order record
+      if (paymentData.manualDiscountAmount > 0 || paymentData.couponDiscountAmount > 0) {
+        updateData.discountApplied = true;
+        updateData.totalDiscountAmount = (paymentData.manualDiscountAmount || 0) + (paymentData.couponDiscountAmount || 0);
+        updateData.originalTotalBeforeDiscount = paymentData.originalTotal;
+        
+        // Store manual discount details
+        if (paymentData.manualDiscount) {
+          updateData.manualDiscount = {
+            type: paymentData.manualDiscount.type,
+            value: paymentData.manualDiscount.value,
+            amount: paymentData.manualDiscountAmount,
+            reason: paymentData.manualDiscount.reason || ''
+          };
+        }
+        
+        // Store coupon discount details
+        if (paymentData.couponDiscountAmount > 0) {
+          updateData.couponDiscountAmount = paymentData.couponDiscountAmount;
+        }
+        
+        // Update the discount field for backward compatibility
+        updateData.discount = (paymentData.manualDiscountAmount || 0) + (paymentData.couponDiscountAmount || 0);
+      }
+
+      // Add tip information if provided
+      if (paymentData.tip > 0) {
+        updateData.tip = paymentData.tip;
+      }
+
+      // Add total savings information
+      if (paymentData.totalSavings > 0) {
+        updateData.totalSavings = paymentData.totalSavings;
+      }
+
+      // Add coupon information if applied
+      if (paymentData.appliedCoupon) {
+        updateData.appliedCoupon = {
+          code: paymentData.appliedCoupon.coupon.code,
+          name: paymentData.appliedCoupon.coupon.name,
+          discountAmount: paymentData.appliedCoupon.discountAmount || 0,
+          freeItems: paymentData.appliedCoupon.freeItems || [],
+          totalSavings: paymentData.totalSavings || 0
+        };
+      }
 
       // Add split payment information if applicable
       if (paymentData.isSplitPayment) {
@@ -2021,7 +2116,23 @@ export default function OrderDashboard() {
       
       // Calculate custom analytics from filtered orders (only completed orders)
       const completedFilteredOrders = filteredOrders.filter(order => order.status === 'completed');
-      const filteredRevenue = completedFilteredOrders.reduce((sum, order) => sum + order.total, 0);
+      
+      // Calculate actual revenue accounting for credits
+      const filteredRevenue = completedFilteredOrders.reduce((sum, order) => {
+        const creditAmount = (order as any).creditAmount || 0;
+        const actualRevenue = order.total - creditAmount;
+        return sum + actualRevenue;
+      }, 0);
+      
+      // Calculate total bill amount (before credits)
+      const totalBillAmount = completedFilteredOrders.reduce((sum, order) => sum + order.total, 0);
+      
+      // Calculate total credits
+      const totalCredits = completedFilteredOrders.reduce((sum, order) => sum + ((order as any).creditAmount || 0), 0);
+      
+      // Calculate total savings from discounts and coupons
+      const totalSavings = completedFilteredOrders.reduce((sum, order) => sum + ((order as any).totalSavings || 0), 0);
+      
       const filteredItems = filteredOrders.reduce((sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
       
       // Create menu item sales from filtered completed orders
@@ -2264,12 +2375,36 @@ export default function OrderDashboard() {
           isWeekend: false
         })),
         creditAnalytics: {
-          totalCreditAmount: 0,
-          pendingCreditAmount: 0,
-          paidCreditAmount: 0,
-          ordersWithCredits: 0,
-          creditTransactions: [],
-          revenueCollectionRate: 100
+          totalCreditAmount: totalCredits,
+          pendingCreditAmount: totalCredits, // All credit is pending since this is order-level data
+          paidCreditAmount: 0, // Would need credit service data for payments made
+          ordersWithCredits: completedFilteredOrders.filter(order => (order as any).isCredit).length,
+          creditTransactions: completedFilteredOrders.filter(order => (order as any).isCredit).map(order => {
+            const table = tables.find(t => t.id === order.tableId);
+            return {
+              customerName: (order as any).creditCustomerName || 'Unknown',
+              customerPhone: (order as any).creditCustomerPhone || '',
+              orderId: order.id,
+              tableNumber: table?.number || 'Unknown',
+              totalAmount: order.total,
+              amountReceived: (order as any).amountReceived || 0,
+              creditAmount: (order as any).creditAmount || 0,
+              remainingAmount: (order as any).creditAmount || 0,
+              status: 'pending' as const,
+              createdAt: order.createdAt,
+              paymentHistory: []
+            };
+          }),
+          revenueCollectionRate: totalBillAmount > 0 ? (filteredRevenue / totalBillAmount) * 100 : 100,
+          actualRevenue: filteredRevenue,
+          totalBillAmount: totalBillAmount
+        },
+        // Savings analytics
+        savingsAnalytics: {
+          ordersWithSavings: completedFilteredOrders.filter(order => (order as any).totalSavings > 0).length,
+          totalSavingsAmount: totalSavings,
+          averageSavingsAmount: totalSavings > 0 ? totalSavings / completedFilteredOrders.filter(order => (order as any).totalSavings > 0).length : 0,
+          savingsPercentage: (totalBillAmount + totalSavings) > 0 ? (totalSavings / (totalBillAmount + totalSavings)) * 100 : 0
         },
         // Additional grouping insights
         groupingInsights: {
@@ -2288,8 +2423,16 @@ export default function OrderDashboard() {
       const detailedOrderList = exportGroupedOrders.slice(0, 50).map(group => {
         const table = tables.find(t => t.id === group.primaryOrder.tableId);
         
-        // Format payment method information for primary order
+        // Format comprehensive payment information including credits and discounts
         let paymentInfo = 'Not specified';
+        const groupCreditAmount = group.orders.reduce((sum, o) => sum + ((o as any).creditAmount || 0), 0);
+        const groupDiscountAmount = group.orders.reduce((sum, o) => sum + ((o as any).discount || 0), 0);
+        const groupSavingsAmount = group.orders.reduce((sum, o) => sum + ((o as any).totalSavings || 0), 0);
+        const hasCredit = group.orders.some(order => (order as any).isCredit);
+        const hasDiscount = groupDiscountAmount > 0;
+        const hasSavings = groupSavingsAmount > 0;
+        
+        // Base payment method
         if (group.primaryOrder.paymentMethod === 'split' && (group.primaryOrder as any).splitPayments) {
           const splitPayments = (group.primaryOrder as any).splitPayments;
           paymentInfo = `Split: ${splitPayments.map((p: any) => 
@@ -2298,11 +2441,40 @@ export default function OrderDashboard() {
         } else if (group.primaryOrder.paymentMethod) {
           paymentInfo = group.primaryOrder.paymentMethod.toUpperCase();
         }
+        
+        // Create structured payment information with better formatting
+        if (hasCredit || hasDiscount || hasSavings) {
+          const creditCustomers = group.orders.filter(order => (order as any).isCredit && (order as any).creditCustomerName).map(order => (order as any).creditCustomerName);
+          
+          let structuredPayment = `${paymentInfo}`;
+          
+          if (hasCredit) {
+            structuredPayment += `\n• Credit: -${formatCurrency(groupCreditAmount)}`;
+            if (creditCustomers.length > 0) {
+              structuredPayment += `\n• Customer: ${creditCustomers.slice(0, 2).join(', ')}${creditCustomers.length > 2 ? ` +${creditCustomers.length - 2} more` : ''}`;
+            }
+          }
+          
+          if (hasDiscount) {
+            structuredPayment += `\n• Discount: -${formatCurrency(groupDiscountAmount)}`;
+          }
+          
+          if (hasSavings) {
+            structuredPayment += `\n• Savings: ${formatCurrency(groupSavingsAmount)}`;
+          }
+          
+          paymentInfo = structuredPayment;
+        }
 
         // If it's a group, create a combined description
         if (group.isGroup) {
           const orderNumbers = group.orders.map(o => o.orderNumber).join(', ');
           const allItems = group.orders.flatMap(o => o.items.map(item => `${item.quantity}x ${item.name}`));
+          
+          // Calculate credit totals for group
+          const totalCredits = group.orders.reduce((sum, o) => sum + ((o as any).creditAmount || 0), 0);
+          const totalAmountReceived = group.orders.reduce((sum, o) => sum + ((o as any).amountReceived || o.total), 0);
+          const totalSavings = group.orders.reduce((sum, o) => sum + ((o as any).totalSavings || 0), 0);
           
           return {
             orderNumber: `${group.primaryOrder.orderNumber} (+${group.orders.length - 1} more)`,
@@ -2318,17 +2490,56 @@ export default function OrderDashboard() {
             tax: group.orders.reduce((sum, o) => sum + (o.tax || 0), 0),
             total: group.totalAmount,
             items: allItems.join(', '),
+            // Credit information for group
+            creditAmount: totalCredits,
+            amountReceived: totalAmountReceived,
+            actualRevenue: group.totalAmount - totalCredits,
+            totalSavings: totalSavings,
+            isCredit: totalCredits > 0,
             // Additional grouped order details
             groupDetails: group.orders.map(order => ({
               orderNumber: order.orderNumber,
               time: formatTime(order.createdAt),
               items: order.items.map(item => `${item.quantity}x ${item.name}`).join(', '),
-              total: order.total
+              total: order.total,
+              creditAmount: (order as any).creditAmount || 0,
+              amountReceived: (order as any).amountReceived || order.total,
+              customerName: (order as any).creditCustomerName || '',
+              totalSavings: (order as any).totalSavings || 0
             }))
           };
         } else {
           // Single order in group
           const order = group.primaryOrder;
+          const creditAmount = (order as any).creditAmount || 0;
+          const amountReceived = (order as any).amountReceived || order.total;
+          const totalSavings = (order as any).totalSavings || 0;
+          const discountAmount = (order as any).discount || 0;
+          
+          // Create structured payment information with better formatting for single order
+          let finalSinglePaymentInfo = paymentInfo;
+          
+          if (creditAmount > 0 || discountAmount > 0 || totalSavings > 0) {
+            let structuredSinglePayment = `${paymentInfo}`;
+            
+            if (creditAmount > 0) {
+              structuredSinglePayment += `\n• Credit: -${formatCurrency(creditAmount)}`;
+              if ((order as any).creditCustomerName) {
+                structuredSinglePayment += `\n• Customer: ${(order as any).creditCustomerName}`;
+              }
+            }
+            
+            if (discountAmount > 0) {
+              structuredSinglePayment += `\n• Discount: -${formatCurrency(discountAmount)}`;
+            }
+            
+            if (totalSavings > 0) {
+              structuredSinglePayment += `\n• Savings: ${formatCurrency(totalSavings)}`;
+            }
+            
+            finalSinglePaymentInfo = structuredSinglePayment;
+          }
+          
           return {
             orderNumber: order.orderNumber,
             tableNumber: table?.number || 'N/A',
@@ -2336,13 +2547,21 @@ export default function OrderDashboard() {
             time: formatTime(order.createdAt),
             status: order.status,
             type: order.type,
-            paymentMethod: paymentInfo,
+            paymentMethod: finalSinglePaymentInfo,
             itemCount: order.items.length,
             totalItems: order.items.reduce((sum, item) => sum + item.quantity, 0),
             subtotal: order.subtotal,
             tax: order.tax,
             total: order.total,
-            items: order.items.map(item => `${item.quantity}x ${item.name}`).join(', ')
+            items: order.items.map(item => `${item.quantity}x ${item.name}`).join(', '),
+            // Credit information for single order
+            creditAmount: creditAmount,
+            amountReceived: amountReceived,
+            actualRevenue: order.total - creditAmount,
+            totalSavings: totalSavings,
+            isCredit: creditAmount > 0,
+            creditCustomerName: (order as any).creditCustomerName || '',
+            creditCustomerPhone: (order as any).creditCustomerPhone || ''
           };
         }
       });
@@ -2423,8 +2642,8 @@ export default function OrderDashboard() {
               </div>
               
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Order Dashboard</h1>
-                <p className="text-gray-600">Manage and analyze all orders</p>
+                <h1 className="text-2xl font-bold text-gray-900">Order Area</h1>
+                <p className="text-gray-600">Manage and analyze all orders in your area</p>
               </div>
             </div>
             
@@ -2744,6 +2963,45 @@ export default function OrderDashboard() {
                                    }
                                  </div>
                                  
+                                 {/* Credit and Discount Information - Check ALL orders in group */}
+                                 {(() => {
+                                   // Calculate totals across all orders in the group
+                                   const hasCredit = group.orders.some(order => (order as any).isCredit);
+                                   const totalCreditAmount = group.orders.reduce((sum, order) => sum + ((order as any).creditAmount || 0), 0);
+                                   const totalDiscount = group.orders.reduce((sum, order) => sum + ((order as any).discount || 0), 0);
+                                   const totalSavings = group.orders.reduce((sum, order) => sum + ((order as any).totalSavings || 0), 0);
+                                   const creditCustomers = group.orders.filter(order => (order as any).isCredit && (order as any).creditCustomerName).map(order => (order as any).creditCustomerName);
+                                   
+                                   if (hasCredit || totalDiscount > 0 || totalSavings > 0) {
+                                     return (
+                                       <div className="flex flex-wrap gap-2 mb-2">
+                                         {hasCredit && (
+                                           <div className="flex items-center px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs">
+                                             <CreditCard className="w-3 h-3 mr-1" />
+                                             Credit: {formatCurrency(totalCreditAmount)}
+                                             {creditCustomers.length > 0 && (
+                                               <span className="ml-1">({creditCustomers.slice(0, 2).join(', ')}{creditCustomers.length > 2 ? ` +${creditCustomers.length - 2}` : ''})</span>
+                                             )}
+                                           </div>
+                                         )}
+                                         {totalDiscount > 0 && (
+                                           <div className="flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                                             <span className="text-green-600 mr-1">💸</span>
+                                             Discount: {formatCurrency(totalDiscount)}
+                                           </div>
+                                         )}
+                                         {totalSavings > 0 && (
+                                           <div className="flex items-center px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
+                                             <span className="text-blue-600 mr-1">💰</span>
+                                             Total Savings: {formatCurrency(totalSavings)}
+                                           </div>
+                                         )}
+                                       </div>
+                                     );
+                                   }
+                                   return null;
+                                 })()}
+                                 
                                  <div className="flex items-center space-x-4 text-sm">
                                    <span className="flex items-center text-gray-600">
                                      <Users className="w-4 h-4 mr-1" />
@@ -2758,8 +3016,48 @@ export default function OrderDashboard() {
                                
                                <div className="flex items-center space-x-4">
                                  <div className="text-right">
-                                   <p className="font-semibold text-gray-900">{formatCurrency(group.totalAmount)}</p>
-                                   <p className="text-sm text-gray-600">{group.totalItems} items</p>
+                                   <div className="space-y-1">
+                                     <p className="font-semibold text-gray-900">{formatCurrency(group.totalAmount)}</p>
+                                     <p className="text-sm text-gray-600">{group.totalItems} items</p>
+                                     
+                                     {/* Revenue breakdown when credits/discounts present - Check ALL orders */}
+                                     {(() => {
+                                       const totalCreditAmount = group.orders.reduce((sum, order) => sum + ((order as any).creditAmount || 0), 0);
+                                       const totalAmountReceived = group.orders.reduce((sum, order) => sum + ((order as any).amountReceived || order.total), 0);
+                                       const totalDiscount = group.orders.reduce((sum, order) => sum + ((order as any).discount || 0), 0);
+                                       const hasCredit = group.orders.some(order => (order as any).isCredit);
+                                       
+                                       if (hasCredit || totalDiscount > 0) {
+                                         return (
+                                           <div className="text-xs text-gray-500 space-y-0.5">
+                                             {hasCredit ? (
+                                               <>
+                                                 <div>Bill: {formatCurrency(group.totalAmount)}</div>
+                                                 <div className="text-orange-600 font-medium">Credit: -{formatCurrency(totalCreditAmount)}</div>
+                                                 <div className="text-green-600 font-medium">
+                                                   Received: {formatCurrency(totalAmountReceived - totalCreditAmount)}
+                                                 </div>
+                                               </>
+                                             ) : totalDiscount > 0 ? (
+                                               <>
+                                                 <div>Original: {formatCurrency(group.totalAmount + totalDiscount)}</div>
+                                                 <div className="text-green-600 font-medium">Discount: -{formatCurrency(totalDiscount)}</div>
+                                                 <div className="font-medium">Final: {formatCurrency(group.totalAmount)}</div>
+                                               </>
+                                             ) : null}
+                                           </div>
+                                         );
+                                       }
+                                       return null;
+                                     })()}
+                                     
+                                     {/* Payment method indicator */}
+                                     {group.primaryOrder.paymentMethod && (
+                                       <div className="text-xs text-blue-600 font-medium">
+                                         {group.primaryOrder.paymentMethod === 'split' ? 'Split Payment' : group.primaryOrder.paymentMethod.toUpperCase()}
+                                       </div>
+                                     )}
+                                   </div>
                                  </div>
                                  
                                  <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
@@ -2832,6 +3130,23 @@ export default function OrderDashboard() {
                                      <div className="text-right">
                                        <p className="font-semibold text-gray-800">{formatCurrency(order.total)}</p>
                                        <p className="text-sm text-gray-500">{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</p>
+                                       {/* Credit indicator for individual order */}
+                                       {(order as any).isCredit && (
+                                         <div className="flex items-center justify-end mt-1">
+                                           <CreditCard className="w-3 h-3 text-orange-500 mr-1" />
+                                           <span className="text-xs text-orange-600 font-medium">
+                                             ₹{((order as any).creditAmount || 0).toFixed(2)} Credit
+                                           </span>
+                                     </div>
+                                       )}
+                                       {/* Savings indicator for individual order */}
+                                       {(order as any).totalSavings > 0 && (
+                                         <div className="flex items-center justify-end mt-1">
+                                           <span className="text-xs text-green-600 font-medium">
+                                             💰 Saved ₹{((order as any).totalSavings).toFixed(2)}
+                                           </span>
+                                         </div>
+                                       )}
                                      </div>
                                    </div>
                                  </div>

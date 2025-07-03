@@ -15,7 +15,7 @@ import { formatDate, formatTime } from '@/lib/utils';
 // PDF-safe currency formatting function
 function formatCurrencyForPDF(amount: number): string {
   const validAmount = Number(amount) || 0;
-  return `Rs. ${validAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `Rs. ${validAmount.toFixed(2)}`;
 }
 
 import { CreditService } from './creditService';
@@ -1021,46 +1021,78 @@ export class SalesReportService {
         customerCount: data.customerCount
       })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      // Payment method breakdown - Enhanced with actual payment data
+      // Payment method breakdown - Enhanced to analyze actual order payment methods
       const paymentMap = new Map<string, { count: number; amount: number }>();
       
-      // Get payment data from Firebase payments collection
-      try {
-        const paymentsQuery = query(
-          collection(db, `restaurants/${restaurantId}/payments`),
-          where('createdAt', '>=', Timestamp.fromDate(startDate)),
-          where('createdAt', '<=', Timestamp.fromDate(endDate)),
-          where('status', '==', 'completed')
-        );
+      // Analyze payment methods from order data directly
+      orders.forEach(order => {
+        let paymentMethod = 'Not Specified';
         
-        const paymentsSnapshot = await getDocs(paymentsQuery);
-        
-        paymentsSnapshot.docs.forEach(doc => {
-          const payment = doc.data();
-          const method = this.formatPaymentMethod(payment.method);
+        if (order.paymentMethod) {
+          // Clean and normalize payment method from order data
+          let cleanMethod = order.paymentMethod.toLowerCase().trim();
           
-          const existing = paymentMap.get(method);
-          if (existing) {
-            existing.count++;
-            existing.amount += payment.amount || 0;
-          } else {
-            paymentMap.set(method, { count: 1, amount: payment.amount || 0 });
+          // Handle multiline payment method strings
+          if (cleanMethod.includes('\n')) {
+            cleanMethod = cleanMethod.split('\n')[0].trim();
           }
-        });
-      } catch (error) {
-        console.log('Payment data not available, using order data as fallback');
-        // Fallback to order data analysis
-        orders.forEach(order => {
-          // Analyze based on order patterns or use default
-          const method = this.estimatePaymentMethod(order);
-          const existing = paymentMap.get(method);
-          if (existing) {
-            existing.count++;
-            existing.amount += order.total;
+          
+          // Map various payment method formats to standard names
+          if (cleanMethod.includes('cash')) {
+            paymentMethod = 'Cash';
+          } else if (cleanMethod === 'not specified' || cleanMethod === '' || !cleanMethod) {
+            paymentMethod = 'Not Specified';
+          } else if (cleanMethod.includes('upi') || cleanMethod.includes('gpay') || cleanMethod.includes('paytm') || cleanMethod.includes('phonepe')) {
+            paymentMethod = 'UPI';
+          } else if (cleanMethod.includes('card') || cleanMethod.includes('credit') || cleanMethod.includes('debit')) {
+            paymentMethod = 'Card';
+          } else if (cleanMethod.includes('bank') || cleanMethod.includes('transfer') || cleanMethod.includes('neft')) {
+            paymentMethod = 'Bank Transfer';
+          } else if (cleanMethod.includes('split')) {
+            paymentMethod = 'Split Payment';
           } else {
-            paymentMap.set(method, { count: 1, amount: order.total });
+            // Use the cleaned method as-is for other cases
+            paymentMethod = cleanMethod.charAt(0).toUpperCase() + cleanMethod.slice(1);
           }
-        });
+        }
+        
+        const existing = paymentMap.get(paymentMethod);
+        if (existing) {
+          existing.count++;
+          existing.amount += order.total;
+        } else {
+          paymentMap.set(paymentMethod, { count: 1, amount: order.total });
+        }
+      });
+      
+      // If no payment methods found, try Firebase payments collection as fallback
+      if (paymentMap.size === 0) {
+        try {
+          console.log('🔄 No payment methods in orders, trying Firebase payments collection...');
+          const paymentsQuery = query(
+            collection(db, `restaurants/${restaurantId}/payments`),
+            where('createdAt', '>=', Timestamp.fromDate(startDate)),
+            where('createdAt', '<=', Timestamp.fromDate(endDate)),
+            where('status', '==', 'completed')
+          );
+          
+          const paymentsSnapshot = await getDocs(paymentsQuery);
+          
+          paymentsSnapshot.docs.forEach(doc => {
+            const payment = doc.data();
+            const method = this.formatPaymentMethod(payment.method);
+            
+            const existing = paymentMap.get(method);
+            if (existing) {
+              existing.count++;
+              existing.amount += payment.amount || 0;
+            } else {
+              paymentMap.set(method, { count: 1, amount: payment.amount || 0 });
+            }
+          });
+        } catch (error) {
+          console.log('Payment collection not available, generating sample data');
+        }
       }
 
       const paymentMethodBreakdown = Array.from(paymentMap.entries()).map(([method, data]) => ({
@@ -1893,67 +1925,7 @@ export class SalesReportService {
 
       yPosition = (doc as any).lastAutoTable.finalY + 15;
 
-      // Menu Engineering Analysis
-      if (yPosition > 220) {
-        doc.addPage();
-        yPosition = 20;
-      }
-
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 193, 7);
-      doc.text('Menu Engineering Analysis', 20, yPosition);
-      yPosition += 8;
-
-      // Classify items by performance
-      const highRevenue = analytics.menuItemSales.filter(item => item.revenue > averageRevenue);
-      const highVolume = analytics.menuItemSales.filter(item => item.quantitySold > averageQuantity);
-      
-      const stars = analytics.menuItemSales.filter(item => 
-        item.revenue > averageRevenue && item.quantitySold > averageQuantity
-      );
-      const plowhorses = analytics.menuItemSales.filter(item => 
-        item.revenue <= averageRevenue && item.quantitySold > averageQuantity
-      );
-      const puzzles = analytics.menuItemSales.filter(item => 
-        item.revenue > averageRevenue && item.quantitySold <= averageQuantity
-      );
-      const dogs = analytics.menuItemSales.filter(item => 
-        item.revenue <= averageRevenue && item.quantitySold <= averageQuantity
-      );
-
-      const engineeringData = [
-        ['Stars (High Revenue + High Volume)', stars.length.toString(), `${((stars.length / totalMenuItems) * 100).toFixed(1)}%`],
-        ['Plowhorses (Low Revenue + High Volume)', plowhorses.length.toString(), `${((plowhorses.length / totalMenuItems) * 100).toFixed(1)}%`],
-        ['Puzzles (High Revenue + Low Volume)', puzzles.length.toString(), `${((puzzles.length / totalMenuItems) * 100).toFixed(1)}%`],
-        ['Dogs (Low Revenue + Low Volume)', dogs.length.toString(), `${((dogs.length / totalMenuItems) * 100).toFixed(1)}%`]
-      ];
-
-      safeAutoTable(doc, {
-        startY: yPosition,
-        head: [['Category', 'Count', 'Percentage']],
-        body: engineeringData,
-        theme: 'grid',
-        styles: { 
-          fontSize: 10,
-          font: 'helvetica',
-          textColor: [33, 37, 41],
-          cellPadding: 8
-        },
-        headStyles: { 
-          fillColor: [255, 193, 7],
-          textColor: [33, 37, 41],
-          fontSize: 11,
-          fontStyle: 'bold'
-        },
-        columnStyles: {
-          0: { cellWidth: 100, fontStyle: 'bold' },
-          1: { halign: 'center', cellWidth: 40, fontStyle: 'bold' },
-          2: { halign: 'center', cellWidth: 40, fontStyle: 'bold' }
-        }
-      });
-
-      yPosition = (doc as any).lastAutoTable.finalY + 15;
+      // Skip Menu Engineering Analysis section to avoid showing empty categories
 
       // Low Performing Items Analysis
       if (yPosition > 220) {
@@ -2017,6 +1989,20 @@ export class SalesReportService {
       yPosition += 10;
 
       const recommendations = [];
+      
+      // Classify items by performance for recommendations
+      const stars = analytics.menuItemSales.filter(item => 
+        item.revenue > averageRevenue && item.quantitySold > averageQuantity
+      );
+      const puzzles = analytics.menuItemSales.filter(item => 
+        item.revenue > averageRevenue && item.quantitySold <= averageQuantity
+      );
+      const plowhorses = analytics.menuItemSales.filter(item => 
+        item.revenue <= averageRevenue && item.quantitySold > averageQuantity
+      );
+      const dogs = analytics.menuItemSales.filter(item => 
+        item.revenue <= averageRevenue && item.quantitySold <= averageQuantity
+      );
       
       if (stars.length > 0) {
         recommendations.push(`✅ Promote ${stars.slice(0, 3).map(s => s.name).join(', ')} - your star performers`);
@@ -2166,66 +2152,87 @@ export class SalesReportService {
       yPosition = (doc as any).lastAutoTable.finalY + 20;
     }
 
-    // Detailed Order List
+    // Detailed Order List - ULTRA COMPACT SINGLE LINE FORMAT
     if (config.includeOrderDetails && (analytics as any).detailedOrderList && (analytics as any).detailedOrderList.length > 0) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
       }
 
-      doc.setFontSize(16);
+      doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(33, 37, 41);
-      doc.text('Detailed Order List', 20, yPosition);
-      yPosition += 12;
+      doc.text('Order Details', 20, yPosition);
+      yPosition += 10;
 
-      const orderData = (analytics as any).detailedOrderList.map((order: any) => [
-        order.orderNumber,
-        order.tableNumber,
-        order.date,
-        order.time,
-        order.status.toUpperCase(),
-        order.type.replace('_', ' ').toUpperCase(),
-        order.totalItems.toString(),
-        formatCurrencyForPDF(order.total)
-      ]);
+      // Add summary info
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(108, 117, 125);
+      doc.text(`${(analytics as any).detailedOrderList.length} orders in ultra-compact format`, 20, yPosition);
+      yPosition += 8;
 
-      safeAutoTable(doc, {
-        startY: yPosition,
-        head: [['Order #', 'Table', 'Date', 'Time', 'Status', 'Type', 'Items', 'Total']],
-        body: orderData,
-        theme: 'grid',
-        styles: { 
-          fontSize: 10,
-          font: 'helvetica',
-          textColor: [33, 37, 41],
-          cellPadding: 6,
-          lineColor: [220, 220, 220],
-          lineWidth: 0.5
-        },
-        headStyles: { 
-          fillColor: [52, 58, 64],
-          textColor: [255, 255, 255],
-          fontSize: 11,
-          fontStyle: 'bold',
-          halign: 'center'
-        },
-        columnStyles: {
-          0: { cellWidth: 24, halign: 'center', fontStyle: 'bold' }, // Order #
-          1: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Table
-          2: { cellWidth: 24, halign: 'center' }, // Date
-          3: { cellWidth: 20, halign: 'center' }, // Time
-          4: { cellWidth: 24, halign: 'center', fontStyle: 'bold' }, // Status
-          5: { cellWidth: 24, halign: 'center' }, // Type
-          6: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Items
-          7: { cellWidth: 34, halign: 'right', fontStyle: 'bold' }   // Total
-        },
-        alternateRowStyles: {
-          fillColor: [248, 249, 250]
+      // Display each order in ultra-compact single line format
+      (analytics as any).detailedOrderList.forEach((order: any, index: number) => {
+        // Check if we need a new page - 15+ orders per page now
+        if (yPosition > 270) {
+          doc.addPage();
+          yPosition = 20;
+        }
+
+        // Single line order format
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(33, 37, 41);
+        
+        // Create ultra-compact single line: ORDER | Table | Date Time | Status | Payment | Items | Total
+        let orderLine = `${order.orderNumber} | T${order.tableNumber} | ${order.date} ${order.time}`;
+        
+        // Add status with color coding
+        doc.text(orderLine, 20, yPosition);
+        
+        // Status in color
+        const statusX = 20 + (orderLine.length * 1.2); // Approximate text width
+        if (order.status === 'COMPLETED') {
+          doc.setTextColor(40, 167, 69); // Green
+        } else if (order.status === 'PENDING') {
+          doc.setTextColor(255, 193, 7); // Yellow  
+        } else {
+          doc.setTextColor(220, 53, 69); // Red
+        }
+        doc.text(` | ${order.status}`, statusX, yPosition);
+        
+        // Continue line with payment and total
+        doc.setTextColor(52, 58, 64);
+        doc.setFont('helvetica', 'normal');
+        let paymentInfo = order.paymentMethod ? order.paymentMethod.split('\n')[0] : 'Cash';
+        if (paymentInfo.length > 8) paymentInfo = paymentInfo.substring(0, 8) + '...';
+        
+        const remainingLine = ` | ${paymentInfo} | ${order.totalItems} items`;
+        doc.text(remainingLine, statusX + 45, yPosition);
+        
+        // Total amount in bold green
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(40, 167, 69);
+        doc.text(` | ${formatCurrencyForPDF(order.total)}`, statusX + 85, yPosition);
+        
+        // Skip discount/credit display in compact format to avoid duplication
+        // Discount information should come from the order data itself, not be added here
+        
+        yPosition += 4; // Very tight spacing between orders
+        
+        // Optional: Show items if space allows and items list is short
+        if (order.items && order.items.length < 80 && yPosition < 268) {
+          doc.setFontSize(5);
+          doc.setFont('helvetica', 'italic');
+          doc.setTextColor(108, 117, 125);
+          const itemText = order.items.length > 60 ? order.items.substring(0, 60) + '...' : order.items;
+          doc.text(`    Items: ${itemText}`, 20, yPosition);
+          yPosition += 3;
         }
       });
 
-      yPosition = (doc as any).lastAutoTable.finalY + 20;
+      yPosition += 8;
     }
 
     // Customer Analysis
@@ -2388,67 +2395,7 @@ export class SalesReportService {
       }
     }
 
-    // Enhanced Detailed Order List with Payment Methods
-    if (config.includeOrderDetails && (analytics as any).detailedOrderList && (analytics as any).detailedOrderList.length > 0) {
-      if (yPosition > 240) {
-        doc.addPage();
-        yPosition = 20;
-      }
 
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(33, 37, 41);
-      doc.text('Detailed Order List', 20, yPosition);
-      yPosition += 12;
-
-      const orderData = (analytics as any).detailedOrderList.map((order: any) => [
-        order.orderNumber,
-        order.tableNumber,
-        order.date,
-        order.time,
-        order.status.toUpperCase(),
-        order.paymentMethod,
-        order.totalItems.toString(),
-        formatCurrencyForPDF(order.total)
-      ]);
-
-      safeAutoTable(doc, {
-        startY: yPosition,
-        head: [['Order #', 'Table', 'Date', 'Time', 'Status', 'Payment', 'Items', 'Total']],
-        body: orderData,
-        theme: 'grid',
-        styles: { 
-          fontSize: 9,
-          font: 'helvetica',
-          textColor: [33, 37, 41],
-          cellPadding: 5,
-          lineColor: [220, 220, 220],
-          lineWidth: 0.5
-        },
-        headStyles: { 
-          fillColor: [52, 58, 64],
-          textColor: [255, 255, 255],
-          fontSize: 10,
-          fontStyle: 'bold',
-          halign: 'center'
-        },
-        columnStyles: {
-          0: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Order #
-          1: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, // Table
-          2: { cellWidth: 20, halign: 'center' }, // Date
-          3: { cellWidth: 15, halign: 'center' }, // Time
-          4: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Status
-          5: { cellWidth: 35, halign: 'left', fontSize: 8 }, // Payment (wider for split details)
-          6: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, // Items
-          7: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }   // Total
-        },
-        alternateRowStyles: {
-          fillColor: [248, 249, 250]
-        }
-      });
-
-      yPosition = (doc as any).lastAutoTable.finalY + 15;
-    }
 
     // Credit Analysis
     if (config.includeCreditAnalysis !== false && analytics.creditAnalytics.ordersWithCredits > 0) {
@@ -2914,53 +2861,7 @@ export class SalesReportService {
         item.revenue <= avgRevenue && item.quantitySold <= avgQuantity
       );
 
-      if (yPosition > 240) {
-        doc.addPage();
-        yPosition = 20;
-      }
-
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 193, 7);
-      doc.text('Menu Engineering Categories:', 20, yPosition);
-      yPosition += 8;
-
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(52, 58, 64);
-      doc.text(`Stars (High Revenue + Volume): ${stars.length} items`, 20, yPosition);
-      yPosition += 5;
-      doc.text(`Puzzles (High Revenue, Low Volume): ${puzzles.length} items`, 20, yPosition);
-      yPosition += 5;
-      doc.text(`Plowhorses (Low Revenue, High Volume): ${plowhorses.length} items`, 20, yPosition);
-      yPosition += 5;
-      doc.text(`Dogs (Low Revenue + Volume): ${dogs.length} items`, 20, yPosition);
-      yPosition += 10;
-
-      // Recommendations
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(52, 144, 220);
-      doc.text('Quick Recommendations:', 20, yPosition);
-      yPosition += 8;
-
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(52, 58, 64);
-      
-      if (stars.length > 0) {
-        doc.text(`• Promote ${stars[0]?.name} - your top star performer`, 20, yPosition);
-        yPosition += 5;
-      }
-      if (dogs.length > 0) {
-        doc.text(`• Consider removing ${dogs[0]?.name} - low performance`, 20, yPosition);
-        yPosition += 5;
-      }
-      if (totalItems > 20) {
-        doc.text('• Menu might be too extensive - consider streamlining', 20, yPosition);
-        yPosition += 5;
-      }
-      yPosition += 10;
+      // Skip Menu Engineering Categories section - removed as requested
     }
 
     // Table Performance
@@ -3195,7 +3096,7 @@ export class SalesReportService {
       }
     }
 
-    // Enhanced Detailed Order List with Payment Methods
+    // Detailed Order List - COMPLETE VERTICAL FORMAT (NO TABLES)
     if (config.includeOrderDetails && (analytics as any).detailedOrderList && (analytics as any).detailedOrderList.length > 0) {
       if (yPosition > 240) {
         doc.addPage();
@@ -3208,53 +3109,231 @@ export class SalesReportService {
       doc.text('Detailed Order List', 20, yPosition);
       yPosition += 12;
 
-      const orderData = (analytics as any).detailedOrderList.map((order: any) => [
-        order.orderNumber,
-        order.tableNumber,
-        order.date,
-        order.time,
-        order.status.toUpperCase(),
-        order.paymentMethod,
-        order.totalItems.toString(),
-        formatCurrencyForPDF(order.total)
-      ]);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(108, 117, 125);
+      doc.text(`Showing ${(analytics as any).detailedOrderList.length} order(s) in vertical format`, 20, yPosition);
+      yPosition += 15;
 
-      safeAutoTable(doc, {
-        startY: yPosition,
-        head: [['Order #', 'Table', 'Date', 'Time', 'Status', 'Payment', 'Items', 'Total']],
-        body: orderData,
-        theme: 'grid',
-        styles: { 
-          fontSize: 9,
-          font: 'helvetica',
-          textColor: [33, 37, 41],
-          cellPadding: 5,
-          lineColor: [220, 220, 220],
-          lineWidth: 0.5
-        },
-        headStyles: { 
-          fillColor: [52, 58, 64],
-          textColor: [255, 255, 255],
-          fontSize: 10,
-          fontStyle: 'bold',
-          halign: 'center'
-        },
-        columnStyles: {
-          0: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Order #
-          1: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, // Table
-          2: { cellWidth: 20, halign: 'center' }, // Date
-          3: { cellWidth: 15, halign: 'center' }, // Time
-          4: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Status
-          5: { cellWidth: 35, halign: 'left', fontSize: 8 }, // Payment (wider for split details)
-          6: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }, // Items
-          7: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }   // Total
-        },
-        alternateRowStyles: {
-          fillColor: [248, 249, 250]
+      // Display each order completely vertically - each field on its own line
+      (analytics as any).detailedOrderList.forEach((order: any, index: number) => {
+        // Check if we need a new page for this order card (need more space for vertical layout)
+        if (yPosition > 200) {
+          doc.addPage();
+          yPosition = 20;
         }
+
+        // Order header with background box
+        doc.setFillColor(240, 248, 255); // Light blue background
+        doc.rect(15, yPosition - 3, 170, 8, 'F'); // Background rectangle
+        doc.setLineWidth(1);
+        doc.setDrawColor(52, 144, 220);
+        doc.rect(15, yPosition - 3, 170, 8, 'S'); // Border
+
+        // Order number (main title)
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(33, 37, 41);
+        doc.text(`ORDER: ${order.orderNumber}`, 20, yPosition + 2);
+        yPosition += 12;
+
+        // Each field on its own line - complete vertical format
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(52, 58, 64);
+
+        // Table
+        doc.setFont('helvetica', 'bold');
+        doc.text('TABLE:', 20, yPosition);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${order.tableNumber}`, 20, yPosition + 6);
+        yPosition += 12;
+
+        // Date
+        doc.setFont('helvetica', 'bold');
+        doc.text('DATE:', 20, yPosition);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${order.date}`, 20, yPosition + 6);
+        yPosition += 12;
+
+        // Time
+        doc.setFont('helvetica', 'bold');
+        doc.text('TIME:', 20, yPosition);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${order.time}`, 20, yPosition + 6);
+        yPosition += 12;
+
+        // Status
+        doc.setFont('helvetica', 'bold');
+        doc.text('STATUS:', 20, yPosition);
+        doc.setFont('helvetica', 'bold');
+        if (order.status === 'COMPLETED') {
+          doc.setTextColor(40, 167, 69); // Green
+        } else if (order.status === 'PENDING') {
+          doc.setTextColor(255, 193, 7); // Yellow
+        } else {
+          doc.setTextColor(220, 53, 69); // Red
+        }
+        doc.text(`${order.status}`, 20, yPosition + 6);
+        doc.setTextColor(52, 58, 64); // Reset color
+        yPosition += 12;
+
+        // Payment Method
+        doc.setFont('helvetica', 'bold');
+        doc.text('PAYMENT METHOD:', 20, yPosition);
+        doc.setFont('helvetica', 'normal');
+        
+        // Clean payment method data to remove duplicate discount entries
+        let cleanPaymentMethod = order.paymentMethod || 'Not specified';
+        if (cleanPaymentMethod.includes('\n')) {
+          const paymentLines = cleanPaymentMethod.split('\n');
+          // Filter out duplicate discount lines and fix currency formatting
+          const filteredLines = paymentLines.filter((line: string, index: number, array: string[]) => {
+            const trimmedLine = line.trim();
+            // Skip discount lines or only keep the first occurrence
+            if (trimmedLine.includes('Discount:') || trimmedLine.includes('• Discount:')) {
+              const firstDiscountIndex = array.findIndex((l: string) => l.trim().includes('Discount:'));
+              return index === firstDiscountIndex; // Only keep the first discount line
+            }
+            return trimmedLine.length > 0; // Keep non-empty lines
+          }).map((line: string) => {
+            // Fix currency symbol in all lines - replace strange characters with Rs.
+            return line.replace(/¹/g, 'Rs. ').replace(/₹/g, 'Rs. ').replace(/Rs\. Rs\. /g, 'Rs. ');
+          });
+          
+          if (filteredLines.length > 0) {
+            doc.text(filteredLines[0] || 'Not specified', 20, yPosition + 6);
+            yPosition += 10;
+            
+            // Display additional payment details (filtered)
+            for (let i = 1; i < filteredLines.length && i < 3; i++) {
+              doc.setFont('helvetica', 'italic');
+              doc.setTextColor(108, 117, 125); // Gray for details
+              doc.text(`${filteredLines[i].trim()}`, 25, yPosition);
+              yPosition += 6;
+            }
+            doc.setTextColor(52, 58, 64); // Reset color
+          } else {
+            doc.text('Not specified', 20, yPosition + 6);
+            yPosition += 12;
+          }
+        } else {
+          doc.text(cleanPaymentMethod, 20, yPosition + 6);
+          yPosition += 12;
+        }
+
+        // Items Count
+        doc.setFont('helvetica', 'bold');
+        doc.text('TOTAL ITEMS:', 20, yPosition);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${order.totalItems} items`, 20, yPosition + 6);
+        yPosition += 12;
+
+        // Total Amount
+        doc.setFont('helvetica', 'bold');
+        doc.text('TOTAL AMOUNT:', 20, yPosition);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(40, 167, 69); // Green for amount
+        doc.text(`${formatCurrencyForPDF(order.total)}`, 20, yPosition + 6);
+        doc.setTextColor(52, 58, 64); // Reset color
+        yPosition += 12;
+
+        // Credit Information (if present)
+        if (order.creditAmount > 0) {
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(220, 53, 69); // Red for credit
+          doc.text('CREDIT AMOUNT:', 20, yPosition);
+          doc.text(`-${formatCurrencyForPDF(order.creditAmount)}`, 20, yPosition + 6);
+          yPosition += 12;
+          
+          if (order.creditCustomerName) {
+            doc.text('CREDIT CUSTOMER:', 20, yPosition);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(52, 58, 64);
+            doc.text(`${order.creditCustomerName}`, 20, yPosition + 6);
+            yPosition += 12;
+          }
+          doc.setTextColor(52, 58, 64); // Reset color
+        }
+
+        // Note: Discount and credit information is now handled properly in payment method section above
+        // to avoid duplication issues
+
+        // Items Ordered (if available and not too long)
+        if (order.items && order.items.length < 200) {
+          doc.setFont('helvetica', 'bold');
+          doc.text('ITEMS ORDERED:', 20, yPosition);
+          yPosition += 6;
+          
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          const itemLines = doc.splitTextToSize(order.items, 160);
+          
+          // Display all item lines (with reasonable limit)
+          const displayLines = itemLines.slice(0, 5);
+          displayLines.forEach((line: string) => {
+            if (yPosition > 270) {
+              doc.addPage();
+              yPosition = 20;
+            }
+            doc.text(line, 20, yPosition);
+            yPosition += 5;
+          });
+          
+          if (itemLines.length > 5) {
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(108, 117, 125);
+            doc.text('... and more items', 20, yPosition);
+            yPosition += 5;
+          }
+          
+          doc.setFontSize(11); // Reset font size
+          doc.setTextColor(52, 58, 64); // Reset color
+          yPosition += 6;
+        }
+
+        // Grouped order details (if applicable)
+        if (order.groupDetails && order.groupDetails.length > 1) {
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(52, 144, 220);
+          doc.text(`GROUPED ORDER (${order.groupDetails.length} combined):`, 20, yPosition);
+          yPosition += 6;
+          
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.setTextColor(108, 117, 125);
+          
+          order.groupDetails.slice(0, 3).forEach((detail: any, detailIndex: number) => {
+            if (yPosition > 265) {
+              doc.addPage();
+              yPosition = 20;
+            }
+            doc.text(`• Order #${detail.orderNumber} at ${detail.time} - ${formatCurrencyForPDF(detail.total)}`, 25, yPosition);
+            yPosition += 5;
+          });
+          
+          if (order.groupDetails.length > 3) {
+            doc.text(`• ... and ${order.groupDetails.length - 3} more orders in this group`, 25, yPosition);
+            yPosition += 5;
+          }
+          
+          doc.setFontSize(11); // Reset font size
+          doc.setTextColor(52, 58, 64); // Reset color
+          yPosition += 6;
+        }
+
+        // Bottom separator
+        yPosition += 5;
+        doc.setLineWidth(2);
+        doc.setDrawColor(200, 200, 200);
+        doc.line(15, yPosition, 185, yPosition);
+        yPosition += 15;
+
+        // Add extra space between orders
+        yPosition += 5;
       });
 
-      yPosition = (doc as any).lastAutoTable.finalY + 15;
+      yPosition += 10;
     }
 
     // Customer Portal Analytics
@@ -3452,4 +3531,4 @@ export class SalesReportService {
     
     return lines.join('\n');
   }
-} 
+}

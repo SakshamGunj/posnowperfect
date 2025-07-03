@@ -11,15 +11,26 @@ import toast from 'react-hot-toast';
 interface MenuItemSearchProps {
   menuItems: MenuItem[];
   onSelect: (menuItem: MenuItem | null) => void;
+  onCreateStandalone?: (itemName: string) => void;
   disabled?: boolean;
   initialValue?: MenuItem | null;
   placeholder?: string;
+  allowStandaloneCreation?: boolean;
 }
 
-function MenuItemSearch({ menuItems, onSelect, disabled, initialValue, placeholder }: MenuItemSearchProps) {
+function MenuItemSearch({ 
+  menuItems, 
+  onSelect, 
+  onCreateStandalone,
+  disabled, 
+  initialValue, 
+  placeholder,
+  allowStandaloneCreation = false 
+}: MenuItemSearchProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(initialValue || null);
+  const [standaloneItemName, setStandaloneItemName] = useState<string>('');
 
   useEffect(() => {
     if (initialValue) {
@@ -32,11 +43,16 @@ function MenuItemSearch({ menuItems, onSelect, disabled, initialValue, placehold
     item.price.toString().includes(searchTerm)
   );
 
+  const hasExactMatch = filteredItems.some(item => 
+    item.name.toLowerCase() === searchTerm.toLowerCase()
+  );
+
   const handleSelect = (item: MenuItem) => {
     setSelectedMenuItem(item);
     onSelect(item);
     setSearchTerm('');
     setIsOpen(false);
+    setStandaloneItemName('');
   };
 
   const handleClear = () => {
@@ -44,31 +60,49 @@ function MenuItemSearch({ menuItems, onSelect, disabled, initialValue, placehold
     onSelect(null);
     setSearchTerm('');
     setIsOpen(true);
+    setStandaloneItemName('');
   };
+
+  const handleCreateStandalone = () => {
+    if (searchTerm.trim() && onCreateStandalone) {
+      setStandaloneItemName(searchTerm.trim());
+      onCreateStandalone(searchTerm.trim());
+      setSelectedMenuItem(null);
+      setIsOpen(false);
+    }
+  };
+
+  const showCreateOption = allowStandaloneCreation && 
+                          searchTerm.trim().length > 0 && 
+                          !hasExactMatch && 
+                          filteredItems.length === 0;
 
   return (
     <div className="relative">
       <div className="relative">
         <input
           type="text"
-          value={selectedMenuItem ? `${selectedMenuItem.name} - ${formatCurrency(selectedMenuItem.price)}` : searchTerm}
+          value={selectedMenuItem ? `${selectedMenuItem.name} - ${formatCurrency(selectedMenuItem.price)}` : standaloneItemName || searchTerm}
           onChange={(e) => {
-            if (!selectedMenuItem) {
+            if (!selectedMenuItem && !standaloneItemName) {
               setSearchTerm(e.target.value);
               setIsOpen(true);
             }
           }}
-          onFocus={() => !selectedMenuItem && setIsOpen(true)}
+          onFocus={() => !selectedMenuItem && !standaloneItemName && setIsOpen(true)}
           placeholder={placeholder || "Search menu items..."}
           disabled={disabled}
           className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-600"
-          readOnly={!!selectedMenuItem}
+          readOnly={!!selectedMenuItem || !!standaloneItemName}
         />
         <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-          {selectedMenuItem ? (
+          {selectedMenuItem || standaloneItemName ? (
             <button
               type="button"
-              onClick={handleClear}
+              onClick={() => {
+                handleClear();
+                setStandaloneItemName('');
+              }}
               disabled={disabled}
               className="text-gray-400 hover:text-gray-600 disabled:hover:text-gray-400"
             >
@@ -80,8 +114,21 @@ function MenuItemSearch({ menuItems, onSelect, disabled, initialValue, placehold
         </div>
       </div>
 
+      {/* Show standalone item indicator */}
+      {standaloneItemName && (
+        <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center text-sm text-blue-700">
+            <Package className="w-4 h-4 mr-2" />
+            <span>Creating standalone inventory item: <strong>{standaloneItemName}</strong></span>
+          </div>
+          <p className="text-xs text-blue-600 mt-1">
+            This item won't be linked to your menu items - it's for inventory tracking only.
+          </p>
+        </div>
+      )}
+
       {/* Dropdown */}
-      {isOpen && !disabled && !selectedMenuItem && (
+      {isOpen && !disabled && !selectedMenuItem && !standaloneItemName && (
         <>
           <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
             {filteredItems.length > 0 ? (
@@ -97,8 +144,33 @@ function MenuItemSearch({ menuItems, onSelect, disabled, initialValue, placehold
                 </button>
               ))
             ) : (
-              <div className="px-3 py-4 text-gray-500 text-sm text-center">
-                {searchTerm ? 'No menu items found matching your search' : 'Start typing to search menu items...'}
+              <div className="px-3 py-4">
+                {searchTerm ? (
+                  <div className="space-y-3">
+                    <div className="text-center text-gray-500 text-sm">
+                      No menu items found matching "{searchTerm}"
+                    </div>
+                    {showCreateOption && (
+                      <button
+                        type="button"
+                        onClick={handleCreateStandalone}
+                        className="w-full px-3 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors group"
+                      >
+                        <div className="flex items-center justify-center text-blue-700">
+                          <Plus className="w-4 h-4 mr-2" />
+                          <span className="font-medium">Create inventory item: "{searchTerm}"</span>
+                        </div>
+                        <div className="text-xs text-blue-600 mt-1">
+                          Create standalone inventory (not linked to menu)
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 text-sm text-center">
+                    Start typing to search menu items...
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -634,522 +706,435 @@ export function InventoryDialog({
   selectedUnit,
   isSubmitting,
 }: InventoryDialogProps) {
-  const [showLinkModal, setShowLinkModal] = useState(false);
-  const [pendingInventoryData, setPendingInventoryData] = useState<any>(null);
-  const [newInventoriesToCreate, setNewInventoriesToCreate] = useState<Array<{menuItem: MenuItem, quantity: number, unit: InventoryUnit, customUnit?: string}>>([]);
+  const { user } = useRestaurantAuth();
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
-  const [pendingLinkedItems, setPendingLinkedItems] = useState<InventoryLinkedItem[]>([]);
-  const [reverseLinkedItems, setReverseLinkedItems] = useState<Array<{
-    inventory: InventoryItem;
-    menuItem: MenuItem;
-    linkData: InventoryLinkedItem;
-  }>>([]);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkedItems, setLinkedItems] = useState<InventoryLinkedItem[]>([]);
+  const [isStandaloneItem, setIsStandaloneItem] = useState(false);
+  const [standaloneItemName, setStandaloneItemName] = useState('');
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (inventory) {
+      // Editing existing inventory
+      setIsStandaloneItem(!inventory.menuItemId);
+      if (!inventory.menuItemId) {
+        // This is a standalone item, extract name from some field
+        setStandaloneItemName(inventory.displayName || inventory.id || '');
+      } else {
+        // Find the corresponding menu item
+        const menuItem = menuItems.find(item => item.id === inventory.menuItemId);
+        setSelectedMenuItem(menuItem || null);
+        setStandaloneItemName('');
+      }
+      setLinkedItems(inventory.linkedItems || []);
+    } else {
+      // Creating new inventory
+      setIsStandaloneItem(false);
+      setSelectedMenuItem(null);
+      setStandaloneItemName('');
+      setLinkedItems([]);
+    }
+  }, [inventory, menuItems]);
 
-  const availableMenuItems = inventory 
-    ? menuItems.filter(item => item.id === inventory.menuItemId || !existingInventory.some(inv => inv.menuItemId === item.id))
-    : menuItems.filter(item => !existingInventory.some(inv => inv.menuItemId === item.id));
+  const availableMenuItems = menuItems.filter(item => 
+    !existingInventory.some(inv => inv.menuItemId === item.id && inv.id !== inventory?.id)
+  );
 
-  const initialSelectedItem = inventory ? menuItems.find(item => item.id === inventory.menuItemId) || null : null;
-  const currentMenuItem = selectedMenuItem || initialSelectedItem;
+  const handleMenuItemSelect = (menuItem: MenuItem | null) => {
+    setSelectedMenuItem(menuItem);
+    setIsStandaloneItem(false);
+    setStandaloneItemName('');
+    if (menuItem) {
+      setValue('menuItemId', menuItem.id);
+    } else {
+      setValue('menuItemId', '');
+    }
+  };
 
-  // Function to find reverse links (items that link TO this item)
-  const findReverseLinks = useCallback(() => {
-    if (!inventory) {
-      setReverseLinkedItems([]);
+  const handleCreateStandalone = (itemName: string) => {
+    setIsStandaloneItem(true);
+    setStandaloneItemName(itemName);
+    setSelectedMenuItem(null);
+    setValue('menuItemId', ''); // Clear menu item ID for standalone items
+  };
+
+  const handleFormSubmit = (data: any) => {
+    console.log('📝 Form submission:', { data, isStandaloneItem, standaloneItemName, selectedMenuItem });
+    
+    // Validate that either menu item is selected OR standalone name is provided
+    if (!isStandaloneItem && !selectedMenuItem) {
+      alert('Please select a menu item or create a standalone inventory item');
       return;
     }
 
-    const reverseLinks: Array<{
-      inventory: InventoryItem;
-      menuItem: MenuItem;
-      linkData: InventoryLinkedItem;
-    }> = [];
-
-    // Check all other inventory items to see if they link to this item
-    existingInventory.forEach(otherInventory => {
-      if (otherInventory.id === inventory.id) return; // Skip self
-      
-      if (otherInventory.linkedItems && otherInventory.linkedItems.length > 0) {
-        otherInventory.linkedItems.forEach(linkedItem => {
-          if (linkedItem.linkedInventoryId === inventory.id || linkedItem.linkedMenuItemId === inventory.menuItemId) {
-            const linkedMenuItem = menuItems.find(item => item.id === otherInventory.menuItemId);
-            if (linkedMenuItem) {
-              reverseLinks.push({
-                inventory: otherInventory,
-                menuItem: linkedMenuItem,
-                linkData: linkedItem
-              });
-            }
-          }
-        });
-      }
-    });
-
-    setReverseLinkedItems(reverseLinks);
-  }, [inventory, existingInventory, menuItems]);
-
-  // Reset selected menu item when modal opens/closes
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedMenuItem(initialSelectedItem);
-      // Initialize pending linked items from existing inventory
-      setPendingLinkedItems(inventory?.linkedItems || []);
-      // Find items that link to this inventory
-      findReverseLinks();
-    } else {
-      setSelectedMenuItem(null);
-      setPendingLinkedItems([]);
-      setReverseLinkedItems([]);
-    }
-  }, [isOpen, initialSelectedItem, inventory, findReverseLinks]);
-
-  const unitOptions = [
-    { value: 'pieces', label: 'Pieces' },
-    { value: 'ml', label: 'Milliliters (ml)' },
-    { value: 'liters', label: 'Liters' },
-    { value: 'grams', label: 'Grams (g)' },
-    { value: 'kg', label: 'Kilograms (kg)' },
-    { value: 'cups', label: 'Cups' },
-    { value: 'portions', label: 'Portions' },
-    { value: 'bottles', label: 'Bottles' },
-    { value: 'cans', label: 'Cans' },
-    { value: 'custom', label: 'Custom Unit' },
-  ];
-
-  const handleFormSubmit = (data: any) => {
-    // Filter out undefined values to prevent Firebase errors
-    const cleanData = Object.keys(data).reduce((acc, key) => {
-      if (data[key] !== undefined && data[key] !== '') {
-        acc[key] = data[key];
-      }
-      return acc;
-    }, {} as any);
-
-    // Ensure customUnit is only included when unit is 'custom'
-    if (cleanData.unit !== 'custom') {
-      delete cleanData.customUnit;
+    if (isStandaloneItem && !standaloneItemName.trim()) {
+      alert('Please provide a name for the standalone inventory item');
+      return;
     }
 
-    // Add pending linked items if any
-    if (pendingLinkedItems.length > 0) {
-      cleanData.linkedItems = pendingLinkedItems;
-      cleanData.isBaseInventory = true;
-      cleanData.reverseLinksEnabled = pendingLinkedItems.some(item => item.enableReverseLink);
-    }
+    const submitData = {
+      ...data,
+      linkedItems,
+      isStandaloneItem,
+      standaloneItemName: isStandaloneItem ? standaloneItemName : undefined,
+      menuItemId: isStandaloneItem ? null : selectedMenuItem?.id,
+    };
 
-    console.log('🔗 Saving inventory with data:', cleanData);
-    onSave(cleanData);
+    console.log('🚀 Submitting inventory data:', submitData);
+    onSave(submitData);
   };
 
   const handleLinkItems = (linkedItems: InventoryLinkedItem[]) => {
-    console.log('🔗 handleLinkItems called with:', linkedItems);
-    
-    // Store pending linked items for display
-    setPendingLinkedItems(linkedItems);
-    
-    if (!inventory) {
-      // For new inventory, just store the linked items to be saved later
-      console.log('🔗 New inventory - storing pending linked items');
-      setShowLinkModal(false);
-      return;
-    }
-    
-    // Update the current inventory with linked items
-    const updatedInventory = {
-      ...inventory,
-      linkedItems: linkedItems,
-      isBaseInventory: linkedItems.length > 0,
-      reverseLinksEnabled: linkedItems.some(item => item.enableReverseLink)
-    };
-    
-    // Save the updated inventory with links
-    onSave(updatedInventory);
-    
-    // Handle creating new inventories if needed
-    newInventoriesToCreate.forEach(newInv => {
-      // This would typically call a separate function to create new inventory
-      console.log('Creating new inventory for:', newInv.menuItem.name, newInv.quantity, newInv.unit);
-    });
-    
-    setShowLinkModal(false);
+    console.log('🔗 LinkItems received:', linkedItems);
+    setLinkedItems(linkedItems);
+    setShowLinkDialog(false);
   };
 
   const handleCreateNewInventory = (menuItem: MenuItem, quantity: number, unit: InventoryUnit, customUnit?: string) => {
-    setNewInventoriesToCreate([...newInventoriesToCreate, { menuItem, quantity, unit, customUnit }]);
+    // Implementation for creating linked inventory - existing logic
+    console.log('Creating new linked inventory:', { menuItem, quantity, unit, customUnit });
+    
+    // This will be handled by the parent component
+    // For now, we'll just close the link dialog
+    setShowLinkDialog(false);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {inventory ? 'Edit Inventory' : 'Add Inventory'}
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+  const renderLinkedItemsPreview = () => {
+    if (!linkedItems.length) return null;
+
+    return (
+      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+        <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+          <Link className="w-4 h-4 mr-2" />
+          Linked Items ({linkedItems.length})
+        </h4>
+        <div className="space-y-2">
+          {linkedItems.slice(0, 3).map((item) => (
+            <div key={item.id} className="flex items-center justify-between text-sm">
+              <span className="text-gray-700">{item.linkedMenuItemName}</span>
+              <span className="text-gray-500">Ratio: 1:{item.ratio}</span>
+            </div>
+          ))}
+          {linkedItems.length > 3 && (
+            <div className="text-xs text-gray-500">
+              +{linkedItems.length - 3} more items
+            </div>
+          )}
         </div>
-        
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="p-6 space-y-6">
-          {/* Menu Item Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Menu Item *
-            </label>
-            <MenuItemSearch
-              menuItems={availableMenuItems}
-              onSelect={(item) => {
-                setValue('menuItemId', item?.id || '');
-                setSelectedMenuItem(item);
-              }}
-              disabled={!!inventory}
-              initialValue={initialSelectedItem}
-              placeholder="Search and select menu item..."
-            />
-            {/* Hidden input for form validation */}
-            <input
-              type="hidden"
-              {...register('menuItemId', { required: 'Menu item is required' })}
-            />
-            {availableMenuItems.length === 0 && (
-              <p className="text-sm text-yellow-600 mt-1">
-                All menu items already have inventory setup
-              </p>
-            )}
-          </div>
-
-          {/* Quantity and Unit */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Current Quantity *
-              </label>
-              <input
-                {...register('currentQuantity', { 
-                  required: 'Quantity is required',
-                  min: { value: 0, message: 'Quantity cannot be negative' },
-                  valueAsNumber: true
-                })}
-                type="number"
-                step="0.1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="0"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Unit *
-              </label>
-              <select
-                {...register('unit', { required: 'Unit is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {unitOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Custom Unit */}
-          {selectedUnit === 'custom' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Custom Unit Name *
-              </label>
-              <input
-                {...register('customUnit', { 
-                  required: selectedUnit === 'custom' ? 'Custom unit name is required' : false
-                })}
-                type="text"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., servings, batches, etc."
-              />
-            </div>
-          )}
-
-          {/* Thresholds */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Minimum Threshold *
-              </label>
-              <input
-                {...register('minimumThreshold', { 
-                  required: 'Minimum threshold is required',
-                  min: { value: 0, message: 'Threshold cannot be negative' },
-                  valueAsNumber: true
-                })}
-                type="number"
-                step="0.1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Alert when below this level"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Consumption Per Order *
-              </label>
-              <input
-                {...register('consumptionPerOrder', { 
-                  required: 'Consumption per order is required',
-                  min: { value: 0, message: 'Consumption cannot be negative' },
-                  valueAsNumber: true
-                })}
-                type="number"
-                step="0.1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="How much is used per order"
-              />
-            </div>
-          </div>
-
-          {/* Optional Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Maximum Capacity
-              </label>
-              <input
-                {...register('maxCapacity', { valueAsNumber: true })}
-                type="number"
-                step="0.1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Storage capacity (optional)"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Cost Per Unit
-              </label>
-              <input
-                {...register('costPerUnit', { valueAsNumber: true })}
-                type="number"
-                step="0.01"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Cost price per unit"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Supplier
-            </label>
-            <input
-              {...register('supplier')}
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Supplier name (optional)"
-            />
-          </div>
-
-          {/* Settings */}
-          <div className="grid grid-cols-2 gap-4">
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                {...register('isTracked')}
-                type="checkbox"
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Track inventory</span>
-            </label>
-            
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                {...register('autoDeduct')}
-                type="checkbox"
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Auto-deduct on orders</span>
-            </label>
-          </div>
-
-          {/* Linked Items Section - Show for both create and edit modes */}
-          {(
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="font-medium text-gray-900">Linked Items</h3>
-                  <p className="text-sm text-gray-600">
-                    {inventory ? 'Items sharing the same base inventory' : 'Set up items that will share the same base inventory'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!currentMenuItem && !inventory) {
-                      alert('Please select a menu item first to enable linking functionality.');
-                      return;
-                    }
-                    setShowLinkModal(true);
-                  }}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
-                    currentMenuItem || inventory 
-                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                      : 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                  }`}
-                  disabled={!currentMenuItem && !inventory}
-                >
-                  <Link className="w-4 h-4" />
-                  <span>Link Items</span>
-                </button>
-              </div>
-              
-              {/* Forward Links - Items this inventory links to */}
-              {((inventory && inventory.linkedItems && inventory.linkedItems.length > 0) || pendingLinkedItems.length > 0) && (
-                <div className="space-y-2 mb-4">
-                  <h4 className="text-sm font-medium text-gray-700 flex items-center">
-                    <TrendingUp className="w-4 h-4 mr-1 text-blue-600" />
-                    Items linked from this inventory
-                  </h4>
-                  {(pendingLinkedItems.length > 0 ? pendingLinkedItems : inventory?.linkedItems || []).map((linkedItem) => (
-                    <div key={linkedItem.id} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                          <Package className="w-4 h-4 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-green-900">{linkedItem.linkedMenuItemName}</p>
-                          <p className="text-sm text-green-700">
-                            Ratio: 1:{linkedItem.ratio} 
-                            {linkedItem.enableReverseLink && ` | Reverse: 1:${linkedItem.reverseRatio || 1}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        {linkedItem.enableReverseLink && (
-                          <ToggleRight className="w-4 h-4 text-green-600" />
-                        )}
-                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
-                          Active
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Reverse Links - Items that link to this inventory */}
-              {reverseLinkedItems.length > 0 && (
-                <div className="space-y-2 mb-4">
-                  <h4 className="text-sm font-medium text-gray-700 flex items-center">
-                    <TrendingDown className="w-4 h-4 mr-1 text-purple-600" />
-                    Items linked to this inventory
-                  </h4>
-                  {reverseLinkedItems.map((reverseLink, index) => (
-                    <div key={`reverse-${index}`} className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <Package className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-purple-900">{reverseLink.menuItem.name}</p>
-                          <p className="text-sm text-purple-700">
-                            Linked with ratio: 1:{reverseLink.linkData.ratio}
-                            {reverseLink.linkData.enableReverseLink && ` | Reverse: 1:${reverseLink.linkData.reverseRatio || 1}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        {reverseLink.linkData.enableReverseLink && (
-                          <ToggleRight className="w-4 h-4 text-purple-600" />
-                        )}
-                        <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">
-                          Linked Item
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Show empty state only if no links exist in either direction */}
-              {((inventory && (!inventory.linkedItems || inventory.linkedItems.length === 0)) && pendingLinkedItems.length === 0 && reverseLinkedItems.length === 0) && (
-                <div className="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                  <Link className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">
-                    {inventory ? 'No linked items yet' : 'No linked items configured'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {inventory 
-                      ? 'Link items that share the same base inventory' 
-                      : 'Click "Link Items" to set up consumption ratios for related menu items'
-                    }
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="btn btn-theme-primary"
-            >
-              {isSubmitting ? (
-                <>
-                  <Package className="w-4 h-4 mr-2 animate-spin" />
-                  {inventory ? 'Updating...' : 'Creating...'}
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  {inventory ? 'Update Inventory' : 'Create Inventory'}
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-        
-        {/* Link Item Modal */}
-        {currentMenuItem && (
-          <LinkItemModal
-            isOpen={showLinkModal}
-            onClose={() => setShowLinkModal(false)}
-            onSave={handleLinkItems}
-            currentInventory={inventory || {
-              id: 'temp',
-              menuItemId: currentMenuItem.id,
-              restaurantId: '',
-              currentQuantity: 0,
-              unit: selectedUnit || 'pieces',
-              minimumThreshold: 0,
-              consumptionPerOrder: 1,
-              isTracked: true,
-              autoDeduct: true,
-              linkedItems: [],
-              createdAt: new Date(),
-              updatedAt: new Date()
-            } as InventoryItem}
-            currentMenuItem={currentMenuItem}
-            menuItems={menuItems}
-            existingInventory={existingInventory}
-            onCreateNewInventory={handleCreateNewInventory}
-          />
-        )}
       </div>
-    </div>
+    );
+  };
+
+  const getUnitDisplay = (unit: InventoryUnit, customUnit?: string): string => {
+    return unit === 'custom' && customUnit ? customUnit : unit;
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold text-gray-900">
+                {inventory ? 'Edit Inventory Item' : 'Add New Inventory Item'}
+              </h3>
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit(handleFormSubmit)} className="p-6 space-y-6">
+            {/* Menu Item Selection or Standalone Creation */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {isStandaloneItem ? 'Inventory Item Name' : 'Menu Item'}
+                <span className="text-red-500 ml-1">*</span>
+              </label>
+              
+              {!inventory && ( // Only show search for new items
+                <MenuItemSearch
+                  menuItems={availableMenuItems}
+                  onSelect={handleMenuItemSelect}
+                  onCreateStandalone={handleCreateStandalone}
+                  initialValue={selectedMenuItem}
+                  allowStandaloneCreation={true}
+                  placeholder="Search menu items or type to create standalone item..."
+                />
+              )}
+
+              {inventory && isStandaloneItem && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center text-sm text-blue-700">
+                    <Package className="w-4 h-4 mr-2" />
+                    <span>Standalone inventory item: <strong>{standaloneItemName}</strong></span>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-1">
+                    This item is not linked to any menu items - it's for inventory tracking only.
+                  </p>
+                </div>
+              )}
+
+              {inventory && !isStandaloneItem && selectedMenuItem && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center text-sm text-green-700">
+                    <Package className="w-4 h-4 mr-2" />
+                    <span>Linked to menu item: <strong>{selectedMenuItem.name}</strong></span>
+                  </div>
+                  <p className="text-xs text-green-600 mt-1">
+                    Price: {formatCurrency(selectedMenuItem.price)}
+                  </p>
+                </div>
+              )}
+
+              {/* Hidden input for form registration */}
+              <input type="hidden" {...register('menuItemId')} />
+            </div>
+
+            {/* Rest of the form fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Current Quantity */}
+              <div>
+                <label className="form-label">
+                  Current Quantity <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  {...register('currentQuantity', { 
+                    required: 'Current quantity is required',
+                    min: { value: 0, message: 'Quantity cannot be negative' }
+                  })}
+                  className="input"
+                  placeholder="Enter current stock quantity"
+                />
+              </div>
+
+              {/* Unit */}
+              <div>
+                <label className="form-label">
+                  Unit <span className="text-red-500">*</span>
+                </label>
+                <select
+                  {...register('unit', { required: 'Unit is required' })}
+                  className="input"
+                >
+                  <option value="">Select Unit</option>
+                  <option value="pieces">Pieces</option>
+                  <option value="kg">Kilograms (kg)</option>
+                  <option value="grams">Grams (g)</option>
+                  <option value="liters">Liters (L)</option>
+                  <option value="ml">Milliliters (ml)</option>
+                  <option value="cups">Cups</option>
+                  <option value="portions">Portions</option>
+                  <option value="bottles">Bottles</option>
+                  <option value="cans">Cans</option>
+                  <option value="custom">Custom Unit</option>
+                </select>
+              </div>
+
+              {/* Custom Unit (conditional) */}
+              {selectedUnit === 'custom' && (
+                <div className="md:col-span-2">
+                  <label className="form-label">
+                    Custom Unit <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    {...register('customUnit', { 
+                      required: selectedUnit === 'custom' ? 'Custom unit name is required' : false 
+                    })}
+                    className="input"
+                    placeholder="Enter custom unit (e.g., boxes, packets, trays)"
+                  />
+                </div>
+              )}
+
+              {/* Minimum Threshold */}
+              <div>
+                <label className="form-label">
+                  Minimum Threshold <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  {...register('minimumThreshold', { 
+                    required: 'Minimum threshold is required',
+                    min: { value: 0, message: 'Threshold cannot be negative' }
+                  })}
+                  className="input"
+                  placeholder="Alert when stock falls below this level"
+                />
+              </div>
+
+              {/* Consumption Per Order */}
+              <div>
+                <label className="form-label">
+                  Consumption Per Order <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  {...register('consumptionPerOrder', { 
+                    required: 'Consumption per order is required',
+                    min: { value: 0, message: 'Consumption cannot be negative' }
+                  })}
+                  className="input"
+                  placeholder="How much is used per order"
+                />
+              </div>
+
+              {/* Max Capacity */}
+              <div>
+                <label className="form-label">Max Capacity (Optional)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  {...register('maxCapacity')}
+                  className="input"
+                  placeholder="Maximum storage capacity"
+                />
+              </div>
+
+              {/* Cost Per Unit */}
+              <div>
+                <label className="form-label">Cost Per Unit (Optional)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  {...register('costPerUnit')}
+                  className="input"
+                  placeholder="Cost price per unit"
+                />
+              </div>
+
+              {/* Supplier */}
+              <div className="md:col-span-2">
+                <label className="form-label">Supplier (Optional)</label>
+                <input
+                  type="text"
+                  {...register('supplier')}
+                  className="input"
+                  placeholder="Enter supplier name"
+                />
+              </div>
+            </div>
+
+            {/* Tracking Settings */}
+            <div className="border-t pt-6">
+              <h4 className="text-lg font-medium text-gray-900 mb-4">Tracking Settings</h4>
+              
+              <div className="space-y-4">
+                {/* Is Tracked */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <h5 className="text-sm font-medium text-gray-900">Enable Inventory Tracking</h5>
+                    <p className="text-sm text-gray-600">Track stock levels and receive low stock alerts</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      {...register('isTracked')}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                {/* Auto Deduct */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <h5 className="text-sm font-medium text-gray-900">Auto-Deduct from Orders</h5>
+                    <p className="text-sm text-gray-600">Automatically reduce stock when orders are placed</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      {...register('autoDeduct')}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Linking System */}
+            {selectedMenuItem && !isStandaloneItem && (
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="text-lg font-medium text-gray-900">Inventory Linking</h4>
+                    <p className="text-sm text-gray-600">
+                      Link this inventory to other menu items for automatic stock management
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowLinkDialog(true)}
+                    className="btn btn-secondary flex items-center"
+                  >
+                    <Link className="w-4 h-4 mr-2" />
+                    {linkedItems.length > 0 ? 'Manage Links' : 'Add Links'}
+                  </button>
+                </div>
+                
+                {renderLinkedItemsPreview()}
+              </div>
+            )}
+
+            {/* Form Actions */}
+            <div className="flex items-center justify-end space-x-3 pt-6 border-t">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="btn btn-theme-primary flex items-center disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                {isSubmitting ? 'Saving...' : (inventory ? 'Update Inventory' : 'Create Inventory')}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Link Items Dialog */}
+      {showLinkDialog && selectedMenuItem && (
+        <LinkItemModal
+          isOpen={showLinkDialog}
+          onClose={() => setShowLinkDialog(false)}
+          onSave={handleLinkItems}
+          currentInventory={inventory || {} as InventoryItem}
+          currentMenuItem={selectedMenuItem}
+          menuItems={menuItems}
+          existingInventory={existingInventory}
+          onCreateNewInventory={handleCreateNewInventory}
+        />
+      )}
+    </>
   );
 }
 

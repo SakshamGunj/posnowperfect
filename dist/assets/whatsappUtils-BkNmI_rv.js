@@ -1,4 +1,4 @@
-import{h as m,E as h}from"./index-DCLe1v1z.js";class g{static formatBillForWhatsApp(l){let i=l.replace(/<style[^>]*>[\s\S]*?<\/style>/gi,"").replace(/<script[^>]*>[\s\S]*?<\/script>/gi,"");i=i.replace(/<[^>]*>/g," "),i=i.replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&hellip;/g,"...").replace(/&mdash;/g,"—").replace(/&ndash;/g,"–"),i=i.replace(/[ \t]+/g," ").replace(/\n\s+/g,`
+import{h as m,E as h}from"./index-CT7T1kD0.js";class g{static formatBillForWhatsApp(l){let i=l.replace(/<style[^>]*>[\s\S]*?<\/style>/gi,"").replace(/<script[^>]*>[\s\S]*?<\/script>/gi,"");i=i.replace(/<[^>]*>/g," "),i=i.replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&hellip;/g,"...").replace(/&mdash;/g,"—").replace(/&ndash;/g,"–"),i=i.replace(/[ \t]+/g," ").replace(/\n\s+/g,`
 `).replace(/\s+\n/g,`
 `).replace(/\n{3,}/g,`
 

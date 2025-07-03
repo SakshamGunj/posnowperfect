@@ -703,11 +703,48 @@ export default function TakeOrder() {
       const updatePromises = allOrders.map(async (order) => {
         const updateData: any = { 
           status: 'completed',
-          paymentMethod: data.method,
+          paymentMethod: data.isCredit ? (data.addWholeAmountAsCredit ? 'credit' : 'partial_credit') : data.method,
           amountReceived: data.amountReceived,
           finalTotal: data.finalTotal,
-          originalTotal: data.originalTotal
+          originalTotal: data.originalTotal,
+          // Preserve original total as order.total for backward compatibility
+          total: data.finalTotal // Update the main total field to reflect discounted amount
         };
+        
+        // Add discount information to preserve it in order record
+        if (data.manualDiscountAmount > 0 || data.couponDiscountAmount > 0) {
+          updateData.discountApplied = true;
+          updateData.totalDiscountAmount = (data.manualDiscountAmount || 0) + (data.couponDiscountAmount || 0);
+          updateData.originalTotalBeforeDiscount = data.originalTotal;
+          
+          // Store manual discount details
+          if (data.manualDiscount) {
+            updateData.manualDiscount = {
+              type: data.manualDiscount.type,
+              value: data.manualDiscount.value,
+              amount: data.manualDiscountAmount,
+              reason: data.manualDiscount.reason || ''
+            };
+          }
+          
+          // Store coupon discount details
+          if (data.couponDiscountAmount > 0) {
+            updateData.couponDiscountAmount = data.couponDiscountAmount;
+          }
+          
+          // Update the discount field for backward compatibility
+          updateData.discount = (data.manualDiscountAmount || 0) + (data.couponDiscountAmount || 0);
+        }
+        
+        // Add tip information if provided
+        if (data.tip > 0) {
+          updateData.tip = data.tip;
+        }
+        
+        // Add total savings information
+        if (data.totalSavings > 0) {
+          updateData.totalSavings = data.totalSavings;
+        }
         
         // Add credit information if applicable
         if (data.isCredit) {
@@ -3260,7 +3297,9 @@ function generateKOTContent(order: Order, restaurant: any, table: Table): string
 
 async function generateCombinedBillContent(orders: Order[], restaurant: any, table: Table, paymentData: any): Promise<string> {
   const combinedSubtotal = orders.reduce((total, order) => total + order.subtotal, 0);
-  let discountAmount = 0;
+  let couponDiscountAmount = 0;
+  let manualDiscountAmount = 0;
+  let totalDiscountAmount = 0;
   let couponInfo = null;
   
   // Check for merged tables information from order notes
@@ -3270,19 +3309,25 @@ async function generateCombinedBillContent(orders: Order[], restaurant: any, tab
   
   // Check for coupon discount from new payment data structure
   if (paymentData.appliedCoupon) {
-    discountAmount = paymentData.appliedCoupon.discountAmount || 0;
+    couponDiscountAmount = paymentData.appliedCoupon.discountAmount || 0;
     couponInfo = paymentData.appliedCoupon;
   }
+  
+  // Check for manual discount
+  if (paymentData.manualDiscountAmount > 0) {
+    manualDiscountAmount = paymentData.manualDiscountAmount;
+  }
   // Fallback to old discount structure
-  else if (paymentData.discount) {
+  else if (paymentData.discount && !paymentData.appliedCoupon) {
     if (paymentData.discount.type === 'percentage') {
-      discountAmount = (combinedSubtotal * paymentData.discount.value) / 100;
+      manualDiscountAmount = (combinedSubtotal * paymentData.discount.value) / 100;
     } else {
-      discountAmount = paymentData.discount.value;
+      manualDiscountAmount = paymentData.discount.value;
     }
   }
   
-  const discountedSubtotal = combinedSubtotal - discountAmount;
+  totalDiscountAmount = couponDiscountAmount + manualDiscountAmount;
+  const discountedSubtotal = combinedSubtotal - totalDiscountAmount;
   const combinedTax = (discountedSubtotal * (restaurant?.settings?.taxRate || 8.5)) / 100;
   const discountedTotal = discountedSubtotal + combinedTax;
   const tip = paymentData.tip || 0;
@@ -3735,7 +3780,7 @@ async function generateCombinedBillContent(orders: Order[], restaurant: any, tab
             <div class="coupon-title">🎟️ COUPON APPLIED</div>
             <div class="total-row discount">
               <span>${couponInfo.coupon.name}</span>
-              <span>-${formatCurrency(discountAmount)}</span>
+              <span>-${formatCurrency(couponDiscountAmount)}</span>
             </div>
             <div class="coupon-code">Code: ${couponInfo.coupon.code}</div>
             ${couponInfo.freeItems && couponInfo.freeItems.length > 0 ? `
@@ -3744,24 +3789,27 @@ async function generateCombinedBillContent(orders: Order[], restaurant: any, tab
             </div>
             ` : ''}
           </div>
+          ` : ''}
+          
+          ${manualDiscountAmount > 0 ? `
+          <div class="total-row discount">
+            <span>Discount ${paymentData.manualDiscount?.type === 'percentage' ? `(${paymentData.manualDiscount.value}%)` : paymentData.discount?.type === 'percentage' ? `(${paymentData.discount.value}%)` : ''}</span>
+            <span>-${formatCurrency(manualDiscountAmount)}</span>
+          </div>
+          ${(paymentData.manualDiscount?.reason || paymentData.discount?.reason) ? `
+          <div class="total-row">
+            <span style="font-size: 9px; color: #666;">${paymentData.manualDiscount?.reason || paymentData.discount?.reason}</span>
+            <span></span>
+          </div>
+          ` : ''}
+          ` : ''}
+          
           ${paymentData.totalSavings > 0 ? `
           <div class="total-row savings">
             <span>💰 Total Savings</span>
             <span>-${formatCurrency(paymentData.totalSavings)}</span>
           </div>
           ` : ''}
-          ` : discountAmount > 0 ? `
-          <div class="total-row discount">
-            <span>Discount ${paymentData.discount?.type === 'percentage' ? `(${paymentData.discount.value}%)` : ''}</span>
-          <span>-${formatCurrency(discountAmount)}</span>
-        </div>
-        ${paymentData.discount?.reason ? `
-          <div class="total-row">
-            <span style="font-size: 11px; color: #666;">${paymentData.discount.reason}</span>
-          <span></span>
-        </div>
-        ` : ''}
-        ` : ''}
           
           <div class="total-row">
             <span>Tax (${restaurant?.settings?.taxRate || 8.5}%)</span>
@@ -3785,12 +3833,24 @@ async function generateCombinedBillContent(orders: Order[], restaurant: any, tab
         <div class="payment-section">
           <div class="payment-title">Payment Details</div>
           <div class="payment-details">
-            <strong>Method:</strong> <span class="payment-method">${paymentData.method.toUpperCase()}</span><br>
-        ${paymentData.method === 'cash' ? `
-              <strong>Amount Received:</strong> ${formatCurrency(paymentData.amountReceived || finalAmount)}<br>
-              <strong>Change Given:</strong> ${formatCurrency(Math.max(0, (paymentData.amountReceived || finalAmount) - finalAmount))}
-        ` : ''}
-            ${paymentData.reference ? `<strong>Reference:</strong> ${paymentData.reference}` : ''}
+            ${paymentData.isCredit ? `
+              <strong>Method:</strong> <span class="payment-method">${paymentData.addWholeAmountAsCredit ? 'FULL CREDIT' : 'PARTIAL CREDIT'}</span><br>
+              ${!paymentData.addWholeAmountAsCredit ? `
+                <strong>Amount Received:</strong> ${formatCurrency(paymentData.amountReceived || 0)}<br>
+                <strong>Credit Amount:</strong> ${formatCurrency(paymentData.creditAmount || 0)}<br>
+              ` : `
+                <strong>Full Amount Added as Credit:</strong> ${formatCurrency(finalAmount)}<br>
+              `}
+              <strong>Credit Customer:</strong> ${paymentData.creditCustomerName}<br>
+              ${paymentData.creditCustomerPhone ? `<strong>Phone:</strong> ${paymentData.creditCustomerPhone}<br>` : ''}
+            ` : `
+              <strong>Method:</strong> <span class="payment-method">${paymentData.method.toUpperCase()}</span><br>
+              ${paymentData.method === 'cash' ? `
+                <strong>Amount Received:</strong> ${formatCurrency(paymentData.amountReceived || finalAmount)}<br>
+                <strong>Change Given:</strong> ${formatCurrency(Math.max(0, (paymentData.amountReceived || finalAmount) - finalAmount))}
+              ` : ''}
+              ${paymentData.reference ? `<strong>Reference:</strong> ${paymentData.reference}` : ''}
+            `}
           </div>
       </div>
 

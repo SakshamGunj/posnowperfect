@@ -287,7 +287,7 @@ export default function PaymentModalWithCoupons({
     }
     
     const paymentData = {
-      method: isSplitPayment ? 'split' : paymentMethod,
+      method: isSplitPayment ? 'split' : (isCredit ? (addWholeAmountAsCredit ? 'credit' : 'partial_credit') : paymentMethod),
       amountReceived: actualAmountReceivedNum,
       appliedCoupon,
       manualDiscount: manualDiscount.value > 0 ? manualDiscount : null,
@@ -300,6 +300,8 @@ export default function PaymentModalWithCoupons({
       freeItems,
       couponDiscountAmount,
       manualDiscountAmount,
+      totalDiscountAmount, // Add total discount amount for bill generation
+      discountedSubtotal, // Add discounted subtotal for reference
       // Split payment information
       isSplitPayment,
       splitPayment: isSplitPayment ? {

@@ -274,15 +274,69 @@ export default function NewTakeawayOrder() {
     setIsProcessingPayment(true);
     
     try {
+      // Prepare update data with comprehensive payment and discount information
+      const updateData: any = {
+        paymentStatus: 'paid',
+        paymentMethod: paymentData.method,
+        amountReceived: paymentData.amountReceived,
+        finalTotal: paymentData.finalTotal,
+        originalTotal: paymentData.originalTotal,
+        // Update the main total field to reflect discounted amount
+        total: paymentData.finalTotal
+      };
+
+      // Add discount information to preserve it in order record
+      if (paymentData.manualDiscountAmount > 0 || paymentData.couponDiscountAmount > 0) {
+        updateData.discountApplied = true;
+        updateData.totalDiscountAmount = (paymentData.manualDiscountAmount || 0) + (paymentData.couponDiscountAmount || 0);
+        updateData.originalTotalBeforeDiscount = paymentData.originalTotal;
+        
+        // Store manual discount details
+        if (paymentData.manualDiscount) {
+          updateData.manualDiscount = {
+            type: paymentData.manualDiscount.type,
+            value: paymentData.manualDiscount.value,
+            amount: paymentData.manualDiscountAmount,
+            reason: paymentData.manualDiscount.reason || ''
+          };
+        }
+        
+        // Store coupon discount details
+        if (paymentData.couponDiscountAmount > 0) {
+          updateData.couponDiscountAmount = paymentData.couponDiscountAmount;
+        }
+        
+        // Update the discount field for backward compatibility
+        updateData.discount = (paymentData.manualDiscountAmount || 0) + (paymentData.couponDiscountAmount || 0);
+      }
+
+      // Add tip information if provided
+      if (paymentData.tip > 0) {
+        updateData.tip = paymentData.tip;
+      }
+
+      // Add total savings information
+      if (paymentData.totalSavings > 0) {
+        updateData.totalSavings = paymentData.totalSavings;
+      }
+
+      // Add coupon information if applied
+      if (paymentData.appliedCoupon) {
+        updateData.appliedCoupon = {
+          code: paymentData.appliedCoupon.coupon.code,
+          name: paymentData.appliedCoupon.coupon.name,
+          discountAmount: paymentData.appliedCoupon.discountAmount || 0,
+          freeItems: paymentData.appliedCoupon.freeItems || [],
+          totalSavings: paymentData.totalSavings || 0
+        };
+      }
+
       // Update order status to completed and mark as paid
       const result = await OrderService.updateOrderStatus(
         currentOrder.id, 
         restaurant.id, 
         'completed',
-        {
-          paymentStatus: 'paid',
-          paymentMethod: paymentData.method,
-        }
+        updateData
       );
 
       if (result.success) {

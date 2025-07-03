@@ -18,6 +18,8 @@ import {
   EyeOff,
   RefreshCw,
   Link,
+  RotateCcw,
+  Clock,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -27,6 +29,7 @@ import { InventoryService } from '@/services/inventoryService';
 import { MenuItem, InventoryItem, InventoryTransaction, InventoryUnit } from '@/types';
 // Removed unused formatCurrency import
 import { InventoryDialog, AdjustmentDialog, HistoryDialog } from '@/components/inventory/InventoryDialogs';
+import { generateId } from '@/lib/utils';
 
 interface InventoryForm {
   menuItemId: string;
@@ -146,6 +149,14 @@ export default function InventoryManagement() {
     // Filter by search term
     if (searchTerm) {
       filtered = filtered.filter(item => {
+        // Handle standalone items
+        if (item.menuItemId?.startsWith('standalone_')) {
+          const itemName = item.displayName || item.standaloneItemName || 'Standalone Item';
+          return itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                 item.supplier?.toLowerCase().includes(searchTerm.toLowerCase());
+        }
+        
+        // Handle menu-linked items
         const menuItem = menuItems.find(m => m.id === item.menuItemId);
         const itemName = menuItem?.name || '';
         return itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -252,51 +263,116 @@ export default function InventoryManagement() {
     }
   };
 
-  const handleSaveInventory = async (data: InventoryForm) => {
+  const handleSaveInventory = async (data: any) => {
     if (!restaurant || !user) return;
 
     try {
       setIsSubmitting(true);
 
-      if (selectedInventory) {
-        // Update existing inventory
-        const result = await InventoryService.updateInventoryItem(selectedInventory.id, restaurant.id, data, user.id);
+      // Handle standalone inventory items
+      if (data.isStandaloneItem) {
+        console.log('Creating standalone inventory item:', data);
         
-        if (result.success) {
-          // If this inventory has linked items, ensure they have inventory items created
-          if (data.linkedItems && data.linkedItems.length > 0) {
-            await createInventoryForLinkedItems(data.linkedItems);
-          }
-          
-          toast.success('Inventory updated successfully');
-          await loadData();
-        } else {
-          toast.error(result.error || 'Failed to update inventory');
-        }
-      } else {
-        // Create new inventory
-        const result = await InventoryService.createInventoryItem({
-          ...data,
+        const standaloneInventoryData = {
+          // Use a special identifier for standalone items
+          menuItemId: `standalone_${generateId()}`, // Create unique identifier
           restaurantId: restaurant.id,
-        }, user?.id);
-        
-        if (result.success && result.data) {
-          // If this inventory has linked items, ensure they have inventory items created
-          if (data.linkedItems && data.linkedItems.length > 0) {
-            await createInventoryForLinkedItems(data.linkedItems, result.data.id);
-          }
-          
-          toast.success('Inventory created successfully');
-          await loadData();
+          currentQuantity: data.currentQuantity,
+          unit: data.unit,
+          customUnit: data.customUnit,
+          minimumThreshold: data.minimumThreshold,
+          consumptionPerOrder: data.consumptionPerOrder,
+          maxCapacity: data.maxCapacity,
+          costPerUnit: data.costPerUnit,
+          supplier: data.supplier,
+          isTracked: data.isTracked,
+          autoDeduct: data.autoDeduct,
+          // Special fields for standalone items
+          isStandaloneItem: true,
+          displayName: data.standaloneItemName,
+          standaloneItemName: data.standaloneItemName,
+        };
+
+        let result;
+        if (selectedInventory) {
+          // Update existing standalone inventory
+          result = await InventoryService.updateInventoryItem(
+            selectedInventory.id,
+            restaurant.id,
+            standaloneInventoryData,
+            user.id
+          );
         } else {
-          toast.error(result.error || 'Failed to create inventory');
+          // Create new standalone inventory
+          result = await InventoryService.createInventoryItem(standaloneInventoryData, user.id);
         }
+
+        if (result.success) {
+          toast.success(`Standalone inventory item ${selectedInventory ? 'updated' : 'created'} successfully`);
+          await loadData();
+          setShowDialog(false);
+          setSelectedInventory(null);
+        } else {
+          toast.error(result.error || `Failed to ${selectedInventory ? 'update' : 'create'} standalone inventory item`);
+        }
+        return;
       }
 
-      setShowDialog(false);
-      setSelectedInventory(null);
+      // Handle regular menu-linked inventory items (existing logic)
+      const inventoryData = {
+        menuItemId: data.menuItemId,
+        restaurantId: restaurant.id,
+        currentQuantity: data.currentQuantity,
+        unit: data.unit,
+        customUnit: data.customUnit,
+        minimumThreshold: data.minimumThreshold,
+        consumptionPerOrder: data.consumptionPerOrder,
+        maxCapacity: data.maxCapacity,
+        costPerUnit: data.costPerUnit,
+        supplier: data.supplier,
+        isTracked: data.isTracked,
+        autoDeduct: data.autoDeduct,
+        linkedItems: data.linkedItems || [],
+      };
+
+      // Filter out undefined fields to prevent Firebase errors
+      Object.keys(inventoryData).forEach(key => {
+        if (inventoryData[key as keyof typeof inventoryData] === undefined) {
+          delete inventoryData[key as keyof typeof inventoryData];
+        }
+      });
+
+      let result;
+      if (selectedInventory) {
+        // Update existing inventory
+        result = await InventoryService.updateInventoryItem(
+          selectedInventory.id,
+          restaurant.id,
+          inventoryData,
+          user.id
+        );
+      } else {
+        // Create new inventory
+        result = await InventoryService.createInventoryItem(inventoryData, user.id);
+      }
+
+      if (result.success) {
+        toast.success(`Inventory ${selectedInventory ? 'updated' : 'created'} successfully`);
+        
+        // Create linked inventories if any
+        if (data.linkedItems && data.linkedItems.length > 0) {
+          await createInventoryForLinkedItems(data.linkedItems, result.data?.id);
+        }
+        
+        await loadData();
+        setShowDialog(false);
+        setSelectedInventory(null);
+      } else {
+        toast.error(result.error || `Failed to ${selectedInventory ? 'update' : 'create'} inventory`);
+      }
     } catch (error) {
-      toast.error('Failed to save inventory');
+      console.error('Error saving inventory:', error);
+      toast.error(`Failed to ${selectedInventory ? 'update' : 'create'} inventory`);
     } finally {
       setIsSubmitting(false);
     }
@@ -550,9 +626,13 @@ export default function InventoryManagement() {
     }
   };
 
-
-
   const getMenuItemName = (menuItemId: string): string => {
+    // Handle standalone inventory items
+    if (menuItemId?.startsWith('standalone_')) {
+      const item = inventoryItems.find(inv => inv.menuItemId === menuItemId);
+      return item?.displayName || item?.standaloneItemName || 'Standalone Item';
+    }
+    
     const menuItem = menuItems.find(item => item.id === menuItemId);
     return menuItem?.name || 'Unknown Item';
   };
@@ -760,6 +840,7 @@ export default function InventoryManagement() {
                   onDelete={handleDeleteInventory}
                   allInventoryItems={inventoryItems}
                   allMenuItems={menuItems}
+                  isStandaloneItem={inventory.menuItemId?.startsWith('standalone_') || false}
                 />
               ))
             )}
@@ -822,6 +903,7 @@ interface InventoryItemCardProps {
   onDelete: (inventory: InventoryItem) => void;
   allInventoryItems?: InventoryItem[];
   allMenuItems?: MenuItem[];
+  isStandaloneItem: boolean;
 }
 
 function InventoryItemCard({
@@ -834,6 +916,7 @@ function InventoryItemCard({
   onDelete,
   allInventoryItems,
   allMenuItems,
+  isStandaloneItem,
 }: InventoryItemCardProps) {
   const getUnitDisplay = (unit: InventoryUnit, customUnit?: string): string => {
     return unit === 'custom' && customUnit ? customUnit : unit;
@@ -855,18 +938,36 @@ function InventoryItemCard({
   const totalLinkCount = (inventory.linkedItems?.length || 0) + reverseLinks.length;
 
   return (
-    <div className={`card p-6 ${totalLinkCount > 0 ? 'border-l-4 border-l-blue-500' : ''}`}>
+    <div className={`card p-6 ${!isStandaloneItem && totalLinkCount > 0 ? 'border-l-4 border-l-blue-500' : isStandaloneItem ? 'border-l-4 border-l-purple-500' : ''}`}>
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center space-x-3 mb-2">
-            <h3 className="font-semibold text-gray-900 text-lg">{menuItemName}</h3>
-            <div className={`flex items-center space-x-1 ${stockStatus.color}`}>
-              {stockStatus.icon}
-              <span className="text-sm font-medium">{stockStatus.status}</span>
-            </div>
+            <h3 className="font-semibold text-gray-900 text-lg flex items-center">
+              {menuItemName}
+              {isStandaloneItem && (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                  <Package className="w-3 h-3 mr-1" />
+                  Standalone
+                </span>
+              )}
+            </h3>
             
-            {/* Enhanced Linked relationship indicators */}
-            {totalLinkCount > 0 && (
+            {!isStandaloneItem && (
+              <div className={`flex items-center space-x-1 ${stockStatus.color}`}>
+                {stockStatus.icon}
+                <span className="text-sm font-medium">{stockStatus.status}</span>
+              </div>
+            )}
+            
+            {isStandaloneItem && (
+              <div className="flex items-center space-x-1 text-purple-600">
+                <Package className="w-4 h-4" />
+                <span className="text-sm font-medium">Inventory Only</span>
+              </div>
+            )}
+            
+            {/* Enhanced Linked relationship indicators - only for menu items */}
+            {!isStandaloneItem && totalLinkCount > 0 && (
               <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
                 <Link className="w-3 h-3 mr-1" />
                 {hasLinkedItems && hasReverseLinks ? `Bidirectional (${totalLinkCount} links)` :
@@ -876,13 +977,20 @@ function InventoryItemCard({
               </span>
             )}
             
-            {isLinkedItem && (
+            {!isStandaloneItem && isLinkedItem && (
               <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">
                 <TrendingDown className="w-3 h-3 mr-1" />
                 Consumes from Base
               </span>
             )}
           </div>
+          
+          {/* Add description for standalone items */}
+          {isStandaloneItem && (
+            <p className="text-sm text-purple-600 mb-3">
+              This item is not linked to any menu items - it's used for inventory tracking only.
+            </p>
+          )}
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
@@ -914,8 +1022,8 @@ function InventoryItemCard({
             )}
           </div>
           
-          {/* Show linked items details */}
-          {(hasLinkedItems || hasReverseLinks) && (
+          {/* Show linked items details - only for menu items */}
+          {!isStandaloneItem && (hasLinkedItems || hasReverseLinks) && (
             <div className="mt-3 space-y-3">
               {/* Forward Links */}
               {hasLinkedItems && (
@@ -972,8 +1080,8 @@ function InventoryItemCard({
             </div>
           )}
           
-          {/* Show base item details for linked items */}
-          {isLinkedItem && inventory.baseRatio && (
+          {/* Show base item details for linked items - only for menu items */}
+          {!isStandaloneItem && isLinkedItem && inventory.baseRatio && (
             <div className="mt-3 p-3 bg-green-50 rounded-lg">
               <div className="text-xs text-green-700">
                 <span className="font-medium">Reverse Linked:</span> Ratio 1:{inventory.baseRatio}

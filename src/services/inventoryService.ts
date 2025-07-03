@@ -35,12 +35,15 @@ export class InventoryService {
 
       const inventoryRef = doc(db, 'restaurants', inventoryData.restaurantId, this.INVENTORY_COLLECTION, inventoryId);
 
-      await setDoc(inventoryRef, {
+      // Clean data by removing undefined fields (Firestore doesn't accept undefined values)
+      const cleanedInventory = this.cleanInventoryData({
         ...inventory,
         createdAt: Timestamp.fromDate(inventory.createdAt),
         updatedAt: Timestamp.fromDate(inventory.updatedAt),
         lastRestockedAt: inventory.lastRestockedAt ? Timestamp.fromDate(inventory.lastRestockedAt) : null,
       });
+
+      await setDoc(inventoryRef, cleanedInventory);
 
       console.log('✅ Inventory item created:', inventory.id);
 
@@ -303,10 +306,12 @@ export class InventoryService {
 
       const transactionRef = doc(db, 'restaurants', transactionData.restaurantId, this.TRANSACTIONS_COLLECTION, transactionId);
 
-      await setDoc(transactionRef, {
+      const cleanedTransaction = this.cleanInventoryData({
         ...transaction,
         createdAt: Timestamp.fromDate(transaction.createdAt),
       });
+
+      await setDoc(transactionRef, cleanedTransaction);
 
       console.log('✅ Inventory transaction recorded:', transaction.type, transaction.quantityChanged);
 
@@ -800,10 +805,13 @@ export class InventoryService {
         };
 
         const alertRef = doc(db, 'restaurants', inventory.restaurantId, this.ALERTS_COLLECTION, alertId);
-        await setDoc(alertRef, {
+        
+        const cleanedAlert = this.cleanInventoryData({
           ...alert,
           createdAt: Timestamp.fromDate(alert.createdAt),
         });
+        
+        await setDoc(alertRef, cleanedAlert);
       }
     } catch (error) {
       console.error('Failed to create inventory alert:', error);
@@ -846,6 +854,11 @@ export class InventoryService {
       baseRatio: data.baseRatio,
       isBaseInventory: data.isBaseInventory,
       reverseLinksEnabled: data.reverseLinksEnabled,
+      
+      // Standalone Item Support
+      isStandaloneItem: data.isStandaloneItem,
+      displayName: data.displayName,
+      standaloneItemName: data.standaloneItemName,
       
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
@@ -1069,5 +1082,18 @@ export class InventoryService {
         error: handleFirebaseError(error)
       };
     }
+  }
+
+  // Helper method to clean data by removing undefined fields (Firestore doesn't accept undefined values)
+  private static cleanInventoryData(data: any): any {
+    const cleaned: any = {};
+    
+    for (const key in data) {
+      if (data[key] !== undefined) {
+        cleaned[key] = data[key];
+      }
+    }
+    
+    return cleaned;
   }
 } 

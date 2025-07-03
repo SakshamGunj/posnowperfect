@@ -577,6 +577,11 @@ export interface InventoryItem {
   isBaseInventory?: boolean; // Whether this is a base inventory that others link to
   reverseLinksEnabled?: boolean; // Whether reverse linking is enabled for this item
   
+  // Standalone Item Support
+  isStandaloneItem?: boolean; // Whether this is a standalone item not linked to menu
+  displayName?: string; // Display name for standalone items
+  standaloneItemName?: string; // Name for standalone items (alternative field)
+  
   createdAt: Date;
   updatedAt: Date;
 }

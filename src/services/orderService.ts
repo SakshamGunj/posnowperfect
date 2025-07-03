@@ -824,6 +824,7 @@ export class OrderService {
       orderNumber: data.orderNumber,
       tableId: data.tableId,
       customerId: data.customerId,
+      customerName: data.customerName,
       type: data.type,
       status: data.status,
       items: data.items || [],
@@ -832,10 +833,11 @@ export class OrderService {
       discount: data.discount,
       total: data.total,
       paymentStatus: data.paymentStatus,
+      paymentMethod: data.paymentMethod, // ✅ FIXED: Include payment method
       notes: data.notes,
       staffId: data.staffId,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
     };
   }
-} 
+}
