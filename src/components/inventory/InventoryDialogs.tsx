@@ -835,38 +835,38 @@ export function InventoryDialog({
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
               <h3 className="text-xl font-semibold text-gray-900">
                 {inventory ? 'Edit Inventory Item' : 'Add New Inventory Item'}
               </h3>
-              <button
+            <button
                 type="button"
-                onClick={onClose}
+              onClick={onClose}
                 className="text-gray-400 hover:text-gray-600"
-              >
+            >
                 <X className="w-6 h-6" />
-              </button>
-            </div>
+            </button>
           </div>
-
-          <form onSubmit={handleSubmit(handleFormSubmit)} className="p-6 space-y-6">
+        </div>
+        
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="p-6 space-y-6">
             {/* Menu Item Selection or Standalone Creation */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
                 {isStandaloneItem ? 'Inventory Item Name' : 'Menu Item'}
                 <span className="text-red-500 ml-1">*</span>
-              </label>
+            </label>
               
               {!inventory && ( // Only show search for new items
-                <MenuItemSearch
-                  menuItems={availableMenuItems}
+            <MenuItemSearch
+              menuItems={availableMenuItems}
                   onSelect={handleMenuItemSelect}
                   onCreateStandalone={handleCreateStandalone}
                   initialValue={selectedMenuItem}
                   allowStandaloneCreation={true}
                   placeholder="Search menu items or type to create standalone item..."
-                />
+            />
               )}
 
               {inventory && isStandaloneItem && (
@@ -886,7 +886,7 @@ export function InventoryDialog({
                   <div className="flex items-center text-sm text-green-700">
                     <Package className="w-4 h-4 mr-2" />
                     <span>Linked to menu item: <strong>{selectedMenuItem.name}</strong></span>
-                  </div>
+          </div>
                   <p className="text-xs text-green-600 mt-1">
                     Price: {formatCurrency(selectedMenuItem.price)}
                   </p>
@@ -900,30 +900,30 @@ export function InventoryDialog({
             {/* Rest of the form fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Current Quantity */}
-              <div>
+            <div>
                 <label className="form-label">
                   Current Quantity <span className="text-red-500">*</span>
-                </label>
-                <input
+              </label>
+              <input
                   type="number"
                   step="0.01"
                   min="0"
-                  {...register('currentQuantity', { 
+                {...register('currentQuantity', { 
                     required: 'Current quantity is required',
                     min: { value: 0, message: 'Quantity cannot be negative' }
-                  })}
+                })}
                   className="input"
                   placeholder="Enter current stock quantity"
-                />
-              </div>
-
+              />
+            </div>
+            
               {/* Unit */}
-              <div>
+            <div>
                 <label className="form-label">
                   Unit <span className="text-red-500">*</span>
-                </label>
-                <select
-                  {...register('unit', { required: 'Unit is required' })}
+              </label>
+              <select
+                {...register('unit', { required: 'Unit is required' })}
                   className="input"
                 >
                   <option value="">Select Unit</option>
@@ -937,99 +937,99 @@ export function InventoryDialog({
                   <option value="bottles">Bottles</option>
                   <option value="cans">Cans</option>
                   <option value="custom">Custom Unit</option>
-                </select>
-              </div>
+              </select>
+          </div>
 
               {/* Custom Unit (conditional) */}
-              {selectedUnit === 'custom' && (
+          {selectedUnit === 'custom' && (
                 <div className="md:col-span-2">
                   <label className="form-label">
                     Custom Unit <span className="text-red-500">*</span>
-                  </label>
-                  <input
+              </label>
+              <input
                     type="text"
-                    {...register('customUnit', { 
-                      required: selectedUnit === 'custom' ? 'Custom unit name is required' : false 
-                    })}
+                {...register('customUnit', { 
+                  required: selectedUnit === 'custom' ? 'Custom unit name is required' : false
+                })}
                     className="input"
                     placeholder="Enter custom unit (e.g., boxes, packets, trays)"
-                  />
-                </div>
-              )}
+              />
+            </div>
+          )}
 
               {/* Minimum Threshold */}
-              <div>
+            <div>
                 <label className="form-label">
                   Minimum Threshold <span className="text-red-500">*</span>
-                </label>
-                <input
+              </label>
+              <input
                   type="number"
                   step="0.01"
                   min="0"
-                  {...register('minimumThreshold', { 
-                    required: 'Minimum threshold is required',
+                {...register('minimumThreshold', { 
+                  required: 'Minimum threshold is required',
                     min: { value: 0, message: 'Threshold cannot be negative' }
-                  })}
+                })}
                   className="input"
                   placeholder="Alert when stock falls below this level"
-                />
-              </div>
-
+              />
+            </div>
+            
               {/* Consumption Per Order */}
-              <div>
+            <div>
                 <label className="form-label">
                   Consumption Per Order <span className="text-red-500">*</span>
-                </label>
-                <input
+              </label>
+              <input
                   type="number"
                   step="0.01"
                   min="0"
-                  {...register('consumptionPerOrder', { 
-                    required: 'Consumption per order is required',
+                {...register('consumptionPerOrder', { 
+                  required: 'Consumption per order is required',
                     min: { value: 0, message: 'Consumption cannot be negative' }
-                  })}
+                })}
                   className="input"
-                  placeholder="How much is used per order"
-                />
-              </div>
+                placeholder="How much is used per order"
+              />
+          </div>
 
               {/* Max Capacity */}
-              <div>
+            <div>
                 <label className="form-label">Max Capacity (Optional)</label>
-                <input
-                  type="number"
+              <input
+                type="number"
                   step="0.01"
                   min="0"
                   {...register('maxCapacity')}
                   className="input"
                   placeholder="Maximum storage capacity"
-                />
-              </div>
-
+              />
+            </div>
+            
               {/* Cost Per Unit */}
-              <div>
+            <div>
                 <label className="form-label">Cost Per Unit (Optional)</label>
-                <input
-                  type="number"
-                  step="0.01"
+              <input
+                type="number"
+                step="0.01"
                   min="0"
                   {...register('costPerUnit')}
                   className="input"
-                  placeholder="Cost price per unit"
-                />
-              </div>
+                placeholder="Cost price per unit"
+              />
+          </div>
 
               {/* Supplier */}
               <div className="md:col-span-2">
                 <label className="form-label">Supplier (Optional)</label>
-                <input
-                  type="text"
+            <input
+              type="text"
                   {...register('supplier')}
                   className="input"
                   placeholder="Enter supplier name"
-                />
+            />
               </div>
-            </div>
+          </div>
 
             {/* Tracking Settings */}
             <div className="border-t pt-6">
@@ -1043,13 +1043,13 @@ export function InventoryDialog({
                     <p className="text-sm text-gray-600">Track stock levels and receive low stock alerts</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
+              <input
+                type="checkbox"
                       {...register('isTracked')}
                       className="sr-only peer"
-                    />
+              />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
+            </label>
                 </div>
 
                 {/* Auto Deduct */}
@@ -1059,81 +1059,81 @@ export function InventoryDialog({
                     <p className="text-sm text-gray-600">Automatically reduce stock when orders are placed</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
+              <input
+                type="checkbox"
                       {...register('autoDeduct')}
                       className="sr-only peer"
-                    />
+              />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
+            </label>
                 </div>
               </div>
-            </div>
+          </div>
 
             {/* Linking System */}
             {selectedMenuItem && !isStandaloneItem && (
               <div className="border-t pt-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div>
+                <div>
                     <h4 className="text-lg font-medium text-gray-900">Inventory Linking</h4>
-                    <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600">
                       Link this inventory to other menu items for automatic stock management
-                    </p>
-                  </div>
-                  <button
-                    type="button"
+                  </p>
+                </div>
+                <button
+                  type="button"
                     onClick={() => setShowLinkDialog(true)}
                     className="btn btn-secondary flex items-center"
-                  >
+                >
                     <Link className="w-4 h-4 mr-2" />
                     {linkedItems.length > 0 ? 'Manage Links' : 'Add Links'}
-                  </button>
-                </div>
-                
-                {renderLinkedItemsPreview()}
+                </button>
               </div>
-            )}
+              
+                {renderLinkedItemsPreview()}
+                </div>
+              )}
 
             {/* Form Actions */}
             <div className="flex items-center justify-end space-x-3 pt-6 border-t">
-              <button
-                type="button"
-                onClick={onClose}
+            <button
+              type="button"
+              onClick={onClose}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                 disabled={isSubmitting}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
                 className="btn btn-theme-primary flex items-center disabled:opacity-50"
-              >
-                {isSubmitting ? (
+            >
+              {isSubmitting ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                ) : (
+              ) : (
                   <Save className="w-4 h-4 mr-2" />
-                )}
+              )}
                 {isSubmitting ? 'Saving...' : (inventory ? 'Update Inventory' : 'Create Inventory')}
-              </button>
-            </div>
-          </form>
+            </button>
+          </div>
+        </form>
         </div>
       </div>
-
+        
       {/* Link Items Dialog */}
       {showLinkDialog && selectedMenuItem && (
-        <LinkItemModal
+          <LinkItemModal
           isOpen={showLinkDialog}
           onClose={() => setShowLinkDialog(false)}
-          onSave={handleLinkItems}
+            onSave={handleLinkItems}
           currentInventory={inventory || {} as InventoryItem}
           currentMenuItem={selectedMenuItem}
-          menuItems={menuItems}
-          existingInventory={existingInventory}
-          onCreateNewInventory={handleCreateNewInventory}
-        />
-      )}
+            menuItems={menuItems}
+            existingInventory={existingInventory}
+            onCreateNewInventory={handleCreateNewInventory}
+          />
+        )}
     </>
   );
 }

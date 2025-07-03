@@ -701,68 +701,80 @@ export default function TakeOrder() {
 
       // Update all active orders status to completed
       const updatePromises = allOrders.map(async (order) => {
+        // Calculate this order's proportional share of the payment
+        const orderOriginalTotal = order.subtotal + order.tax;
+        const totalOriginalAmount = allOrders.reduce((sum, o) => sum + o.subtotal + o.tax, 0);
+        const orderProportion = totalOriginalAmount > 0 ? orderOriginalTotal / totalOriginalAmount : 1;
+        
+        // Calculate proportional amounts for this specific order
+        const orderFinalTotal = data.finalTotal * orderProportion;
+        const orderAmountReceived = data.amountReceived * orderProportion;
+        
         const updateData: any = { 
           status: 'completed',
           paymentMethod: data.isCredit ? (data.addWholeAmountAsCredit ? 'credit' : 'partial_credit') : data.method,
-          amountReceived: data.amountReceived,
-          finalTotal: data.finalTotal,
-          originalTotal: data.originalTotal,
-          // Preserve original total as order.total for backward compatibility
-          total: data.finalTotal // Update the main total field to reflect discounted amount
+          amountReceived: orderAmountReceived,
+          finalTotal: orderFinalTotal,
+          originalTotal: orderOriginalTotal,
+          // Keep original total to preserve the actual order amount - DO NOT overwrite with combined total
+          // total: order.total // Keep the original order total unchanged
         };
         
-        // Add discount information to preserve it in order record
+        // Add discount information to preserve it in order record (proportional to this order)
         if (data.manualDiscountAmount > 0 || data.couponDiscountAmount > 0) {
-          updateData.discountApplied = true;
-          updateData.totalDiscountAmount = (data.manualDiscountAmount || 0) + (data.couponDiscountAmount || 0);
-          updateData.originalTotalBeforeDiscount = data.originalTotal;
+          const totalDiscountAmount = (data.manualDiscountAmount || 0) + (data.couponDiscountAmount || 0);
+          const orderDiscountAmount = totalDiscountAmount * orderProportion;
           
-          // Store manual discount details
+          updateData.discountApplied = true;
+          updateData.totalDiscountAmount = orderDiscountAmount;
+          updateData.originalTotalBeforeDiscount = orderOriginalTotal;
+          
+          // Store manual discount details (proportional)
           if (data.manualDiscount) {
             updateData.manualDiscount = {
               type: data.manualDiscount.type,
               value: data.manualDiscount.value,
-              amount: data.manualDiscountAmount,
+              amount: data.manualDiscountAmount * orderProportion,
               reason: data.manualDiscount.reason || ''
             };
           }
           
-          // Store coupon discount details
+          // Store coupon discount details (proportional)
           if (data.couponDiscountAmount > 0) {
-            updateData.couponDiscountAmount = data.couponDiscountAmount;
+            updateData.couponDiscountAmount = data.couponDiscountAmount * orderProportion;
           }
           
-          // Update the discount field for backward compatibility
-          updateData.discount = (data.manualDiscountAmount || 0) + (data.couponDiscountAmount || 0);
+          // Update the discount field for backward compatibility (proportional)
+          updateData.discount = orderDiscountAmount;
         }
         
-        // Add tip information if provided
+        // Add tip information if provided (proportional)
         if (data.tip > 0) {
-          updateData.tip = data.tip;
+          updateData.tip = data.tip * orderProportion;
         }
         
-        // Add total savings information
+        // Add total savings information (proportional)
         if (data.totalSavings > 0) {
-          updateData.totalSavings = data.totalSavings;
+          updateData.totalSavings = data.totalSavings * orderProportion;
         }
         
-        // Add credit information if applicable
+        // Add credit information if applicable (proportional)
         if (data.isCredit) {
           updateData.isCredit = true;
-          updateData.creditAmount = data.creditAmount;
+          updateData.creditAmount = data.creditAmount * orderProportion;
           updateData.creditCustomerName = data.creditCustomerName;
           updateData.creditCustomerPhone = data.creditCustomerPhone;
           updateData.creditTransactionId = creditTransactionId;
         }
         
-        // Add coupon information if applied
+        // Add coupon information if applied (proportional)
         if (data.appliedCoupon) {
           updateData.appliedCoupon = {
             code: data.appliedCoupon.coupon.code,
             name: data.appliedCoupon.coupon.name,
-            discountAmount: data.appliedCoupon.discountAmount || 0,
+            discountAmount: (data.appliedCoupon.discountAmount || 0) * orderProportion,
             freeItems: data.appliedCoupon.freeItems || [],
-            totalSavings: data.totalSavings || 0
+            totalSavings: (data.totalSavings || 0) * orderProportion
           };
         }
         

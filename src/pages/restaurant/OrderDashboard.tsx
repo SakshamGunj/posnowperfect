@@ -2957,10 +2957,34 @@ export default function OrderDashboard() {
                                  </div>
                                  
                                  <div className="text-sm text-gray-600 mb-2">
-                                   {group.totalItems} item{group.totalItems !== 1 ? 's' : ''} • 
-                                   {group.isGroup ? `${group.orders.length} orders combined` : 
-                                     `${group.primaryOrder.items.slice(0, 3).map(item => item.name).join(', ')}${group.primaryOrder.items.length > 3 ? ` + ${group.primaryOrder.items.length - 3} more` : ''}`
-                                   }
+                                   {group.isGroup ? (
+                                     <div className="space-y-1">
+                                       <div className="flex items-center space-x-1">
+                                         <div className="flex items-center space-x-1">
+                                           <div className="w-4 h-4 bg-blue-100 rounded-full flex items-center justify-center">
+                                             <span className="text-xs font-bold text-blue-600">{group.orders.length}</span>
+                                           </div>
+                                           <span className="font-medium text-blue-700">separate orders</span>
+                                         </div>
+                                         <span>•</span>
+                                         <span>{group.totalItems} items total</span>
+                                         <span className="text-xs text-blue-500 font-medium">(expand to see each order)</span>
+                                       </div>
+                                       <div className="text-xs text-gray-500">
+                                         {group.orders.map((order, index) => (
+                                           <span key={order.id}>
+                                             Order #{order.orderNumber}: {order.items.reduce((sum, item) => sum + item.quantity, 0)} item{order.items.reduce((sum, item) => sum + item.quantity, 0) !== 1 ? 's' : ''}
+                                             {index < group.orders.length - 1 ? ' • ' : ''}
+                                           </span>
+                                         ))}
+                                       </div>
+                                     </div>
+                                   ) : (
+                                     <>
+                                       {group.totalItems} item{group.totalItems !== 1 ? 's' : ''} • 
+                                       {`${group.primaryOrder.items.slice(0, 3).map(item => item.name).join(', ')}${group.primaryOrder.items.length > 3 ? ` + ${group.primaryOrder.items.length - 3} more` : ''}`}
+                                     </>
+                                   )}
                                  </div>
                                  
                                  {/* Credit and Discount Information - Check ALL orders in group */}
@@ -3104,6 +3128,16 @@ export default function OrderDashboard() {
                            {/* Expanded Individual Orders */}
                            {group.isGroup && isExpanded && (
                              <div className="bg-gray-50 border-t border-gray-200">
+                               <div className="px-8 py-2 bg-blue-50 border-b border-blue-200">
+                                 <div className="flex justify-between items-center">
+                                   <p className="text-sm font-medium text-blue-800">
+                                     Order Breakdown - {group.orders.length} Separate Orders:
+                                   </p>
+                                   <p className="text-xs text-blue-600">
+                                     Combined Total: {group.totalItems} items • ₹{group.totalAmount.toFixed(2)}
+                                   </p>
+                                 </div>
+                               </div>
                                {group.orders.map((order, index) => (
                                  <div key={order.id} className="px-8 py-4 border-b border-gray-100 last:border-b-0">
                                    <div className="flex items-center justify-between">
@@ -3117,7 +3151,7 @@ export default function OrderDashboard() {
                                        </div>
                                        
                                        <div className="text-sm text-gray-600 mb-1">
-                                         {order.items.map(item => `${item.quantity}x ${item.name}`).join(', ')}
+                                         <span className="font-medium">{order.items.reduce((sum, item) => sum + item.quantity, 0)} items:</span> {order.items.map(item => `${item.quantity}x ${item.name}`).join(', ')}
                                        </div>
                                        
                                        {order.notes && (
@@ -3129,7 +3163,6 @@ export default function OrderDashboard() {
                                      
                                      <div className="text-right">
                                        <p className="font-semibold text-gray-800">{formatCurrency(order.total)}</p>
-                                       <p className="text-sm text-gray-500">{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</p>
                                        {/* Credit indicator for individual order */}
                                        {(order as any).isCredit && (
                                          <div className="flex items-center justify-end mt-1">

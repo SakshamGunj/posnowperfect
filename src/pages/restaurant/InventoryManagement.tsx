@@ -305,8 +305,8 @@ export default function InventoryManagement() {
         } else {
           // Create new standalone inventory
           result = await InventoryService.createInventoryItem(standaloneInventoryData, user.id);
-        }
-
+          }
+          
         if (result.success) {
           toast.success(`Standalone inventory item ${selectedInventory ? 'updated' : 'created'} successfully`);
           await loadData();
@@ -321,7 +321,7 @@ export default function InventoryManagement() {
       // Handle regular menu-linked inventory items (existing logic)
       const inventoryData = {
         menuItemId: data.menuItemId,
-        restaurantId: restaurant.id,
+          restaurantId: restaurant.id,
         currentQuantity: data.currentQuantity,
         unit: data.unit,
         customUnit: data.customUnit,
@@ -339,7 +339,7 @@ export default function InventoryManagement() {
       Object.keys(inventoryData).forEach(key => {
         if (inventoryData[key as keyof typeof inventoryData] === undefined) {
           delete inventoryData[key as keyof typeof inventoryData];
-        }
+          }
       });
 
       let result;
@@ -351,7 +351,7 @@ export default function InventoryManagement() {
           inventoryData,
           user.id
         );
-      } else {
+        } else {
         // Create new inventory
         result = await InventoryService.createInventoryItem(inventoryData, user.id);
       }
@@ -365,8 +365,8 @@ export default function InventoryManagement() {
         }
         
         await loadData();
-        setShowDialog(false);
-        setSelectedInventory(null);
+      setShowDialog(false);
+      setSelectedInventory(null);
       } else {
         toast.error(result.error || `Failed to ${selectedInventory ? 'update' : 'create'} inventory`);
       }
@@ -953,10 +953,10 @@ function InventoryItemCard({
             </h3>
             
             {!isStandaloneItem && (
-              <div className={`flex items-center space-x-1 ${stockStatus.color}`}>
-                {stockStatus.icon}
-                <span className="text-sm font-medium">{stockStatus.status}</span>
-              </div>
+            <div className={`flex items-center space-x-1 ${stockStatus.color}`}>
+              {stockStatus.icon}
+              <span className="text-sm font-medium">{stockStatus.status}</span>
+            </div>
             )}
             
             {isStandaloneItem && (
