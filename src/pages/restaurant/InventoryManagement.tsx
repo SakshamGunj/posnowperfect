@@ -88,6 +88,36 @@ export default function InventoryManagement() {
     filterInventoryItems();
   }, [inventoryItems, searchTerm, filterStatus]);
 
+  // Listen for inventory updates from voice commands or other sources
+  useEffect(() => {
+    const handleVoiceInventoryUpdated = (e: Event) => {
+      const { inventory } = (e as CustomEvent).detail;
+      setInventoryItems(prev => {
+        const idx = prev.findIndex(i => i.id === inventory.id);
+        if (idx !== -1) {
+          const updated = [...prev];
+          updated[idx] = inventory;
+          return updated;
+        }
+        return prev;
+      });
+    };
+
+    window.addEventListener('voiceInventoryUpdated', handleVoiceInventoryUpdated);
+    return () => window.removeEventListener('voiceInventoryUpdated', handleVoiceInventoryUpdated);
+  }, []);
+
+  // Listen for bulk refresh events
+  useEffect(() => {
+    const handleInventoryBulkRefresh = (e: Event) => {
+      const list = (e as CustomEvent).detail as InventoryItem[];
+      setInventoryItems(list);
+    };
+
+    window.addEventListener('voiceInventoryBulkRefresh', handleInventoryBulkRefresh);
+    return () => window.removeEventListener('voiceInventoryBulkRefresh', handleInventoryBulkRefresh);
+  }, []);
+
   // Handle URL parameter for direct menu item inventory management
   useEffect(() => {
     const itemId = searchParams.get('item');
@@ -678,25 +708,26 @@ export default function InventoryManagement() {
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Inventory Management</h1>
               <p className="text-gray-600">Track and manage your restaurant inventory</p>
             </div>
             
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
               <button
                 onClick={enableAutoDeductForAll}
-                className="btn bg-green-600 text-white hover:bg-green-700"
+                className="btn bg-green-600 text-white hover:bg-green-700 w-full sm:w-auto"
                 title="Enable auto-deduct for all inventory items"
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Enable Auto-Deduct for All
+                <span className="hidden sm:inline">Enable Auto-Deduct for All</span>
+                <span className="sm:hidden">Enable Auto-Deduct</span>
               </button>
               
               <button
                 onClick={handleCreateInventory}
-                className="btn btn-theme-primary"
+                className="btn btn-theme-primary w-full sm:w-auto"
                 disabled={menuItems.filter(item => !inventoryItems.some(inv => inv.menuItemId === item.id)).length === 0}
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -707,10 +738,10 @@ export default function InventoryManagement() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="card p-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+          <div className="card p-4 sm:p-6">
             <div className="flex items-center">
               <div className="p-3 bg-blue-100 rounded-lg">
                 <Package className="w-6 h-6 text-blue-600" />
@@ -722,7 +753,7 @@ export default function InventoryManagement() {
             </div>
           </div>
           
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <div className="flex items-center">
               <div className="p-3 bg-green-100 rounded-lg">
                 <Eye className="w-6 h-6 text-green-600" />
@@ -734,7 +765,7 @@ export default function InventoryManagement() {
             </div>
           </div>
           
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <div className="flex items-center">
               <div className="p-3 bg-yellow-100 rounded-lg">
                 <TrendingDown className="w-6 h-6 text-yellow-600" />
@@ -746,7 +777,7 @@ export default function InventoryManagement() {
             </div>
           </div>
           
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <div className="flex items-center">
               <div className="p-3 bg-red-100 rounded-lg">
                 <AlertTriangle className="w-6 h-6 text-red-600" />
@@ -760,7 +791,7 @@ export default function InventoryManagement() {
         </div>
 
         {/* Filters */}
-        <div className="card p-6 mb-6">
+        <div className="card p-4 sm:p-6 mb-6">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -773,13 +804,13 @@ export default function InventoryManagement() {
               />
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
               <div className="flex items-center space-x-2">
                 <Filter className="w-5 h-5 text-gray-600" />
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value as any)}
-                  className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto"
                 >
                   <option value="all">All Items</option>
                   <option value="tracked">Tracked Only</option>
@@ -790,7 +821,7 @@ export default function InventoryManagement() {
               
               <button
                 onClick={loadData}
-                className="btn btn-secondary"
+                className="btn btn-secondary w-full sm:w-auto"
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Refresh
@@ -938,10 +969,10 @@ function InventoryItemCard({
   const totalLinkCount = (inventory.linkedItems?.length || 0) + reverseLinks.length;
 
   return (
-    <div className={`card p-6 ${!isStandaloneItem && totalLinkCount > 0 ? 'border-l-4 border-l-blue-500' : isStandaloneItem ? 'border-l-4 border-l-purple-500' : ''}`}>
-      <div className="flex items-center justify-between">
+    <div className={`card p-4 sm:p-6 ${!isStandaloneItem && totalLinkCount > 0 ? 'border-l-4 border-l-blue-500' : isStandaloneItem ? 'border-l-4 border-l-purple-500' : ''}`}>
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between space-y-4 lg:space-y-0">
         <div className="flex-1">
-          <div className="flex items-center space-x-3 mb-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0 mb-2">
             <h3 className="font-semibold text-gray-900 text-lg flex items-center">
               {menuItemName}
               {isStandaloneItem && (
@@ -952,37 +983,39 @@ function InventoryItemCard({
               )}
             </h3>
             
-            {!isStandaloneItem && (
-            <div className={`flex items-center space-x-1 ${stockStatus.color}`}>
-              {stockStatus.icon}
-              <span className="text-sm font-medium">{stockStatus.status}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {!isStandaloneItem && (
+                <div className={`flex items-center space-x-1 ${stockStatus.color}`}>
+                  {stockStatus.icon}
+                  <span className="text-sm font-medium">{stockStatus.status}</span>
+                </div>
+              )}
+              
+              {isStandaloneItem && (
+                <div className="flex items-center space-x-1 text-purple-600">
+                  <Package className="w-4 h-4" />
+                  <span className="text-sm font-medium">Inventory Only</span>
+                </div>
+              )}
+              
+              {/* Enhanced Linked relationship indicators - only for menu items */}
+              {!isStandaloneItem && totalLinkCount > 0 && (
+                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
+                  <Link className="w-3 h-3 mr-1" />
+                  {hasLinkedItems && hasReverseLinks ? `Bidirectional (${totalLinkCount} links)` :
+                   hasLinkedItems ? `Base Item (${inventory.linkedItems?.length} linked)` :
+                   hasReverseLinks ? `Linked Item (${reverseLinks.length} sources)` :
+                   'Linked'}
+                </span>
+              )}
+              
+              {!isStandaloneItem && isLinkedItem && (
+                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">
+                  <TrendingDown className="w-3 h-3 mr-1" />
+                  Consumes from Base
+                </span>
+              )}
             </div>
-            )}
-            
-            {isStandaloneItem && (
-              <div className="flex items-center space-x-1 text-purple-600">
-                <Package className="w-4 h-4" />
-                <span className="text-sm font-medium">Inventory Only</span>
-              </div>
-            )}
-            
-            {/* Enhanced Linked relationship indicators - only for menu items */}
-            {!isStandaloneItem && totalLinkCount > 0 && (
-              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800">
-                <Link className="w-3 h-3 mr-1" />
-                {hasLinkedItems && hasReverseLinks ? `Bidirectional (${totalLinkCount} links)` :
-                 hasLinkedItems ? `Base Item (${inventory.linkedItems?.length} linked)` :
-                 hasReverseLinks ? `Linked Item (${reverseLinks.length} sources)` :
-                 'Linked'}
-              </span>
-            )}
-            
-            {!isStandaloneItem && isLinkedItem && (
-              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">
-                <TrendingDown className="w-3 h-3 mr-1" />
-                Consumes from Base
-              </span>
-            )}
           </div>
           
           {/* Add description for standalone items */}
@@ -992,7 +1025,7 @@ function InventoryItemCard({
             </p>
           )}
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
             <div>
               <span className="text-gray-600">Current Stock:</span>
               <p className="font-medium">
@@ -1089,7 +1122,7 @@ function InventoryItemCard({
             </div>
           )}
           
-          <div className="flex items-center space-x-4 mt-3">
+          <div className="flex flex-wrap items-center gap-2 mt-3">
             {inventory.isTracked ? (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 <Eye className="w-3 h-3 mr-1" />
@@ -1116,10 +1149,10 @@ function InventoryItemCard({
           </div>
         </div>
         
-        <div className="flex space-x-2 ml-4">
+        <div className="order-first lg:order-last flex flex-wrap gap-2 justify-start lg:justify-end lg:ml-4">
           <button
             onClick={() => onHistory(inventory)}
-            className="p-2 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-lg"
+            className="p-2 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-lg flex-shrink-0"
             title="View History"
           >
             <History className="w-4 h-4" />
@@ -1127,7 +1160,7 @@ function InventoryItemCard({
           
           <button
             onClick={() => onAdjust(inventory)}
-            className="p-2 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded-lg"
+            className="p-2 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded-lg flex-shrink-0"
             title="Adjust Quantity"
           >
             <BarChart3 className="w-4 h-4" />
@@ -1135,7 +1168,7 @@ function InventoryItemCard({
           
           <button
             onClick={() => onEdit(inventory)}
-            className="p-2 bg-yellow-100 text-yellow-600 hover:bg-yellow-200 rounded-lg"
+            className="p-2 bg-yellow-100 text-yellow-600 hover:bg-yellow-200 rounded-lg flex-shrink-0"
             title="Edit"
           >
             <Edit className="w-4 h-4" />
@@ -1143,7 +1176,7 @@ function InventoryItemCard({
           
           <button
             onClick={() => onDelete(inventory)}
-            className="p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg"
+            className="p-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg flex-shrink-0"
             title="Delete"
           >
             <Trash2 className="w-4 h-4" />

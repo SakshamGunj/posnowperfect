@@ -1445,60 +1445,107 @@ export default function TakeOrder() {
       'PAYTM': 'upi',
       'PHONEPE': 'upi',
     };
-    const method = command.paymentMethod ? methodMap[command.paymentMethod] : 'cash';
-    
-    console.log('🎤 Payment method mapping:', {
-      originalMethod: command.paymentMethod,
-      mappedMethod: method
-    });
-    
-    if (!method) {
+
+    // Determine primary payment method – if split payments are present, pick the first one; else use command.paymentMethod (fallback to cash)
+    let primaryMethod: PaymentMethod = 'cash';
+    if (command.splitPayments && command.splitPayments.length > 0) {
+      const firstSplitMethod = command.splitPayments[0].method as keyof typeof methodMap;
+      primaryMethod = methodMap[firstSplitMethod] || 'cash';
+    } else if (command.paymentMethod) {
+      const key = command.paymentMethod as keyof typeof methodMap;
+      primaryMethod = methodMap[key] || 'cash';
+    }
+
+    if (!primaryMethod) {
       toast.error(`🎤 Invalid payment method: ${command.paymentMethod}`);
       return;
     }
     
-    // Calculate total amount
+    // ---------------------- Totals Calculation ----------------------
     const combinedTotal = allOrders.reduce((total, order) => total + order.total, 0);
     
-    console.log('🎤 Processing voice payment:', {
-      method,
+    // ----- Discount handling -----
+    let manualDiscountAmount = 0;
+    let manualDiscount: any = undefined;
+
+    if (command.discount && command.discount.value > 0) {
+      manualDiscount = {
+        type: command.discount.type,
+        value: command.discount.value,
+      };
+      manualDiscountAmount = command.discount.type === 'percentage'
+        ? (combinedTotal * command.discount.value) / 100
+        : command.discount.value;
+    }
+
+    const discountedTotal = combinedTotal - manualDiscountAmount;
+
+    // ----- Credit & Split payments handling -----
+    const creditAmount = command.creditAmount && command.creditAmount > 0 ? command.creditAmount : 0;
+
+    const splitAmount = command.splitPayments
+      ? command.splitPayments.reduce((sum, p) => sum + (p.amount || 0), 0)
+      : 0;
+
+    // If no split specified, assume full amount is being paid now (minus credit if any)
+    let amountReceived = splitAmount > 0 ? splitAmount : (discountedTotal - creditAmount);
+    if (amountReceived < 0) amountReceived = 0; // safety check
+
+    const finalTotal = discountedTotal;
+    const isCredit = creditAmount > 0;
+
+    console.log('🎤 Voice payment breakdown:', {
       combinedTotal,
-      ordersCount: allOrders.length,
-      tableNumber: table?.number
+      manualDiscountAmount,
+      discountedTotal,
+      splitAmount,
+      creditAmount,
+      amountReceived,
+      finalTotal,
+      primaryMethod,
+      splitPayments: command.splitPayments,
     });
-    
-    // Auto-process payment with step-by-step feedback
-    try {
-      // Step 1: Start processing
-      toast.success(`🎤 Processing ${method.toUpperCase()} payment for table ${table?.number}...`);
-      toast(`🎤 Total amount: ₹${combinedTotal.toFixed(2)}`);
-      
-      // Step 2: Create payment data
-      const paymentData = {
-        method: method,
-        amountReceived: combinedTotal,
+
+    // Prepare data object expected by existing handlePayment()
+    const paymentData: any = {
+      method: primaryMethod,
+      amountReceived,
         originalTotal: combinedTotal,
-        finalTotal: combinedTotal,
+      finalTotal,
         tip: 0,
         reference: `Voice payment - ${new Date().toLocaleTimeString()}`,
         customerId: undefined,
         appliedCoupon: undefined,
-        totalSavings: 0,
-        printBill: true // Auto-print bill for voice payments
-      };
-      
-      console.log('🎤 Payment data prepared:', paymentData);
-      
-      // Step 3: Process payment
-      toast(`🎤 Finalizing payment and updating order status...`);
+      discount: command.discount,
+      manualDiscount,
+      manualDiscountAmount,
+      totalSavings: manualDiscountAmount,
+      isCredit,
+      creditAmount,
+      printBill: true,
+    };
+
+    // ---------------------- Process Payment ----------------------
+    try {
+      toast.success(`🎤 Processing payment for table ${table?.number}...`);
+      toast(`🎤 Amount due: ₹${finalTotal.toFixed(2)}`);
+      if (manualDiscountAmount > 0) {
+        toast(`🎤 Discount applied: -₹${manualDiscountAmount.toFixed(2)}`);
+      }
+      if (isCredit && creditAmount > 0) {
+        toast(`🎤 Credit recorded: ₹${creditAmount.toFixed(2)}`);
+      }
+
       await handlePayment(paymentData);
       
-      // Provide comprehensive success feedback
-      toast.success(`🎤 Payment of ₹${combinedTotal.toFixed(2)} completed via ${method.toUpperCase()}!`);
-      toast.success(`🎤 Table ${table?.number} is now available for new customers`);
-      console.log('🎤 Voice payment completed successfully');
-      
-      // Navigate back to tables view after successful payment
+      // Success feedback
+      toast.success(`🎤 Received ₹${amountReceived.toFixed(2)} via ${primaryMethod.toUpperCase()}`);
+      if (isCredit && creditAmount > 0) {
+        toast.success(`🎤 Remaining ₹${creditAmount.toFixed(2)} recorded as credit.`);
+      }
+      toast.success(`🎤 Table ${table?.number} is now available.`);
+
+      // Navigate back to tables after a brief pause
       setTimeout(() => {
         navigate(`/${restaurant?.slug}/tables`);
       }, 3000);
@@ -1506,10 +1553,8 @@ export default function TakeOrder() {
     } catch (error) {
       console.error('🎤 Voice payment failed:', error);
       toast.error('🎤 Voice payment failed. Please process manually.');
-      
-      // Fallback to opening payment modal for manual processing
       setShowPaymentModal(true);
-      toast(`🎤 Opening payment window for manual processing...`);
+      toast('🎤 Opening payment window for manual processing...');
     }
   }, [table, allOrders, cartItems, handlePayment, restaurant, navigate]);
 

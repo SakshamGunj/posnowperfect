@@ -44,12 +44,12 @@ const voiceToast = {
 };
 
 // Groq AI Configuration - Support environment variables for API key
-const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY || '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';
+const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // Voice Command Types
 export interface VoiceCommand {
-  type: 'ORDER' | 'PLACE_ORDER' | 'PAYMENT' | 'TABLE_STATUS' | 'MENU_INQUIRY' | 'KOT_PRINT' | 'ORDER_CANCEL' | 'TABLE_MERGE' | 'TABLE_TRANSFER' | 'CUSTOMER' | 'UNKNOWN';
+  type: 'ORDER' | 'PLACE_ORDER' | 'PAYMENT' | 'TABLE_STATUS' | 'MENU_INQUIRY' | 'KOT_PRINT' | 'ORDER_CANCEL' | 'TABLE_MERGE' | 'TABLE_TRANSFER' | 'CUSTOMER' | 'INVENTORY' | 'UNKNOWN';
   tableNumber?: number;
   targetTableNumber?: number; // For merge/transfer operations
   menuItems?: Array<{
@@ -57,6 +57,16 @@ export interface VoiceCommand {
     quantity: number;
     category?: string;
   }>;
+  // Payment-specific extensions
+  discount?: {
+    type: 'amount' | 'percentage';
+    value: number;
+  };
+  splitPayments?: Array<{
+    method: 'UPI' | 'CASH' | 'BANK' | 'CREDIT';
+    amount: number;
+  }>;
+  creditAmount?: number; // If paying partially with customer credit
   paymentMethod?: 'UPI' | 'CASH' | 'BANK';
   customerName?: string;
   customerPhone?: string;
@@ -370,6 +380,13 @@ export class VoiceService {
           const customerInfo = command.customerName ? `${command.customerName}` : 'customer';
           voiceToast.success(`👤 Adding ${customerInfo} to CRM`);
           break;
+        case 'INVENTORY':
+          if (!command.menuItems || command.menuItems.length === 0) {
+            voiceToast.error('Could not understand the inventory items.');
+          } else {
+            voiceToast.success(`📊 Inventory updated for ${command.menuItems.map(item => `${item.quantity}x ${item.name}`).join(', ')}`);
+          }
+          break;
         case 'MENU_INQUIRY':
           voiceToast.info(`📋 Menu inquiry`, '🔍');
           break;
@@ -439,6 +456,8 @@ export class VoiceService {
         if (!command.menuItems || command.menuItems.length === 0) missingFields.push('menuItems');
         break;
       case 'PAYMENT':
+        if (!command.tableNumber) missingFields.push('tableNumber');
+        break;
       case 'KOT_PRINT':
       case 'ORDER_CANCEL':
       case 'TABLE_STATUS':
@@ -448,6 +467,9 @@ export class VoiceService {
       case 'TABLE_TRANSFER':
         if (!command.tableNumber) missingFields.push('tableNumber');
         if (!command.targetTableNumber) missingFields.push('targetTableNumber');
+        break;
+      case 'INVENTORY':
+        if (!command.menuItems || command.menuItems.length === 0) missingFields.push('menuItems');
         break;
       case 'CUSTOMER':
         if (!command.customerName && !command.customerPhone) missingFields.push('customerName');
@@ -1243,7 +1265,10 @@ SPEECH FLEXIBILITY RULES:
 
 COMMAND TYPES:
 - PLACE_ORDER: ANY mention of "order" + food items + table (e.g., "order chicken table 1", "pizza order table 2", "table 3 burger order")
-- PAYMENT: "payment", "pay", "bill", "settle", "complete" + table number + optional method (UPI/CASH/BANK)
+- PAYMENT: "payment", "pay", "bill", "settle", "complete" + table number + optional method(s).
+   • Can include discount: "discount 10 percent" or "discount rupees 50" ➜ {discount:{type:'percentage',value:10}}
+   • Can include credit: "half credit" or "credit 100" ➜ creditAmount.
+   • Can include splits: "upi 100 cash 50" ➜ splitPayments array.
 - KOT_PRINT: "kot", "koti", "cot", "kitchen order", "print kot", "kitchen ticket" + table number
 - ORDER_CANCEL: "cancel", "delete", "remove", "cancel order" + table number
 - TABLE_MERGE: "merge", "combine", "join" + two table numbers
@@ -1251,6 +1276,7 @@ COMMAND TYPES:
 - TABLE_STATUS: "make table", "set table", "table ready", "table available", "table occupied" + table number
 - CUSTOMER: "customer", "add customer", "new customer", "register" + name + phone (required) + optional email/address
 - MENU_INQUIRY: "menu", "what's available", "show menu", "food items", "what do you have"
+- INVENTORY: words like "inventory", "stock", "add", "remove", "increase", "decrease", "restock", "deduct" followed by quantity and item name. Respond with {"type":"INVENTORY","menuItems":[{"name":"item name","quantity":2}],"confidence":0.9}
 
 IMPORTANT RULES:
 1. ALWAYS prioritize PLACE_ORDER if the word "order" appears anywhere in the command

@@ -998,7 +998,7 @@ function OrderDetailsModal({ order, isOpen, onClose, onStatusUpdate, tables }: O
 }
 
 // Bill generation function for reprinting orders
-async function generateOrderBillContent(order: Order, restaurant: any, table: Table): Promise<string> {
+async function generateOrderBillContent(order: Order, restaurant: any, table: Table, isMobile: boolean = false): Promise<string> {
   // Calculate bill details
   const subtotal = order.subtotal;
   const discountAmount = order.discount || 0;
@@ -1008,7 +1008,9 @@ async function generateOrderBillContent(order: Order, restaurant: any, table: Ta
   // Generate UPI QR code if UPI settings are configured
   let upiQRCodeDataURL = '';
   const upiSettings = restaurant?.settings?.upiSettings;
-  if (upiSettings?.enableQRCode && upiSettings?.upiId) {
+  
+  // Skip QR code generation on mobile or if not configured
+  if (!isMobile && upiSettings?.enableQRCode && upiSettings?.upiId) {
     try {
       console.log('🏷️ Generating UPI QR code for order bill:', {
         orderId: order.id,
@@ -1037,6 +1039,8 @@ async function generateOrderBillContent(order: Order, restaurant: any, table: Ta
     } catch (error) {
       console.error('❌ Error generating UPI QR Code for order:', error);
     }
+  } else if (isMobile) {
+    console.log('📱 Skipping QR code generation for mobile device');
   }
 
   return `
@@ -1068,6 +1072,7 @@ async function generateOrderBillContent(order: Order, restaurant: any, table: Ta
           width: 100%;
           padding: 5px 0;
           background: #fff;
+          ${isMobile ? 'max-width: 300px; margin: 0 auto;' : ''}
         }
         
         .header {
@@ -1264,6 +1269,40 @@ async function generateOrderBillContent(order: Order, restaurant: any, table: Ta
           font-size: 8px;
           font-weight: bold;
         }
+        
+        /* Mobile-specific styles */
+        ${isMobile ? `
+        @media screen {
+          body { 
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          .receipt { 
+            max-width: 280px; 
+            margin: 0 auto;
+            font-size: 10px;
+          }
+          .item-name { font-size: 9px; }
+          .item-qty-price { font-size: 8px; }
+          .item-total { font-size: 9px; }
+          .total-row { font-size: 9px; }
+          .total-row.final { font-size: 11px; }
+        }
+        
+        @media print {
+          body { 
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            margin: 0;
+            padding: 0;
+          }
+          .receipt { 
+            max-width: 280px; 
+            margin: 0;
+            padding: 0;
+          }
+        }
+        ` : ''}
       </style>
     </head>
     <body>
@@ -1355,12 +1394,22 @@ async function generateOrderBillContent(order: Order, restaurant: any, table: Ta
 
 
 
-        ${upiSettings?.enableQRCode && upiSettings?.upiId && upiQRCodeDataURL ? `
-        <!-- UPI QR Code Section - Only QR Code -->
+        ${upiSettings?.enableQRCode && upiSettings?.upiId ? `
+        <!-- UPI Payment Section -->
         <div style="margin: 5px 0; text-align: center; background: #fff; padding: 5px; border: 1px solid #000;">
-          <img src="${upiQRCodeDataURL}" 
-               alt="UPI QR Code" 
-               style="width: 80px; height: 80px; display: block; margin: 0 auto; background: white;" />
+          <div style="font-size: 10px; font-weight: bold; margin-bottom: 3px;">UPI PAYMENT</div>
+          ${!isMobile && upiQRCodeDataURL ? `
+            <img src="${upiQRCodeDataURL}" 
+                 alt="UPI QR Code" 
+                 style="width: 80px; height: 80px; display: block; margin: 0 auto; background: white;" />
+          ` : ''}
+          <div style="font-size: 9px; font-weight: bold; margin-top: 3px;">UPI ID: ${upiSettings.upiId}</div>
+          <div style="font-size: 8px; font-weight: bold; margin-top: 2px;">Amount: ₹${finalAmount.toFixed(2)}</div>
+          ${isMobile ? `
+            <div style="font-size: 8px; margin-top: 2px; color: #666;">
+              Use any UPI app to pay using the UPI ID above
+            </div>
+          ` : ''}
         </div>
         ` : ''}
 
@@ -1908,29 +1957,28 @@ export default function OrderDashboard() {
         updateData.paymentMethod = 'split';
       }
 
+      // Add credit information if applicable
+      if (paymentData.isCredit) {
+        updateData.isCredit = true;
+        updateData.creditAmount = paymentData.creditAmount;
+        updateData.creditCustomerId = paymentData.creditCustomerId;
+        updateData.creditCustomerName = paymentData.creditCustomerName;
+        updateData.creditCustomerPhone = paymentData.creditCustomerPhone;
+      }
+
       const result = await OrderService.updateOrderStatus(orderId, restaurant.id, 'completed', updateData);
       
       if (result.success) {
         // Update local state
         setOrders(prev => prev.map(order => 
-          order.id === orderId ? { 
-            ...order, 
-            paymentMethod: updateData.paymentMethod,
-            amountReceived: updateData.amountReceived,
-            finalTotal: updateData.finalTotal,
-            originalTotal: updateData.originalTotal,
-            splitPayments: updateData.splitPayments
-          } : order
+          order.id === orderId ? { ...order, ...updateData } : order
         ));
         
         // Update selected order if it's the one being edited
         if (orderToEditPayment && orderToEditPayment.id === orderId) {
           setOrderToEditPayment({
             ...orderToEditPayment,
-            paymentMethod: updateData.paymentMethod,
-            amountReceived: updateData.amountReceived,
-            finalTotal: updateData.finalTotal,
-            originalTotal: updateData.originalTotal
+            ...updateData,
           } as any);
         }
         
@@ -1967,43 +2015,236 @@ export default function OrderDashboard() {
 
     try {
       // Show loading toast
-      const toastId = toast.loading('Generating bill with QR code...');
+      const toastId = toast.loading('Generating bill...');
       
       console.log('🏷️ Starting bill generation for order:', {
         orderId: order.id,
         orderNumber: order.orderNumber,
-        restaurant: restaurant.name
+        restaurant: restaurant.name,
+        isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
       });
       
-      // Generate bill content with QR code
-      const billContent = await generateOrderBillContent(order, restaurant, table);
+      // Detect if user is on mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      // Generate bill content with mobile-optimized settings
+      const billContent = await generateOrderBillContent(order, restaurant, table, isMobile);
       
       // Dismiss loading toast
       toast.dismiss(toastId);
       
-      // Small delay to ensure QR code is fully processed
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Open print dialog
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(billContent);
-        printWindow.document.close();
+      if (isMobile) {
+        // Mobile-specific print handling
+        console.log('🔥 Mobile device detected - using mobile print strategy');
         
-        // Wait a bit more for images to load
-        printWindow.addEventListener('load', () => {
+        // Create a temporary container in the current document
+        const printContainer = document.createElement('div');
+        printContainer.style.position = 'fixed';
+        printContainer.style.top = '-9999px';
+        printContainer.style.left = '-9999px';
+        printContainer.style.width = '100%';
+        printContainer.style.height = '100%';
+        printContainer.innerHTML = billContent;
+        
+        document.body.appendChild(printContainer);
+        
+        // Wait for any images to load
+        const images = printContainer.querySelectorAll('img');
+        const imagePromises = Array.from(images).map(img => {
+          return new Promise<void>((resolve) => {
+            if (img.complete) {
+              resolve();
+            } else {
+              img.onload = () => resolve();
+              img.onerror = () => resolve(); // Resolve even on error to not block
+              // Timeout fallback
+              setTimeout(() => resolve(), 2000);
+            }
+          });
+        });
+        
+        await Promise.all(imagePromises);
+        
+        // Try to use Web Share API on mobile if available
+        if (isMobile && navigator.share) {
+          try {
+            // Create a plain text version for sharing
+            const textContent = `
+${restaurant.name}
+BILL RECEIPT
+
+Order: #${order.orderNumber}
+Table: ${table?.number || 'N/A'}
+Date: ${formatDate(order.createdAt)}
+Time: ${formatTime(order.createdAt)}
+
+ITEMS:
+${order.items.map(item => 
+  `${item.quantity}x ${item.name} - ₹${item.total.toFixed(2)}`
+).join('\n')}
+
+Subtotal: ₹${order.subtotal.toFixed(2)}
+${order.discount > 0 ? `Discount: -₹${order.discount.toFixed(2)}\n` : ''}Tax: ₹${order.tax.toFixed(2)}
+TOTAL: ₹${order.total.toFixed(2)}
+
+Payment: ${order.paymentStatus.toUpperCase()}
+${restaurant?.settings?.upiSettings?.upiId ? `\nUPI ID: ${restaurant.settings.upiSettings.upiId}` : ''}
+
+Thank you for dining with us!
+            `.trim();
+            
+            const shareButton = document.createElement('button');
+            shareButton.textContent = 'Share Bill';
+            shareButton.style.cssText = `
+              position: fixed; 
+              bottom: 20px; 
+              right: 20px; 
+              z-index: 9999; 
+              background: #007bff; 
+              color: white; 
+              border: none; 
+              padding: 12px 16px; 
+              border-radius: 8px; 
+              font-weight: bold;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            `;
+            
+            shareButton.onclick = async () => {
+              try {
+                await navigator.share({
+                  title: `Bill - Order #${order.orderNumber}`,
+                  text: textContent
+                });
+                document.body.removeChild(shareButton);
+                toast.success('Bill shared successfully!');
+              } catch (err) {
+                console.log('Share cancelled or failed:', err);
+              }
+            };
+            
+            document.body.appendChild(shareButton);
+            
+            // Remove share button after 10 seconds
+            setTimeout(() => {
+              if (document.body.contains(shareButton)) {
+                document.body.removeChild(shareButton);
+              }
+            }, 10000);
+            
+          } catch (error) {
+            console.log('Web Share API not available:', error);
+          }
+        }
+        
+        // Create print-specific styles
+        const printStyles = document.createElement('style');
+        printStyles.innerHTML = `
+          @media print {
+            body * { visibility: hidden; }
+            .print-content, .print-content * { visibility: visible; }
+            .print-content { position: absolute; left: 0; top: 0; width: 100%; }
+            @page { margin: 0.5in; size: auto; }
+          }
+        `;
+        document.head.appendChild(printStyles);
+        printContainer.classList.add('print-content');
+        
+        // Trigger print with mobile fallback
+        setTimeout(() => {
+          // First try the standard print
+          try {
+            window.print();
+          } catch (printError) {
+            console.log('Standard print failed, showing mobile alternative:', printError);
+            
+            // Show a modal with print instructions for mobile
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              background: rgba(0,0,0,0.8);
+              z-index: 10000;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              padding: 20px;
+            `;
+            
+            modal.innerHTML = `
+              <div style="
+                background: white;
+                border-radius: 8px;
+                padding: 20px;
+                max-width: 350px;
+                text-align: center;
+                font-family: system-ui, -apple-system, sans-serif;
+              ">
+                <h3 style="margin: 0 0 15px 0; color: #333;">Print Instructions</h3>
+                <p style="margin: 0 0 15px 0; color: #666; font-size: 14px;">
+                  To print this bill on mobile:
+                </p>
+                <ol style="text-align: left; padding-left: 20px; margin: 0 0 15px 0; color: #666; font-size: 14px;">
+                  <li>Tap the three dots (⋮) in your browser</li>
+                  <li>Select "Print" or "Share"</li>
+                  <li>Choose your printer or save as PDF</li>
+                </ol>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                  <button onclick="window.print(); this.parentElement.parentElement.parentElement.remove();" 
+                          style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold;">
+                    Try Print Again
+                  </button>
+                  <button onclick="this.parentElement.parentElement.parentElement.remove();" 
+                          style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px;">
+                    Close
+                  </button>
+                </div>
+              </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Remove modal after 30 seconds
+            setTimeout(() => {
+              if (document.body.contains(modal)) {
+                document.body.removeChild(modal);
+              }
+            }, 30000);
+          }
+          
+          // Cleanup
+          setTimeout(() => {
+            document.body.removeChild(printContainer);
+            document.head.removeChild(printStyles);
+          }, 1000);
+        }, 500);
+        
+      } else {
+        // Desktop print handling (existing method)
+        console.log('🖥️ Desktop device detected - using popup window strategy');
+        
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        if (printWindow) {
+          printWindow.document.write(billContent);
+          printWindow.document.close();
+          
+          // Wait for content to load
+          printWindow.addEventListener('load', () => {
+            setTimeout(() => {
+              printWindow.focus();
+              printWindow.print();
+            }, 1000);
+          });
+          
+          // Fallback for immediate print
           setTimeout(() => {
             printWindow.focus();
             printWindow.print();
-          }, 1000);
-        });
-        
-        // Fallback for immediate print
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-          printWindow.close();
-        }, 2000);
+            printWindow.close();
+          }, 2000);
+        }
       }
       
       toast.success(`Bill for Order #${order.orderNumber} sent to printer`);
@@ -2378,9 +2619,19 @@ export default function OrderDashboard() {
           totalCreditAmount: totalCredits,
           pendingCreditAmount: totalCredits, // All credit is pending since this is order-level data
           paidCreditAmount: 0, // Would need credit service data for payments made
-          ordersWithCredits: completedFilteredOrders.filter(order => (order as any).isCredit).length,
-          creditTransactions: completedFilteredOrders.filter(order => (order as any).isCredit).map(order => {
+          ordersWithCredits: completedFilteredOrders.filter(order => {
+            const explicit = (order as any).creditAmount || 0;
+            const received = (order as any).amountReceived ?? order.total;
+            return explicit > 0 || order.total - received > 0;
+          }).length,
+          creditTransactions: completedFilteredOrders.filter(order => {
+            const explicit = (order as any).creditAmount || 0;
+            const received = (order as any).amountReceived ?? order.total;
+            return explicit > 0 || order.total - received > 0;
+          }).map(order => {
             const table = tables.find(t => t.id === order.tableId);
+            const explicitCredit = (order as any).creditAmount || 0;
+            const creditAmount = explicitCredit > 0 ? explicitCredit : Math.max(0, order.total - ((order as any).amountReceived ?? order.total));
             return {
               customerName: (order as any).creditCustomerName || 'Unknown',
               customerPhone: (order as any).creditCustomerPhone || '',
@@ -2388,8 +2639,8 @@ export default function OrderDashboard() {
               tableNumber: table?.number || 'Unknown',
               totalAmount: order.total,
               amountReceived: (order as any).amountReceived || 0,
-              creditAmount: (order as any).creditAmount || 0,
-              remainingAmount: (order as any).creditAmount || 0,
+              creditAmount: creditAmount,
+              remainingAmount: creditAmount,
               status: 'pending' as const,
               createdAt: order.createdAt,
               paymentHistory: []
@@ -2425,7 +2676,12 @@ export default function OrderDashboard() {
         
         // Format comprehensive payment information including credits and discounts
         let paymentInfo = 'Not specified';
-        const groupCreditAmount = group.orders.reduce((sum, o) => sum + ((o as any).creditAmount || 0), 0);
+        const groupCreditAmount = group.orders.reduce((sum, o) => {
+          const explicit = (o as any).creditAmount || 0;
+          if (explicit > 0) return sum + explicit;
+          const received = (o as any).amountReceived ?? o.total;
+          return sum + Math.max(0, o.total - received);
+        }, 0);
         const groupDiscountAmount = group.orders.reduce((sum, o) => sum + ((o as any).discount || 0), 0);
         const groupSavingsAmount = group.orders.reduce((sum, o) => sum + ((o as any).totalSavings || 0), 0);
         const hasCredit = group.orders.some(order => (order as any).isCredit);
@@ -2445,7 +2701,7 @@ export default function OrderDashboard() {
         // Create structured payment information with better formatting
         if (hasCredit || hasDiscount || hasSavings) {
           const creditCustomers = group.orders.filter(order => (order as any).isCredit && (order as any).creditCustomerName).map(order => (order as any).creditCustomerName);
-          
+                                                                                                                                                                                
           let structuredPayment = `${paymentInfo}`;
           
           if (hasCredit) {
@@ -2468,14 +2724,18 @@ export default function OrderDashboard() {
 
         // If it's a group, create a combined description
         if (group.isGroup) {
-          const orderNumbers = group.orders.map(o => o.orderNumber).join(', ');
-          const allItems = group.orders.flatMap(o => o.items.map(item => `${item.quantity}x ${item.name}`));
+          const allItems = group.orders.flatMap(o => o.items.map(item => `${item.quantity}x ${item.name}`)).join(', ');
           
-          // Calculate credit totals for group
-          const totalCredits = group.orders.reduce((sum, o) => sum + ((o as any).creditAmount || 0), 0);
-          const totalAmountReceived = group.orders.reduce((sum, o) => sum + ((o as any).amountReceived || o.total), 0);
-          const totalSavings = group.orders.reduce((sum, o) => sum + ((o as any).totalSavings || 0), 0);
-          
+          // Explicitly aggregate credit and discount amounts for the entire group
+          const totalCreditForGroup = group.orders.reduce((sum, order) => {
+            const explicitCredit = (order as any).creditAmount || 0;
+            if (explicitCredit > 0) return sum + explicitCredit;
+            const received = (order as any).amountReceived ?? order.total;
+            return sum + Math.max(0, order.total - received);
+          }, 0);
+          const totalSavingsForGroup = group.orders.reduce((sum, order) => sum + ((order as any).totalSavings || 0), 0);
+          const totalDiscountForGroup = group.orders.reduce((sum, order) => sum + ((order as any).discount || 0), 0);
+
           return {
             orderNumber: `${group.primaryOrder.orderNumber} (+${group.orders.length - 1} more)`,
             tableNumber: table?.number || 'N/A',
@@ -2489,29 +2749,31 @@ export default function OrderDashboard() {
             subtotal: group.orders.reduce((sum, o) => sum + (o.subtotal || 0), 0),
             tax: group.orders.reduce((sum, o) => sum + (o.tax || 0), 0),
             total: group.totalAmount,
-            items: allItems.join(', '),
-            // Credit information for group
-            creditAmount: totalCredits,
-            amountReceived: totalAmountReceived,
-            actualRevenue: group.totalAmount - totalCredits,
-            totalSavings: totalSavings,
-            isCredit: totalCredits > 0,
-            // Additional grouped order details
+            items: allItems,
+            
+            // Pass the aggregated amounts to the PDF service
+            creditAmount: totalCreditForGroup,
+            discount: totalDiscountForGroup,
+            totalSavings: totalSavingsForGroup,
+            
+            isCredit: totalCreditForGroup > 0,
+            creditCustomerName: group.orders.map(o => (o as any).creditCustomerName).filter(Boolean).join(', '),
+            
             groupDetails: group.orders.map(order => ({
               orderNumber: order.orderNumber,
               time: formatTime(order.createdAt),
               items: order.items.map(item => `${item.quantity}x ${item.name}`).join(', '),
               total: order.total,
-              creditAmount: (order as any).creditAmount || 0,
-              amountReceived: (order as any).amountReceived || order.total,
+              creditAmount: (order as any).creditAmount ?? Math.max(0, order.total - ((order as any).amountReceived ?? order.total)),
+              totalSavings: (order as any).totalSavings || 0,
               customerName: (order as any).creditCustomerName || '',
-              totalSavings: (order as any).totalSavings || 0
+              discount: (order as any).discount || 0
             }))
           };
         } else {
           // Single order in group
           const order = group.primaryOrder;
-          const creditAmount = (order as any).creditAmount || 0;
+          const creditAmount = (order as any).creditAmount ?? Math.max(0, order.total - ((order as any).amountReceived ?? order.total));
           const amountReceived = (order as any).amountReceived || order.total;
           const totalSavings = (order as any).totalSavings || 0;
           const discountAmount = (order as any).discount || 0;
@@ -2554,14 +2816,15 @@ export default function OrderDashboard() {
             tax: order.tax,
             total: order.total,
             items: order.items.map(item => `${item.quantity}x ${item.name}`).join(', '),
-            // Credit information for single order
+            
+            // Ensure single orders also pass their credit/savings data correctly
             creditAmount: creditAmount,
-            amountReceived: amountReceived,
-            actualRevenue: order.total - creditAmount,
-            totalSavings: totalSavings,
+            totalSavings: (order as any).totalSavings || 0,
             isCredit: creditAmount > 0,
+            
             creditCustomerName: (order as any).creditCustomerName || '',
-            creditCustomerPhone: (order as any).creditCustomerPhone || ''
+            creditCustomerPhone: (order as any).creditCustomerPhone || '',
+            discount: (order as any).discount || 0
           };
         }
       });
@@ -2579,6 +2842,7 @@ export default function OrderDashboard() {
         includeTimeAnalysis: true,
         includeTaxBreakdown: false,
         includeDiscountAnalysis: false,
+        includeCreditAnalysis: true,
         includeOrderDetails: true, // New flag for detailed order list
         reportTitle: `Orders Export - ${rangeLabel}`,
         additionalNotes: `Grouped orders export containing ${filteredOrders.length} individual orders (${exportGroupedOrders.length} groups). Applied filters: ${[
@@ -2632,7 +2896,7 @@ export default function OrderDashboard() {
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
             <div className="flex items-center space-x-4">
               <div 
                 className="w-12 h-12 rounded-2xl flex items-center justify-center text-white"
@@ -2647,11 +2911,11 @@ export default function OrderDashboard() {
               </div>
             </div>
             
-            <div className="flex items-center space-x-3">
-              <div className="flex bg-gray-100 rounded-lg p-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-3 sm:space-y-0">
+              <div className="flex bg-gray-100 rounded-lg p-1 w-full sm:w-auto">
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 sm:flex-initial px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     viewMode === 'list' 
                       ? 'bg-white text-gray-900 shadow-sm' 
                       : 'text-gray-600 hover:text-gray-900'
@@ -2662,7 +2926,7 @@ export default function OrderDashboard() {
                 </button>
                 <button
                   onClick={() => setViewMode('analytics')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 sm:flex-initial px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     viewMode === 'analytics' 
                       ? 'bg-white text-gray-900 shadow-sm' 
                       : 'text-gray-600 hover:text-gray-900'
@@ -2673,7 +2937,7 @@ export default function OrderDashboard() {
                 </button>
                 <button
                   onClick={() => setViewMode('reports')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 sm:flex-initial px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     viewMode === 'reports' 
                       ? 'bg-white text-gray-900 shadow-sm' 
                       : 'text-gray-600 hover:text-gray-900'
@@ -2686,7 +2950,7 @@ export default function OrderDashboard() {
               
               <button
                 onClick={() => loadData()}
-                className="btn btn-secondary"
+                className="btn btn-secondary w-full sm:w-auto"
                 disabled={isLoading}
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
@@ -2889,14 +3153,14 @@ export default function OrderDashboard() {
             {/* Orders List */}
             <div className="card">
               <div className="px-6 py-4 border-b border-gray-200">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
                   <h2 className="text-lg font-semibold text-gray-900">
                     Orders ({filteredOrders.length})
                   </h2>
                   
                   <button 
                     onClick={handleExportFilteredData}
-                    className="btn btn-secondary"
+                    className="btn btn-secondary w-full sm:w-auto"
                     disabled={isLoading || filteredOrders.length === 0}
                   >
                     <Download className="w-4 h-4 mr-2" />
@@ -2927,12 +3191,12 @@ export default function OrderDashboard() {
                          <div key={group.groupKey} className="border-b border-gray-200">
                            {/* Main Group Row */}
                            <div 
-                             className={`p-6 hover:bg-gray-50 cursor-pointer ${isExpanded ? 'bg-blue-50' : ''}`}
+                             className={`p-4 sm:p-6 hover:bg-gray-50 cursor-pointer ${isExpanded ? 'bg-blue-50' : ''}`}
                              onClick={() => group.isGroup && toggleGroupExpansion(group.groupKey)}
                            >
-                             <div className="flex items-center justify-between">
+                             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
                                <div className="flex-1">
-                                 <div className="flex items-center space-x-4 mb-2">
+                                 <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0 mb-2">
                                    <div className="flex items-center space-x-2">
                                      {group.isGroup && (
                                        <button className="p-1 text-gray-400 hover:text-gray-600">
@@ -2947,13 +3211,15 @@ export default function OrderDashboard() {
                                        {group.isGroup && ` (+${group.orders.length - 1} more)`}
                                      </h3>
                                    </div>
-                                   {getStatusBadge(group.primaryOrder.status)}
-                                   <span className="text-sm text-gray-600">
-                                     Table {table?.number || 'N/A'}
-                                   </span>
-                                   <span className="text-sm text-gray-600">
-                                     {formatDate(group.primaryOrder.createdAt)} {formatTime(group.primaryOrder.createdAt)}
-                                   </span>
+                                   <div className="flex items-center space-x-2 flex-wrap">
+                                     {getStatusBadge(group.primaryOrder.status)}
+                                     <span className="text-sm text-gray-600">
+                                       Table {table?.number || 'N/A'}
+                                     </span>
+                                     <span className="text-sm text-gray-600">
+                                       {formatDate(group.primaryOrder.createdAt)} {formatTime(group.primaryOrder.createdAt)}
+                                     </span>
+                                   </div>
                                  </div>
                                  
                                  <div className="text-sm text-gray-600 mb-2">
@@ -2990,16 +3256,17 @@ export default function OrderDashboard() {
                                  {/* Credit and Discount Information - Check ALL orders in group */}
                                  {(() => {
                                    // Calculate totals across all orders in the group
-                                   const hasCredit = group.orders.some(order => (order as any).isCredit);
                                    const totalCreditAmount = group.orders.reduce((sum, order) => sum + ((order as any).creditAmount || 0), 0);
                                    const totalDiscount = group.orders.reduce((sum, order) => sum + ((order as any).discount || 0), 0);
                                    const totalSavings = group.orders.reduce((sum, order) => sum + ((order as any).totalSavings || 0), 0);
-                                   const creditCustomers = group.orders.filter(order => (order as any).isCredit && (order as any).creditCustomerName).map(order => (order as any).creditCustomerName);
+                                   const creditCustomers = group.orders
+                                     .filter(order => ((order as any).creditAmount || 0) > 0 && (order as any).creditCustomerName)
+                                     .map(order => (order as any).creditCustomerName);
                                    
-                                   if (hasCredit || totalDiscount > 0 || totalSavings > 0) {
+                                   if (totalCreditAmount > 0 || totalDiscount > 0 || totalSavings > 0) {
                                      return (
                                        <div className="flex flex-wrap gap-2 mb-2">
-                                         {hasCredit && (
+                                         {totalCreditAmount > 0 && (
                                            <div className="flex items-center px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs">
                                              <CreditCard className="w-3 h-3 mr-1" />
                                              Credit: {formatCurrency(totalCreditAmount)}
@@ -3038,8 +3305,8 @@ export default function OrderDashboard() {
                                  </div>
                                </div>
                                
-                               <div className="flex items-center space-x-4">
-                                 <div className="text-right">
+                               <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-4 space-y-4 lg:space-y-0">
+                                 <div className="order-2 lg:order-1 text-left lg:text-right">
                                    <div className="space-y-1">
                                      <p className="font-semibold text-gray-900">{formatCurrency(group.totalAmount)}</p>
                                      <p className="text-sm text-gray-600">{group.totalItems} items</p>
@@ -3049,7 +3316,7 @@ export default function OrderDashboard() {
                                        const totalCreditAmount = group.orders.reduce((sum, order) => sum + ((order as any).creditAmount || 0), 0);
                                        const totalAmountReceived = group.orders.reduce((sum, order) => sum + ((order as any).amountReceived || order.total), 0);
                                        const totalDiscount = group.orders.reduce((sum, order) => sum + ((order as any).discount || 0), 0);
-                                       const hasCredit = group.orders.some(order => (order as any).isCredit);
+                                       const hasCredit = totalCreditAmount > 0;
                                        
                                        if (hasCredit || totalDiscount > 0) {
                                          return (
@@ -3084,13 +3351,13 @@ export default function OrderDashboard() {
                                    </div>
                                  </div>
                                  
-                                 <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                                 <div className="order-1 lg:order-2 flex flex-wrap gap-2 justify-start lg:justify-end" onClick={(e) => e.stopPropagation()}>
                                    <button
                                      onClick={() => {
                                        setSelectedOrder(group.primaryOrder);
                                        setShowOrderDetails(true);
                                      }}
-                                     className="btn btn-secondary"
+                                     className="btn btn-secondary flex-shrink-0"
                                    >
                                      <Eye className="w-4 h-4 mr-2" />
                                      View
@@ -3100,11 +3367,12 @@ export default function OrderDashboard() {
                                      <>
                                        <button
                                          onClick={() => handlePrintBill(group.primaryOrder)}
-                                         className="btn btn-primary"
+                                         className="btn btn-primary flex-shrink-0"
                                          title={`Print bill for Order #${group.primaryOrder.orderNumber}`}
                                        >
                                          <Printer className="w-4 h-4 mr-2" />
-                                         Print Bill
+                                         <span className="hidden sm:inline">Print Bill</span>
+                                         <span className="sm:hidden">Print</span>
                                        </button>
                                        
                                        <button
@@ -3112,11 +3380,12 @@ export default function OrderDashboard() {
                                            setOrderToEditPayment(group.primaryOrder);
                                            setShowEditPaymentModal(true);
                                          }}
-                                         className="btn bg-orange-600 text-white hover:bg-orange-700"
+                                         className="btn bg-orange-600 text-white hover:bg-orange-700 flex-shrink-0"
                                          title={`Edit payment method for Order #${group.primaryOrder.orderNumber}`}
                                        >
                                          <Edit className="w-4 h-4 mr-2" />
-                                         Edit Payment
+                                         <span className="hidden sm:inline">Edit Payment</span>
+                                         <span className="sm:hidden">Edit</span>
                                        </button>
                                      </>
                                    )}
@@ -3128,8 +3397,8 @@ export default function OrderDashboard() {
                            {/* Expanded Individual Orders */}
                            {group.isGroup && isExpanded && (
                              <div className="bg-gray-50 border-t border-gray-200">
-                               <div className="px-8 py-2 bg-blue-50 border-b border-blue-200">
-                                 <div className="flex justify-between items-center">
+                               <div className="px-4 sm:px-8 py-2 bg-blue-50 border-b border-blue-200">
+                                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-1 sm:space-y-0">
                                    <p className="text-sm font-medium text-blue-800">
                                      Order Breakdown - {group.orders.length} Separate Orders:
                                    </p>
@@ -3139,15 +3408,17 @@ export default function OrderDashboard() {
                                  </div>
                                </div>
                                {group.orders.map((order, index) => (
-                                 <div key={order.id} className="px-8 py-4 border-b border-gray-100 last:border-b-0">
-                                   <div className="flex items-center justify-between">
+                                 <div key={order.id} className="px-4 sm:px-8 py-4 border-b border-gray-100 last:border-b-0">
+                                   <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-2 lg:space-y-0">
                                      <div className="flex-1">
-                                       <div className="flex items-center space-x-4 mb-2">
+                                       <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0 mb-2">
                                          <h4 className="font-medium text-gray-800">#{order.orderNumber}</h4>
-                                         {getStatusBadge(order.status)}
-                                         <span className="text-sm text-gray-500">
-                                           {formatTime(order.createdAt)}
-                                         </span>
+                                         <div className="flex items-center space-x-2">
+                                           {getStatusBadge(order.status)}
+                                           <span className="text-sm text-gray-500">
+                                             {formatTime(order.createdAt)}
+                                           </span>
+                                         </div>
                                        </div>
                                        
                                        <div className="text-sm text-gray-600 mb-1">
@@ -3161,20 +3432,21 @@ export default function OrderDashboard() {
                                        )}
                                      </div>
                                      
-                                     <div className="text-right">
+                                     <div className="text-left lg:text-right">
                                        <p className="font-semibold text-gray-800">{formatCurrency(order.total)}</p>
                                        {/* Credit indicator for individual order */}
-                                       {(order as any).isCredit && (
-                                         <div className="flex items-center justify-end mt-1">
+                                       {((order as any).creditAmount || 0) > 0 && (
+                                         <div className="flex items-center lg:justify-end mt-1">
                                            <CreditCard className="w-3 h-3 text-orange-500 mr-1" />
                                            <span className="text-xs text-orange-600 font-medium">
                                              ₹{((order as any).creditAmount || 0).toFixed(2)} Credit
+                                             {(order as any).creditCustomerName ? ` (${(order as any).creditCustomerName})` : ''}
                                            </span>
-                                     </div>
+                                         </div>
                                        )}
                                        {/* Savings indicator for individual order */}
                                        {(order as any).totalSavings > 0 && (
-                                         <div className="flex items-center justify-end mt-1">
+                                         <div className="flex items-center lg:justify-end mt-1">
                                            <span className="text-xs text-green-600 font-medium">
                                              💰 Saved ₹{((order as any).totalSavings).toFixed(2)}
                                            </span>
@@ -3194,12 +3466,12 @@ export default function OrderDashboard() {
                   {/* Pagination */}
                   {totalPages > 1 && (
                     <div className="px-6 py-4 border-t border-gray-200">
-                      <div className="flex items-center justify-between">
-                                                <div className="text-sm text-gray-600">
-                           Showing {startIndex + 1} to {Math.min(startIndex + ordersPerPage, totalGroups)} of {totalGroups} order groups
-                         </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+                        <div className="text-sm text-gray-600 text-center sm:text-left">
+                          Showing {startIndex + 1} to {Math.min(startIndex + ordersPerPage, totalGroups)} of {totalGroups} order groups
+                        </div>
                         
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center justify-center space-x-2">
                           <button
                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                             disabled={currentPage === 1}
