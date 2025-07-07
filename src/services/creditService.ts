@@ -7,7 +7,8 @@ import {
   where, 
   getDocs, 
   getDoc,
-  Timestamp 
+  Timestamp,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -166,6 +167,68 @@ export class CreditService {
     } catch (error) {
       console.error('Error making credit payment:', error);
       return { success: false, error: 'Failed to process payment' };
+    }
+  }
+
+  // Pay all dues for a customer
+  static async payAllDuesForCustomer(
+    restaurantId: string,
+    customerName: string,
+    customerPhone: string,
+    paymentMethod: string,
+    notes?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const q = query(
+        collection(db, 'creditTransactions'),
+        where('restaurantId', '==', restaurantId),
+        where('customerName', '==', customerName),
+        where('customerPhone', '==', customerPhone)
+      );
+
+      const querySnapshot = await getDocs(q);
+      
+      const batch = writeBatch(db);
+      
+      let paymentsMade = 0;
+
+      querySnapshot.forEach((docSnap) => {
+        const creditData = docSnap.data() as CreditTransaction;
+        if (creditData.status !== 'paid') {
+          const totalPaid = creditData.amountReceived + (creditData.paymentHistory || []).reduce((sum, p) => sum + p.amount, 0);
+          const remainingAmount = creditData.totalAmount - totalPaid;
+
+          if (remainingAmount > 0) {
+            const newPayment: CreditPayment = {
+              id: Date.now().toString() + Math.random(),
+              amount: remainingAmount,
+              paymentMethod: paymentMethod,
+              paidAt: Timestamp.now(),
+              notes: notes || 'Full settlement of dues.'
+            };
+            
+            const updatedPaymentHistory = [...(creditData.paymentHistory || []), newPayment];
+
+            batch.update(docSnap.ref, {
+              paymentHistory: updatedPaymentHistory,
+              status: 'paid',
+              paidAt: Timestamp.now()
+            });
+            paymentsMade++;
+          }
+        }
+      });
+      
+      if (paymentsMade === 0) {
+        return { success: true, error: 'No outstanding dues to pay.' };
+      }
+
+      await batch.commit();
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error settling all dues:', error);
+      return { success: false, error: 'Failed to settle all dues.' };
     }
   }
 

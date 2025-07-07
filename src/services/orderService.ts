@@ -13,7 +13,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db, handleFirebaseError } from '@/lib/firebase';
-import { Order, OrderItem, ApiResponse, SelectedVariant } from '@/types';
+import { Order, OrderItem, ApiResponse, SelectedVariant, OrderStatus } from '@/types';
 import { generateId, generateOrderNumber } from '@/lib/utils';
 import { InventoryService } from './inventoryService';
 
@@ -317,7 +317,7 @@ export class OrderService {
         orderNumber,
         tableId: orderType === 'takeaway' ? undefined : tableId, // Don't store tableId for takeaway
         type: orderType,
-        status: 'placed',
+        status: OrderStatus.PLACED,
         items: orderItems,
         subtotal,
         tax,
@@ -338,7 +338,7 @@ export class OrderService {
         restaurantId,
         orderNumber,
         type: orderType,
-        status: 'placed',
+        status: OrderStatus.PLACED,
         items: orderItems,
         subtotal,
         tax,

@@ -1,6 +1,7 @@
 // Voice Recognition and AI Command Processing Service
 import { toast } from 'react-hot-toast';
 import { VoiceContextManager } from './voiceContextManager';
+import { transcribeAudio } from './groqTranscriptionService';
 
 // Custom voice toast function for compact notifications
 const voiceToast = {
@@ -46,6 +47,28 @@ const voiceToast = {
 // Groq AI Configuration - Support environment variables for API key
 const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+// Validate API key availability
+const isGroqAPIKeyAvailable = (): boolean => {
+  return !!GROQ_API_KEY && GROQ_API_KEY.trim().length > 0;
+};
+
+// Helper function to handle missing API key
+const handleMissingAPIKey = (): void => {
+  console.warn('🔑 Groq API key not found. Voice AI features will be limited.');
+  console.warn('💡 Set VITE_GROQ_API_KEY environment variable to enable full AI functionality.');
+};
+
+// Log startup warning if API key is missing
+if (!isGroqAPIKeyAvailable()) {
+  console.warn('⚠️ VOICE AI SETUP REQUIRED ⚠️');
+  console.warn('🔑 Groq API key not configured. Voice commands will use basic pattern matching.');
+  console.warn('📋 Setup instructions:');
+  console.warn('   1. Get free API key from https://groq.com/');
+  console.warn('   2. Add VITE_GROQ_API_KEY to your environment variables');
+  console.warn('   3. Restart your development server');
+  console.warn('🎯 Advanced AI features will be enabled once configured.');
+}
 
 // Voice Command Types
 export interface VoiceCommand {
@@ -301,15 +324,23 @@ export class VoiceService {
       let command: VoiceCommand;
       
       try {
-        // Try AI analysis first
-        command = await this.analyzeWithGroq(transcript, restaurantContext);
-        console.log('🤖 AI Command Analysis:', command);
+        // Check if AI is available, otherwise skip directly to fallback
+        if (isGroqAPIKeyAvailable()) {
+          command = await this.analyzeWithGroq(transcript, restaurantContext);
+          console.log('🤖 AI Command Analysis:', command);
+        } else {
+          throw new Error('Groq API key not configured');
+        }
       } catch (aiError) {
         console.warn('🤖 AI analysis failed, using fallback parser:', aiError);
         
         // Show a helpful message once per session about AI being unavailable
         if (!sessionStorage.getItem('voice_ai_fallback_notified')) {
-          voiceToast.info('🔄 Voice AI temporarily unavailable, using local parsing', '🎤');
+          const isAPIKeyMissing = !isGroqAPIKeyAvailable();
+          const message = isAPIKeyMissing 
+            ? '🔑 Voice AI requires VITE_GROQ_API_KEY - using basic parsing'
+            : '🔄 Voice AI temporarily unavailable, using local parsing';
+          voiceToast.info(message, '🎤');
           sessionStorage.setItem('voice_ai_fallback_notified', 'true');
         }
         
@@ -1238,6 +1269,12 @@ export class VoiceService {
   }
 
   private async analyzeWithGroq(transcript: string, restaurantContext?: { name: string; slug: string; id: string }): Promise<VoiceCommand> {
+    // Check if API key is available
+    if (!isGroqAPIKeyAvailable()) {
+      handleMissingAPIKey();
+      throw new Error('Groq API key not configured. Cannot use AI analysis.');
+    }
+
     const contextInfo = restaurantContext 
       ? `Restaurant: ${restaurantContext.name} (${restaurantContext.slug}). ` 
       : '';
@@ -1439,6 +1476,12 @@ Example JSON responses:
 
   // AI-powered menu item matching using Groq API
   private async findAIMenuMatch(voiceItemName: string, availableMenuItems: any[]): Promise<any> {
+    // Check if API key is available
+    if (!isGroqAPIKeyAvailable()) {
+      console.warn('🔑 Groq API key not available for AI menu matching. Using fallback only.');
+      return null;
+    }
+
     try {
       const menuItemNames = availableMenuItems.map(item => item.name);
       
@@ -1515,6 +1558,25 @@ Best match:`;
     }
   }
 
+  // Public method to check if Groq AI features are available
+  public static isGroqAIAvailable(): boolean {
+    return isGroqAPIKeyAvailable();
+  }
+
+  // Public method to get setup instructions for Groq AI
+  public static getGroqSetupInstructions(): string {
+    if (isGroqAPIKeyAvailable()) {
+      return 'Groq AI is properly configured and ready to use.';
+    }
+    
+    return `To enable advanced voice AI features:
+1. Get a free API key from https://groq.com/
+2. Add VITE_GROQ_API_KEY to your environment variables
+3. Restart your development server
+
+Without this key, voice commands will use basic pattern matching.`;
+  }
+
   // NEW: Get push-to-talk mode status
   public getIsPushToTalkMode(): boolean {
     return this.isPushToTalkMode;
@@ -1523,6 +1585,33 @@ Best match:`;
   // NEW: Get accumulated transcript in push-to-talk mode
   public getAccumulatedTranscript(): string {
     return this.accumulatedTranscript;
+  }
+
+  public async handleTranscribedAudio(file: Blob | File): Promise<void> {
+    try {
+      // Update UI state to processing
+      this.setState('processing');
+
+      // Obtain transcript via Groq Whisper
+      const transcript = await transcribeAudio(file);
+      console.log('🎤 Transcribed audio:', transcript);
+
+      // Notify listeners about transcript
+      this.onTranscriptChange?.(transcript);
+
+      // Re-use existing flow to analyse and dispatch the voice command
+      await this.processVoiceCommand(transcript, this.restaurantContext);
+    } catch (error) {
+      console.error('❌ Audio transcription failed:', error);
+      voiceToast.error('Failed to transcribe audio');
+      this.setState('error');
+    }
+  }
+
+  // Convenience static wrapper so callers don’t have to fetch the singleton
+  public static async processAudio(file: Blob | File): Promise<void> {
+    const instance = VoiceService.getInstance();
+    await instance.handleTranscribedAudio(file);
   }
 }
 

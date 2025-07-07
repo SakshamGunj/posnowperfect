@@ -130,7 +130,7 @@ export default function KitchenDisplay() {
             const ageInHours = (now.getTime() - new Date(staleOrder.createdAt).getTime()) / (60 * 60 * 1000);
             console.warn(`🗑️ KDS: Auto-completing stale order #${staleOrder.orderNumber} - ${ageInHours.toFixed(1)} hours old`);
             try {
-              await OrderService.updateOrderStatus(staleOrder.id, restaurant.id, 'completed', {
+              await OrderService.updateOrderStatus(staleOrder.id, restaurant.id, OrderStatus.COMPLETED, {
                 notes: `Auto-completed by KDS on load - order was ${Math.floor(ageInHours)} hours old`
               });
             } catch (error) {
@@ -343,7 +343,7 @@ export default function KitchenDisplay() {
           console.log(`🧹 KDS: Auto-completing ${staleOrders.length} stale orders`);
           staleOrders.forEach(async (staleOrder) => {
             try {
-              await OrderService.updateOrderStatus(staleOrder.id, restaurant.id, 'completed', {
+              await OrderService.updateOrderStatus(staleOrder.id, restaurant.id, OrderStatus.COMPLETED, {
                 notes: `Auto-completed by KDS - order was ${Math.floor((now.getTime() - new Date(staleOrder.createdAt).getTime()) / (60 * 60 * 1000))} hours old`
               });
             } catch (error) {
@@ -517,7 +517,7 @@ export default function KitchenDisplay() {
     if (!restaurant) return;
 
     try {
-      const result = await OrderService.updateOrderStatus(orderId, restaurant.id, 'confirmed');
+      const result = await OrderService.updateOrderStatus(orderId, restaurant.id, OrderStatus.CONFIRMED);
       if (result.success) {
         await loadKitchenData();
         toast.success('📱 Menu Portal Order Confirmed! Customer will be notified.', {
@@ -627,7 +627,7 @@ export default function KitchenDisplay() {
         };
       }
 
-      const result = await OrderService.updateOrderStatus(selectedOrder.id, restaurant.id, 'completed', updateData);
+      const result = await OrderService.updateOrderStatus(selectedOrder.id, restaurant.id, OrderStatus.COMPLETED, updateData);
 
       if (result.success) {
         await loadKitchenData();
@@ -753,7 +753,7 @@ export default function KitchenDisplay() {
         for (const staleOrder of staleOrders) {
           try {
             const ageInHours = (now.getTime() - new Date(staleOrder.createdAt).getTime()) / (60 * 60 * 1000);
-            await OrderService.updateOrderStatus(staleOrder.id, restaurant.id, 'completed', {
+            await OrderService.updateOrderStatus(staleOrder.id, restaurant.id, OrderStatus.COMPLETED, {
               notes: `Manual cleanup - order was ${Math.floor(ageInHours)} hours old`
             });
             completedCount++;
@@ -1175,7 +1175,7 @@ export default function KitchenDisplay() {
                       {/* Action Button */}
                       <div className="space-y-2">
                         <button
-                          onClick={() => updateOrderStatus(order.id, 'completed')}
+                          onClick={() => updateOrderStatus(order.id, OrderStatus.COMPLETED)}
                           className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4 rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 font-medium flex items-center justify-center space-x-2 shadow-lg"
                         >
                           <CheckCircle className="w-5 h-5" />
@@ -1279,7 +1279,7 @@ export default function KitchenDisplay() {
                       {/* Action Button */}
                       <div className="space-y-2">
                         <button
-                          onClick={() => updateOrderStatus(order.id, 'completed')}
+                          onClick={() => updateOrderStatus(order.id, OrderStatus.COMPLETED)}
                           className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center space-x-2"
                         >
                           <CheckCircle className="w-5 h-5" />

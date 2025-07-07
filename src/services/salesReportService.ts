@@ -19,33 +19,9 @@ function formatCurrencyForPDF(amount: number): string {
 }
 
 import { CreditService } from './creditService';
-import jsPDF from 'jspdf';
-
-// Import autoTable properly for ES6 modules
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
-// Ensure autoTable is properly attached to jsPDF prototype
-if (typeof autoTable === 'function') {
-  // Register the plugin globally
-  (jsPDF as any).autoTable = autoTable;
-  (jsPDF.prototype as any).autoTable = function(options: any) {
-    return autoTable(this, options);
-  };
-  
-  // Test that it works
-  try {
-    const testDoc = new jsPDF();
-    if (typeof testDoc.autoTable === 'function') {
-      console.log('✅ autoTable plugin registered and working correctly');
-    } else {
-      console.warn('⚠️ autoTable registered but not available on instance');
-    }
-  } catch (error) {
-    console.error('❌ Error testing autoTable plugin:', error);
-  }
-} else {
-  console.error('❌ autoTable import failed - plugin not available');
-}
+import 'jspdf-autotable'; // This duplicate can be removed, but let's focus on the fix
 
 // Extend jsPDF to include autoTable
 declare module 'jspdf' {
@@ -420,9 +396,15 @@ export interface ReportConfiguration {
   includeDiscountAnalysis: boolean;
   includeCreditAnalysis?: boolean; // New flag for credit analysis
   includeOrderDetails?: boolean; // New flag for detailed order list
+  includeGamificationAnalysis?: boolean; // Include spin-wheel gamification analytics
+  includePortalAnalytics?: boolean; // Include customer portal analytics
+  includeInsights?: boolean; // Include business insights / recommended actions
+  simple?: boolean; // If true, generate minimalistic lightweight PDF
   companyLogo?: string;
   reportTitle?: string;
   additionalNotes?: string;
+  includeMenuItemSales?: boolean;
+  includePaymentMethodAnalysis?: boolean;
 }
 
 export class SalesReportService {
@@ -817,10 +799,9 @@ export class SalesReportService {
         (order.paymentStatus === 'paid' || order.paymentMethod)
       );
 
-      // If no orders found, generate comprehensive sample data for demonstration
+      // If no orders found, skip sample data generation to avoid fictitious entries
       if (orders.length === 0) {
-        console.log('🎯 No orders found, generating comprehensive sample data for analytics...');
-        orders = this.generateSampleOrders(restaurantId, startDate, endDate, menuItems, tables);
+        console.log('ℹ️ No orders found for the selected range. Skipping sample data generation.');
       }
       
       // Get comparison period (same duration, previous period)
@@ -838,15 +819,9 @@ export class SalesReportService {
       );
 
       // If no previous orders and we generated sample data, generate previous period sample data too
-      if (prevOrders.length === 0 && orders.length > 0 && orders[0].id.startsWith('sample_order_')) {
-        console.log('🎯 Generating previous period sample data for growth comparison...');
-        prevOrders = this.generateSampleOrders(restaurantId, prevStartDate, prevEndDate, menuItems, tables);
-        // Make previous period have lower numbers for positive growth
-        prevOrders = prevOrders.map(order => ({
-          ...order,
-          total: order.total * 0.85, // 15% lower revenue for positive growth
-          subtotal: order.subtotal * 0.85,
-        })).slice(0, Math.floor(orders.length * 0.9)); // 10% fewer orders for positive growth
+      if (prevOrders.length === 0) {
+        // No previous orders; skip generating fake comparison data
+        console.log('ℹ️ No previous period orders. Growth metrics will default to 0.');
       }
 
       // Calculate basic metrics
@@ -874,17 +849,29 @@ export class SalesReportService {
         revenue: number;
       }>();
 
+      // Allocate order-level discount proportionally to each item's contribution
       orders.forEach(order => {
+        // Calculate subtotal of items before discount/tax
+        const itemsSubtotal = order.items.reduce((sum, i) => sum + i.total, 0);
+        if (itemsSubtotal === 0) return;
+
+        // Net revenue for items after applying discount but *before* tax (tax already included in order.total)
+        // We proportionally distribute the order's effective discount across items so totals reconcile with order.total
         order.items.forEach(item => {
+          // Proportion of this item in the order
+          const proportion = item.total / itemsSubtotal;
+          // Compute net revenue contributed by this item after discount
+          const netItemRevenue = order.total * proportion;
+
           const existing = menuItemMap.get(item.menuItemId);
           if (existing) {
             existing.quantitySold += item.quantity;
-            existing.revenue += item.total;
+            existing.revenue += netItemRevenue;
           } else {
             menuItemMap.set(item.menuItemId, {
               name: item.name,
               quantitySold: item.quantity,
-              revenue: item.total
+              revenue: netItemRevenue
             });
           }
         });
@@ -1711,6 +1698,10 @@ export class SalesReportService {
     }
   ): Promise<Blob> {
     try {
+      if (config.simple) {
+        return this.generateSimplePDFReport(analytics, dateRange, restaurantName, config);
+      }
+
       console.log('📄 Creating PDF document...');
     const doc = new jsPDF();
     let yPosition = 20;
@@ -2152,87 +2143,133 @@ export class SalesReportService {
       yPosition = (doc as any).lastAutoTable.finalY + 20;
     }
 
-    // Detailed Order List - ULTRA COMPACT SINGLE LINE FORMAT
+    // Detailed Order List - COMPLETE VERTICAL FORMAT (NO TABLES)
     if (config.includeOrderDetails && (analytics as any).detailedOrderList && (analytics as any).detailedOrderList.length > 0) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
       }
 
-      doc.setFontSize(14);
+      // Section heading
+      doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(33, 37, 41);
-      doc.text('Order Details', 20, yPosition);
-      yPosition += 10;
+      doc.text('Detailed Order List', 20, yPosition);
+      yPosition += 12;
 
-      // Add summary info
-      doc.setFontSize(8);
+      // Brief summary
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(108, 117, 125);
-      doc.text(`${(analytics as any).detailedOrderList.length} orders in ultra-compact format`, 20, yPosition);
-      yPosition += 8;
+      doc.text(`Showing ${(analytics as any).detailedOrderList.length} order(s) in compact card format`, 20, yPosition);
+      yPosition += 10;
 
-      // Display each order in ultra-compact single line format
-      (analytics as any).detailedOrderList.forEach((order: any, index: number) => {
-        // Check if we need a new page - 15+ orders per page now
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = 20;
-        }
+      // Layout constants
+      const cardWidth = 85; // Half-page width minus margins (A4 ≈ 210mm, leaving margins)
+      const cardHeight = 45; // Reduced height to fit more cards
+      const gapX = 10;
+      const gapY = 8;
+      const startX = 15;
+      let xPos = startX;
+      let column = 0;
 
-        // Single line order format
-        doc.setFontSize(6);
+      const cardContentWidth = cardWidth - 8; // Inner padding
+
+      const drawOrderCard = (order: any, x: number, y: number) => {
+        // Card container with a light background and border
+        doc.setFillColor(248, 249, 250); // very light gray
+        doc.setDrawColor(222, 226, 230); // light gray border
+        (doc as any).roundedRect(x, y, cardWidth, cardHeight, 3, 3, 'FD');
+
+        let lineY = y + 7;
+        const textX = x + 5;
+
+        // --- Card Header ---
+        doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(33, 37, 41);
+        doc.text(`#${order.orderNumber}`, textX, lineY);
+
+        // Status on the right
+        doc.setFont('helvetica', 'bold');
+        const status = order.status.toUpperCase();
+        const statusWidth = doc.getTextWidth(status) * 0.35; // Adjust for font scaling
+        if (status === 'COMPLETED') doc.setTextColor(40, 167, 69); // Green
+        else if (status === 'CANCELLED') doc.setTextColor(220, 53, 69); // Red
+        else doc.setTextColor(255, 193, 7); // Yellow for others
+        doc.text(status, x + cardWidth - statusWidth - 5, lineY);
         
-        // Create ultra-compact single line: ORDER | Table | Date Time | Status | Payment | Items | Total
-        let orderLine = `${order.orderNumber} | T${order.tableNumber} | ${order.date} ${order.time}`;
-        
-        // Add status with color coding
-        doc.text(orderLine, 20, yPosition);
-        
-        // Status in color
-        const statusX = 20 + (orderLine.length * 1.2); // Approximate text width
-        if (order.status === 'COMPLETED') {
-          doc.setTextColor(40, 167, 69); // Green
-        } else if (order.status === 'PENDING') {
-          doc.setTextColor(255, 193, 7); // Yellow  
-        } else {
-          doc.setTextColor(220, 53, 69); // Red
-        }
-        doc.text(` | ${order.status}`, statusX, yPosition);
-        
-        // Continue line with payment and total
-        doc.setTextColor(52, 58, 64);
+        lineY += 6;
+        doc.setDrawColor(233, 236, 239);
+        doc.line(x + 3, lineY, x + cardWidth - 3, lineY); // separator
+        lineY += 6;
+
+        // --- Card Body ---
+        doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
-        let paymentInfo = order.paymentMethod ? order.paymentMethod.split('\n')[0] : 'Cash';
-        if (paymentInfo.length > 8) paymentInfo = paymentInfo.substring(0, 8) + '...';
+        doc.setTextColor(73, 80, 87);
+
+        // Table & Date on one line
+        const tableText = `Table: ${order.tableNumber}`;
+        const dateText = `${order.date} ${order.time}`;
+        doc.text(tableText, textX, lineY);
+        doc.text(dateText, x + cardWidth - doc.getTextWidth(dateText) - 5, lineY);
+        lineY += 5;
+
+        // Items and Total on one line
+        const itemsText = `${order.totalItems} items`;
+        const totalText = formatCurrencyForPDF(order.total);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(33, 37, 41);
+        doc.text(itemsText, textX, lineY);
         
-        const remainingLine = ` | ${paymentInfo} | ${order.totalItems} items`;
-        doc.text(remainingLine, statusX + 45, yPosition);
-        
-        // Total amount in bold green
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(40, 167, 69);
-        doc.text(` | ${formatCurrencyForPDF(order.total)}`, statusX + 85, yPosition);
-        
-        // Skip discount/credit display in compact format to avoid duplication
-        // Discount information should come from the order data itself, not be added here
-        
-        yPosition += 4; // Very tight spacing between orders
-        
-        // Optional: Show items if space allows and items list is short
-        if (order.items && order.items.length < 80 && yPosition < 268) {
-          doc.setFontSize(5);
+        doc.text(totalText, x + cardWidth - doc.getTextWidth(totalText) - 5, lineY);
+        lineY += 5;
+
+        // Items list (abbreviated)
+        if (order.items) {
+            doc.setFontSize(7);
           doc.setFont('helvetica', 'italic');
           doc.setTextColor(108, 117, 125);
-          const itemText = order.items.length > 60 ? order.items.substring(0, 60) + '...' : order.items;
-          doc.text(`    Items: ${itemText}`, 20, yPosition);
-          yPosition += 3;
+            const itemsPreview = order.items.length > 50 ? order.items.substring(0, 50) + '...' : order.items;
+            const splitItems = doc.splitTextToSize(itemsPreview, cardContentWidth);
+            doc.text(splitItems, textX, lineY);
+            lineY += splitItems.length * 3;
+        }
+
+        return lineY; // Return the final Y position for this card
+      };
+
+      (analytics as any).detailedOrderList.forEach((order: any) => {
+        // Check if we need a new page before drawing the card
+        if (yPosition + cardHeight > 280) { // 280 is a safe bottom margin
+          doc.addPage();
+          yPosition = 20; // Reset Y to top
+          xPos = startX; // Reset X to left column
+          column = 0;
+        }
+
+        drawOrderCard(order, xPos, yPosition);
+
+        // Move to next column or next row
+        if (column === 0) {
+          xPos += cardWidth + gapX; // Move to the right column
+          column = 1;
+        } else {
+          xPos = startX; // Reset to the left column
+          yPosition += cardHeight + gapY; // Move down to the next row
+          column = 0;
         }
       });
 
-      yPosition += 8;
+      // After the loop, ensure yPosition is set below the last drawn row
+       if (column === 1) { // If we only drew the left card of a row
+         yPosition += cardHeight + gapY;
+       }
+      
+      yPosition += 10;
     }
 
     // Customer Analysis
@@ -2541,7 +2578,7 @@ export class SalesReportService {
     }
     
     // Advanced Business Intelligence Section
-    if (analytics.performanceInsights) {
+    if (config.includeInsights !== false && analytics.performanceInsights) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
@@ -2593,7 +2630,7 @@ export class SalesReportService {
     }
 
     // Customer Portal Analytics
-    if (analytics.customerPortalAnalytics && analytics.customerPortalAnalytics.totalPortalOrders > 0) {
+    if (config.includePortalAnalytics !== false && analytics.customerPortalAnalytics && analytics.customerPortalAnalytics.totalPortalOrders > 0) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
@@ -2646,7 +2683,7 @@ export class SalesReportService {
     }
 
     // Spin Wheel Analytics
-    if (analytics.spinWheelAnalytics && analytics.spinWheelAnalytics.totalSpins > 0) {
+    if (config.includeGamificationAnalysis !== false && analytics.spinWheelAnalytics && analytics.spinWheelAnalytics.totalSpins > 0) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
@@ -2940,7 +2977,7 @@ export class SalesReportService {
     }
     
     // Advanced Business Intelligence Section
-    if (analytics.performanceInsights) {
+    if (config.includeInsights !== false && analytics.performanceInsights) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
@@ -2973,8 +3010,8 @@ export class SalesReportService {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text('Recommended Actions:', 20, yPosition);
-        yPosition += 10;
-        
+      yPosition += 10;
+
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         
@@ -2991,353 +3028,8 @@ export class SalesReportService {
       yPosition += 10;
     }
 
-    // Payment Method Analysis with Split Payment Details
-    if (analytics.paymentMethodBreakdown.length > 0) {
-      if (yPosition > 240) {
-        doc.addPage();
-        yPosition = 20;
-      }
-
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(33, 37, 41);
-      doc.text('Payment Method Analysis', 20, yPosition);
-      yPosition += 12;
-
-      // Main payment method table
-      const paymentData = analytics.paymentMethodBreakdown.map(payment => [
-        payment.method,
-        payment.count.toString(),
-        formatCurrencyForPDF(payment.amount),
-        `${payment.percentage.toFixed(1)}%`
-      ]);
-
-      safeAutoTable(doc, {
-        startY: yPosition,
-        head: [['Payment Method', 'Transactions', 'Amount', '% of Total']],
-        body: paymentData,
-        theme: 'grid',
-        styles: { 
-          fontSize: 11,
-          font: 'helvetica',
-          textColor: [33, 37, 41],
-          cellPadding: 8,
-          lineColor: [220, 220, 220],
-          lineWidth: 0.5
-        },
-        headStyles: { 
-          fillColor: [52, 144, 220],
-          textColor: [255, 255, 255],
-          fontSize: 12,
-          fontStyle: 'bold',
-          halign: 'center'
-        },
-        columnStyles: {
-          0: { cellWidth: 50, fontStyle: 'bold' },
-          1: { halign: 'center', cellWidth: 35, fontStyle: 'bold' },
-          2: { halign: 'right', cellWidth: 45, fontStyle: 'bold' },
-          3: { halign: 'center', cellWidth: 35, fontStyle: 'bold' }
-        },
-        alternateRowStyles: {
-          fillColor: [248, 249, 250]
-        }
-      });
-
-      yPosition = (doc as any).lastAutoTable.finalY + 15;
-
-      // Split payment details if available
-      const splitPaymentMethod = analytics.paymentMethodBreakdown.find(p => p.method === 'SPLIT');
-      if (splitPaymentMethod && (splitPaymentMethod as any).splitDetails) {
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(33, 37, 41);
-        doc.text('Split Payment Breakdown', 20, yPosition);
-        yPosition += 10;
-
-        const splitData = (splitPaymentMethod as any).splitDetails.map((detail: any) => [
-          detail.method,
-          detail.count.toString(),
-          formatCurrencyForPDF(detail.amount),
-          `${((detail.amount / splitPaymentMethod.amount) * 100).toFixed(1)}%`
-        ]);
-
-        safeAutoTable(doc, {
-          startY: yPosition,
-          head: [['Split Method', 'Transactions', 'Amount', '% of Split Total']],
-          body: splitData,
-          theme: 'grid',
-          styles: { 
-            fontSize: 10,
-            font: 'helvetica',
-            textColor: [33, 37, 41],
-            cellPadding: 6,
-            lineColor: [220, 220, 220],
-            lineWidth: 0.5
-          },
-          headStyles: { 
-            fillColor: [108, 117, 125],
-            textColor: [255, 255, 255],
-            fontSize: 11,
-            fontStyle: 'bold',
-            halign: 'center'
-          },
-          columnStyles: {
-            0: { cellWidth: 40, fontStyle: 'bold' },
-            1: { halign: 'center', cellWidth: 30, fontStyle: 'bold' },
-            2: { halign: 'right', cellWidth: 40, fontStyle: 'bold' },
-            3: { halign: 'center', cellWidth: 35, fontStyle: 'bold' }
-          },
-          alternateRowStyles: {
-            fillColor: [248, 249, 250]
-          }
-        });
-
-        yPosition = (doc as any).lastAutoTable.finalY + 15;
-      }
-    }
-
-    // Detailed Order List - COMPLETE VERTICAL FORMAT (NO TABLES)
-    if (config.includeOrderDetails && (analytics as any).detailedOrderList && (analytics as any).detailedOrderList.length > 0) {
-      if (yPosition > 240) {
-        doc.addPage();
-        yPosition = 20;
-      }
-
-      doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(33, 37, 41);
-      doc.text('Detailed Order List', 20, yPosition);
-      yPosition += 12;
-
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(108, 117, 125);
-      doc.text(`Showing ${(analytics as any).detailedOrderList.length} order(s) in vertical format`, 20, yPosition);
-      yPosition += 15;
-
-      // Display each order completely vertically - each field on its own line
-      (analytics as any).detailedOrderList.forEach((order: any, index: number) => {
-        // Check if we need a new page for this order card (need more space for vertical layout)
-        if (yPosition > 200) {
-          doc.addPage();
-          yPosition = 20;
-        }
-
-        // Order header with background box
-        doc.setFillColor(240, 248, 255); // Light blue background
-        doc.rect(15, yPosition - 3, 170, 8, 'F'); // Background rectangle
-        doc.setLineWidth(1);
-        doc.setDrawColor(52, 144, 220);
-        doc.rect(15, yPosition - 3, 170, 8, 'S'); // Border
-
-        // Order number (main title)
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(33, 37, 41);
-        doc.text(`ORDER: ${order.orderNumber}`, 20, yPosition + 2);
-        yPosition += 12;
-
-        // Each field on its own line - complete vertical format
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(52, 58, 64);
-
-        // Table
-        doc.setFont('helvetica', 'bold');
-        doc.text('TABLE:', 20, yPosition);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${order.tableNumber}`, 20, yPosition + 6);
-        yPosition += 12;
-
-        // Date
-        doc.setFont('helvetica', 'bold');
-        doc.text('DATE:', 20, yPosition);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${order.date}`, 20, yPosition + 6);
-        yPosition += 12;
-
-        // Time
-        doc.setFont('helvetica', 'bold');
-        doc.text('TIME:', 20, yPosition);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${order.time}`, 20, yPosition + 6);
-        yPosition += 12;
-
-        // Status
-        doc.setFont('helvetica', 'bold');
-        doc.text('STATUS:', 20, yPosition);
-        doc.setFont('helvetica', 'bold');
-        if (order.status === 'COMPLETED') {
-          doc.setTextColor(40, 167, 69); // Green
-        } else if (order.status === 'PENDING') {
-          doc.setTextColor(255, 193, 7); // Yellow
-        } else {
-          doc.setTextColor(220, 53, 69); // Red
-        }
-        doc.text(`${order.status}`, 20, yPosition + 6);
-        doc.setTextColor(52, 58, 64); // Reset color
-        yPosition += 12;
-
-        // Payment Method
-        doc.setFont('helvetica', 'bold');
-        doc.text('PAYMENT METHOD:', 20, yPosition);
-        doc.setFont('helvetica', 'normal');
-        
-        // Clean payment method data to remove duplicate discount entries
-        let cleanPaymentMethod = order.paymentMethod || 'Not specified';
-        if (cleanPaymentMethod.includes('\n')) {
-          const paymentLines = cleanPaymentMethod.split('\n');
-          // Filter out duplicate discount lines and fix currency formatting
-          const filteredLines = paymentLines.filter((line: string, index: number, array: string[]) => {
-            const trimmedLine = line.trim();
-            // Skip discount lines or only keep the first occurrence
-            if (trimmedLine.includes('Discount:') || trimmedLine.includes('• Discount:')) {
-              const firstDiscountIndex = array.findIndex((l: string) => l.trim().includes('Discount:'));
-              return index === firstDiscountIndex; // Only keep the first discount line
-            }
-            return trimmedLine.length > 0; // Keep non-empty lines
-          }).map((line: string) => {
-            // Fix currency symbol in all lines - replace strange characters with Rs.
-            return line.replace(/¹/g, 'Rs. ').replace(/₹/g, 'Rs. ').replace(/Rs\. Rs\. /g, 'Rs. ');
-          });
-          
-          if (filteredLines.length > 0) {
-            doc.text(filteredLines[0] || 'Not specified', 20, yPosition + 6);
-            yPosition += 10;
-            
-            // Display additional payment details (filtered)
-            for (let i = 1; i < filteredLines.length && i < 3; i++) {
-              doc.setFont('helvetica', 'italic');
-              doc.setTextColor(108, 117, 125); // Gray for details
-              doc.text(`${filteredLines[i].trim()}`, 25, yPosition);
-              yPosition += 6;
-            }
-            doc.setTextColor(52, 58, 64); // Reset color
-          } else {
-            doc.text('Not specified', 20, yPosition + 6);
-            yPosition += 12;
-          }
-        } else {
-          doc.text(cleanPaymentMethod, 20, yPosition + 6);
-          yPosition += 12;
-        }
-
-        // Items Count
-        doc.setFont('helvetica', 'bold');
-        doc.text('TOTAL ITEMS:', 20, yPosition);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${order.totalItems} items`, 20, yPosition + 6);
-        yPosition += 12;
-
-        // Total Amount
-        doc.setFont('helvetica', 'bold');
-        doc.text('TOTAL AMOUNT:', 20, yPosition);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(40, 167, 69); // Green for amount
-        doc.text(`${formatCurrencyForPDF(order.total)}`, 20, yPosition + 6);
-        doc.setTextColor(52, 58, 64); // Reset color
-        yPosition += 12;
-
-        // Credit Information (if present)
-        if (order.creditAmount > 0) {
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(220, 53, 69); // Red for credit
-          doc.text('CREDIT AMOUNT:', 20, yPosition);
-          doc.text(`-${formatCurrencyForPDF(order.creditAmount)}`, 20, yPosition + 6);
-          yPosition += 12;
-          
-          if (order.creditCustomerName) {
-            doc.text('CREDIT CUSTOMER:', 20, yPosition);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(52, 58, 64);
-            doc.text(`${order.creditCustomerName}`, 20, yPosition + 6);
-            yPosition += 12;
-          }
-          doc.setTextColor(52, 58, 64); // Reset color
-        }
-
-        // Note: Discount and credit information is now handled properly in payment method section above
-        // to avoid duplication issues
-
-        // Items Ordered (if available and not too long)
-        if (order.items && order.items.length < 200) {
-          doc.setFont('helvetica', 'bold');
-          doc.text('ITEMS ORDERED:', 20, yPosition);
-          yPosition += 6;
-          
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(10);
-          const itemLines = doc.splitTextToSize(order.items, 160);
-          
-          // Display all item lines (with reasonable limit)
-          const displayLines = itemLines.slice(0, 5);
-          displayLines.forEach((line: string) => {
-            if (yPosition > 270) {
-              doc.addPage();
-              yPosition = 20;
-            }
-            doc.text(line, 20, yPosition);
-            yPosition += 5;
-          });
-          
-          if (itemLines.length > 5) {
-            doc.setFont('helvetica', 'italic');
-            doc.setTextColor(108, 117, 125);
-            doc.text('... and more items', 20, yPosition);
-            yPosition += 5;
-          }
-          
-          doc.setFontSize(11); // Reset font size
-          doc.setTextColor(52, 58, 64); // Reset color
-          yPosition += 6;
-        }
-
-        // Grouped order details (if applicable)
-        if (order.groupDetails && order.groupDetails.length > 1) {
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(52, 144, 220);
-          doc.text(`GROUPED ORDER (${order.groupDetails.length} combined):`, 20, yPosition);
-          yPosition += 6;
-          
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(10);
-          doc.setTextColor(108, 117, 125);
-          
-          order.groupDetails.slice(0, 3).forEach((detail: any, detailIndex: number) => {
-            if (yPosition > 265) {
-              doc.addPage();
-              yPosition = 20;
-            }
-            doc.text(`• Order #${detail.orderNumber} at ${detail.time} - ${formatCurrencyForPDF(detail.total)}`, 25, yPosition);
-            yPosition += 5;
-          });
-          
-          if (order.groupDetails.length > 3) {
-            doc.text(`• ... and ${order.groupDetails.length - 3} more orders in this group`, 25, yPosition);
-            yPosition += 5;
-          }
-          
-          doc.setFontSize(11); // Reset font size
-          doc.setTextColor(52, 58, 64); // Reset color
-          yPosition += 6;
-        }
-
-        // Bottom separator
-        yPosition += 5;
-        doc.setLineWidth(2);
-        doc.setDrawColor(200, 200, 200);
-        doc.line(15, yPosition, 185, yPosition);
-        yPosition += 15;
-
-        // Add extra space between orders
-        yPosition += 5;
-      });
-
-      yPosition += 10;
-    }
-
     // Customer Portal Analytics
-    if (analytics.customerPortalAnalytics && analytics.customerPortalAnalytics.totalPortalOrders > 0) {
+    if (config.includePortalAnalytics !== false && analytics.customerPortalAnalytics && analytics.customerPortalAnalytics.totalPortalOrders > 0) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
@@ -3390,7 +3082,7 @@ export class SalesReportService {
     }
 
     // Spin Wheel Analytics
-    if (analytics.spinWheelAnalytics && analytics.spinWheelAnalytics.totalSpins > 0) {
+    if (config.includeGamificationAnalysis !== false && analytics.spinWheelAnalytics && analytics.spinWheelAnalytics.totalSpins > 0) {
       if (yPosition > 240) {
         doc.addPage();
         yPosition = 20;
@@ -3442,6 +3134,54 @@ export class SalesReportService {
       yPosition += 10;
     }
 
+    // Detailed Order List
+    if (config.includeOrderDetails) {
+      if (yPosition > 200) { // Check if we need a new page before starting the list
+        doc.addPage();
+        yPosition = 20;
+      }
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(33, 37, 41);
+      doc.text('Detailed Order List', 20, yPosition);
+      yPosition += 12;
+      
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(108, 117, 125);
+      doc.text('Order #', 20, yPosition);
+      doc.text('Time', 50, yPosition);
+      doc.text('Type', 70, yPosition);
+      doc.text('Items', 90, yPosition);
+      doc.text('Status', 140, yPosition);
+      doc.text('Total', 170, yPosition, { align: 'right' });
+      yPosition += 2;
+      doc.setLineWidth(0.2);
+      doc.setDrawColor(180, 180, 180);
+      doc.line(20, yPosition, 190, yPosition);
+      yPosition += 5;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(52, 58, 64);
+
+      const orderList = (analytics as any).orders || [];
+      orderList.forEach((order: any) => {
+        if (yPosition > 280) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        const orderTime = order.createdAt instanceof Date ? formatTime(order.createdAt) : formatTime(order.createdAt.toDate());
+        doc.text(order.orderNumber, 20, yPosition);
+        doc.text(orderTime, 50, yPosition);
+        doc.text(order.type, 70, yPosition);
+        doc.text(order.items.length.toString(), 90, yPosition, { align: 'center' });
+        doc.text(order.status, 140, yPosition);
+        doc.text(formatCurrencyForPDF(order.total), 170, yPosition, { align: 'right' });
+        yPosition += 6;
+      });
+    }
+
     // Add footer with improved styling
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
@@ -3457,6 +3197,69 @@ export class SalesReportService {
     if (config.additionalNotes) {
       const lines = doc.splitTextToSize(config.additionalNotes, 150);
       doc.text(lines, 20, 293);
+    }
+
+    // Payment Method Analysis
+    const paymentMethodSalesSafe = (analytics as any).paymentMethodSales || {};
+    if (config.includePaymentMethodAnalysis && Object.keys(paymentMethodSalesSafe).length > 0) {
+      yPosition += 15;
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(33, 37, 41);
+      doc.text('Payment Method Analysis', 20, yPosition);
+      yPosition += 10;
+      
+      const paymentData = Object.entries(paymentMethodSalesSafe).map(([method, data]: any) => ({
+        method: method.toUpperCase(),
+        count: data.count,
+        revenue: data.total,
+      }));
+
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['Payment Method', 'Transactions', 'Total Revenue']],
+        body: paymentData.map(p => [p.method, p.count, formatCurrencyForPDF(p.revenue)]),
+        theme: 'striped',
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
+        bodyStyles: { textColor: 52, fontStyle: 'normal' },
+        alternateRowStyles: { fillColor: 248, textColor: 52 },
+        margin: { left: 20, right: 20 },
+        tableWidth: 'auto',
+        columnStyles: {
+          2: { halign: 'right' },
+        },
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // Menu Item Sales Analysis
+    const menuItemSalesSafe = (analytics as any).menuItemSales || [];
+    if (config.includeMenuItemSales && menuItemSalesSafe.length > 0) {
+       if (yPosition > 240) { // Check for page break before starting table
+        doc.addPage();
+        yPosition = 20;
+      }
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(33, 37, 41);
+      doc.text('Menu Item Sales', 20, yPosition);
+      yPosition += 10;
+
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['Item Name', 'Quantity Sold', 'Net Revenue']],
+        body: menuItemSalesSafe.map((item: any) => [item.name, item.quantity, formatCurrencyForPDF(item.revenue)]),
+        theme: 'grid',
+        headStyles: { fillColor: [39, 174, 96], textColor: 255, fontStyle: 'bold' },
+        bodyStyles: { textColor: 52 },
+        margin: { left: 20, right: 20 },
+        tableWidth: 'auto',
+        columnStyles: {
+          1: { halign: 'center' },
+          2: { halign: 'right' },
+        },
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
     }
 
     console.log('📄 Simple PDF generated successfully');

@@ -163,6 +163,42 @@ The system supports flexible voice patterns:
 - Microphone permissions
 - Active internet connection for AI processing
 - Firebase Firestore access
+- **Groq API Key** for advanced voice AI features
+
+### API Key Setup
+To enable advanced voice AI features and audio transcription:
+
+1. **Get a free Groq API key**:
+   - Visit https://groq.com/
+   - Sign up for a free account
+   - Generate an API key from your dashboard
+
+2. **Configure environment variables**:
+   - Add `VITE_GROQ_API_KEY=your_groq_api_key_here` to your environment
+   - For development: Create `.env.local` file in project root
+   - For production: Set environment variable in your hosting platform
+
+3. **Verify configuration**:
+   - Restart your development server
+   - Voice commands will show enhanced AI processing
+   - Without API key, system falls back to basic pattern matching
+
+### Environment Variables Template
+```env
+# Required for advanced voice AI features
+VITE_GROQ_API_KEY=your_groq_api_key_here
+
+# Other configuration variables
+VITE_FIREBASE_API_KEY=your_firebase_key
+VITE_FIREBASE_PROJECT_ID=your_project_id
+# ... other Firebase config
+```
+
+### Security Notes
+- ⚠️ **Never commit API keys to version control**
+- ✅ Use environment variables for all sensitive data
+- ✅ Add `.env.local` to your `.gitignore` file
+- ✅ Use different API keys for development and production
 
 ### Performance Considerations
 - Duplicate checking adds ~200ms to customer creation

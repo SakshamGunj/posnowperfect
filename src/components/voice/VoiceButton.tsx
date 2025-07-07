@@ -14,6 +14,35 @@ const styles = `
 
 // Safe wrapper component for VoiceButton
 const SafeVoiceButton: React.FC = () => {
+  // Check if voice is enabled via localStorage
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(() => {
+    const stored = localStorage.getItem('voiceEnabled');
+    return stored !== null ? JSON.parse(stored) : true;
+  });
+
+  // Listen for localStorage changes to update state
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const stored = localStorage.getItem('voiceEnabled');
+      setIsVoiceEnabled(stored !== null ? JSON.parse(stored) : true);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically in case of same-tab changes
+    const interval = setInterval(handleStorageChange, 1000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Don't render if voice is disabled
+  if (!isVoiceEnabled) {
+    return null;
+  }
+
   try {
     const voiceContext = useVoice();
     console.log('🎤 VoiceButton: Voice context available:', !!voiceContext);
@@ -228,7 +257,7 @@ const VoiceButtonInner: React.FC<any> = ({
       <style>{styles}</style>
       
       {/* Voice Button */}
-      <div className="fixed bottom-28 right-4 lg:bottom-6 lg:right-6 z-50">
+      <div className="fixed bottom-32 right-4 lg:bottom-6 lg:right-6 z-50">
         {/* Transcript Bubble */}
         {showTranscript && transcript && (
           <div className="absolute bottom-24 right-0 mb-2 max-w-xs animate-in slide-in-from-bottom-2 duration-300">

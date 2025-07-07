@@ -480,55 +480,56 @@ export default function Customers() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen pb-20" style={{ background: 'var(--color-background)' }}>
+      <main className="max-w-7xl mx-auto px-1 sm:px-2 lg:px-4 py-3 sm:py-6">
+        {/* Header - Mobile Optimized */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Customer Management</h1>
-              <p className="text-gray-600 mt-1">Manage your customer database and relationships</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Customer Management</h1>
+              <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage your customer database and relationships</p>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <button
                 onClick={exportCustomers}
-                className="btn btn-secondary"
+                className="btn btn-secondary text-sm px-3 py-2 sm:px-4 sm:py-2"
               >
-                <Download className="w-4 h-4 mr-2" />
-                Export
+                <Download className="w-4 h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Export</span>
               </button>
               
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="btn btn-theme-primary"
+                className="btn btn-theme-primary text-sm px-3 py-2 sm:px-4 sm:py-2"
               >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Add Customer
+                <UserPlus className="w-4 h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Add Customer</span>
+                <span className="sm:hidden">Add</span>
               </button>
             </div>
           </div>
         </div>
-        {/* Search and Filter Bar */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
+        {/* Search and Filter Bar - Mobile Optimized */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
-                placeholder="Search customers by name, email, or phone..."
+                placeholder="Search customers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
               />
             </div>
             
-            <div className="flex items-center space-x-3">
-              <Filter className="w-4 h-4 text-gray-600" />
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <Filter className="w-4 h-4 text-gray-600 flex-shrink-0" />
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="px-2 sm:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-0 flex-1 sm:flex-none"
               >
                 <option value="lastVisit">Last Visit</option>
                 <option value="name">Name</option>
@@ -539,42 +540,42 @@ export default function Customers() {
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        {/* Stats Cards - Mobile Optimized */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Users className="w-6 h-6 text-blue-600" />
+              <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
+                <Users className="w-4 h-4 sm:w-6 sm:h-6 text-blue-600" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Customers</p>
-                <p className="text-2xl font-bold text-gray-900">{customers.length}</p>
+              <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Total Customers</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{customers.length}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <DollarSign className="w-6 h-6 text-green-600" />
+              <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg">
+                <DollarSign className="w-4 h-4 sm:w-6 sm:h-6 text-green-600" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Total Revenue</p>
+                <p className="text-sm sm:text-2xl font-bold text-gray-900">
                   {formatCurrency(customers.reduce((sum, c) => sum + c.totalSpent, 0))}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <ShoppingBag className="w-6 h-6 text-purple-600" />
+              <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg">
+                <ShoppingBag className="w-4 h-4 sm:w-6 sm:h-6 text-purple-600" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avg Order Value</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Avg Order Value</p>
+                <p className="text-sm sm:text-2xl font-bold text-gray-900">
                   {formatCurrency(
                     customers.length > 0 
                       ? customers.reduce((sum, c) => sum + (c.visitCount > 0 ? c.totalSpent / c.visitCount : 0), 0) / customers.length
@@ -585,14 +586,14 @@ export default function Customers() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <Calendar className="w-6 h-6 text-orange-600" />
+              <div className="p-1.5 sm:p-2 bg-orange-100 rounded-lg">
+                <Calendar className="w-4 h-4 sm:w-6 sm:h-6 text-orange-600" />
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Repeat Customers</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Repeat Customers</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">
                   {customers.filter(c => c.visitCount > 1).length}
                 </p>
               </div>
@@ -631,122 +632,229 @@ export default function Customers() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Customer
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Contact
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Visits
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total Spent
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Last Visit
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+            <>
+              {/* Mobile-First Customer Cards */}
+              <div className="block lg:hidden">
+                <div className="space-y-3">
                   {filteredCustomers.map((customer) => (
-                    <tr key={customer.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {customer.name || 'N/A'}
+                    <div 
+                      key={customer.id} 
+                      onClick={() => handleViewOrders(customer)}
+                      className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 cursor-pointer hover:shadow-md transition-shadow active:bg-gray-50"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3 min-w-0 flex-1">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <User className="w-5 h-5 text-blue-600" />
                           </div>
-                          {customer.address && (
-                            <div className="text-sm text-gray-500 flex items-center">
-                              <MapPin className="w-3 h-3 mr-1" />
-                              {customer.address}
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-gray-900 truncate">
+                              {customer.name || 'N/A'}
+                            </h3>
+                            <div className="flex items-center space-x-1 text-sm text-gray-500">
+                              <Phone className="w-3 h-3" />
+                              <span className="truncate">{customer.phone || 'No phone'}</span>
                             </div>
-                          )}
+                          </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="space-y-1">
-                          {customer.phone && (
-                            <div className="text-sm text-gray-900 flex items-center">
-                              <Phone className="w-3 h-3 mr-1" />
-                              {customer.phone}
-                            </div>
-                          )}
-                          {customer.email && (
-                            <div className="text-sm text-gray-500 flex items-center">
-                              <Mail className="w-3 h-3 mr-1" />
-                              {customer.email}
-                            </div>
-                          )}
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-base sm:text-lg font-semibold text-gray-900">
+                            {formatCurrency(customer.totalSpent)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {customer.visitCount} visits
+                          </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {customer.visitCount}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-gray-600">Email:</span>
+                          <div className="truncate text-gray-900">
+                            {customer.email || 'Not provided'}
+                          </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {formatCurrency(customer.totalSpent)}
+                        <div>
+                          <span className="text-gray-600">Last Visit:</span>
+                          <div className="text-gray-900">
+                            {customer.lastVisit 
+                              ? new Date(customer.lastVisit).toLocaleDateString()
+                              : 'Never'
+                            }
+                          </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">
-                          {customer.lastVisit 
-                            ? new Date(customer.lastVisit).toLocaleDateString()
-                            : 'Never'
-                          }
+                      </div>
+                      
+                      {customer.address && (
+                        <div className="mt-2 text-sm">
+                          <span className="text-gray-600">Address:</span>
+                          <div className="text-gray-900 truncate">{customer.address}</div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end space-x-2">
+                      )}
+                      
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                        <div className="text-xs text-gray-500">
+                          Tap to view details
+                        </div>
+                        <div className="flex space-x-2">
                           <button
-                            onClick={() => handleViewOrders(customer)}
-                            className="p-2 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50"
-                            title="View Orders"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleEditCustomer(customer)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditCustomer(customer);
+                            }}
                             className="p-2 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50"
                             title="Edit Customer"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDeleteCustomer(customer)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCustomer(customer);
+                            }}
                             className="p-2 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"
                             title="Delete Customer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+              
+              {/* Desktop Table View */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Customer
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Contact
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Visits
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total Spent
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Last Visit
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredCustomers.map((customer) => (
+                      <tr 
+                        key={customer.id} 
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => handleViewOrders(customer)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {customer.name || 'N/A'}
+                            </div>
+                            {customer.address && (
+                              <div className="text-sm text-gray-500 flex items-center">
+                                <MapPin className="w-3 h-3 mr-1" />
+                                {customer.address}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="space-y-1">
+                            {customer.phone && (
+                              <div className="text-sm text-gray-900 flex items-center">
+                                <Phone className="w-3 h-3 mr-1" />
+                                {customer.phone}
+                              </div>
+                            )}
+                            {customer.email && (
+                              <div className="text-sm text-gray-500 flex items-center">
+                                <Mail className="w-3 h-3 mr-1" />
+                                {customer.email}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {customer.visitCount}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {formatCurrency(customer.totalSpent)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">
+                            {customer.lastVisit 
+                              ? new Date(customer.lastVisit).toLocaleDateString()
+                              : 'Never'
+                            }
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end space-x-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewOrders(customer);
+                              }}
+                              className="p-2 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50"
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditCustomer(customer);
+                              }}
+                              className="p-2 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50"
+                              title="Edit Customer"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCustomer(customer);
+                              }}
+                              className="p-2 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"
+                              title="Delete Customer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </main>
 
-      {/* Create Customer Modal */}
+      {/* Create Customer Modal - Mobile Optimized */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-end sm:items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-4 sm:pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={() => setShowCreateModal(false)}></div>
             
-            <div className="inline-block w-full max-w-md my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
-              <div className="px-6 py-4 border-b border-gray-200">
+            <div className="inline-block w-full max-w-md my-0 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-t-2xl sm:rounded-2xl">
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900">Add New Customer</h3>
                   <button
@@ -758,7 +866,7 @@ export default function Customers() {
                 </div>
               </div>
 
-              <form onSubmit={handleSubmit(handleCreateCustomer)} className="p-6 space-y-4">
+              <form onSubmit={handleSubmit(handleCreateCustomer)} className="p-4 sm:p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Name *
@@ -819,18 +927,18 @@ export default function Customers() {
                   />
                 </div>
 
-                <div className="flex justify-end space-x-3 pt-4">
+                <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3 pt-4">
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="btn btn-secondary"
+                    className="btn btn-secondary order-2 sm:order-1"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isCreating}
-                    className="btn btn-theme-primary"
+                    className="btn btn-theme-primary order-1 sm:order-2"
                   >
                     {isCreating ? (
                       <>
@@ -851,14 +959,14 @@ export default function Customers() {
         </div>
       )}
 
-      {/* Edit Customer Modal */}
+      {/* Edit Customer Modal - Mobile Optimized */}
       {showEditModal && selectedCustomer && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-end sm:items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-4 sm:pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={() => setShowEditModal(false)}></div>
             
-            <div className="inline-block w-full max-w-md my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
-              <div className="px-6 py-4 border-b border-gray-200">
+            <div className="inline-block w-full max-w-md my-0 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-t-2xl sm:rounded-2xl">
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900">Edit Customer</h3>
                   <button
@@ -870,7 +978,7 @@ export default function Customers() {
                 </div>
               </div>
 
-              <form onSubmit={handleSubmit(handleUpdateCustomer)} className="p-6 space-y-4">
+              <form onSubmit={handleSubmit(handleUpdateCustomer)} className="p-4 sm:p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Name *
@@ -931,18 +1039,18 @@ export default function Customers() {
                   />
                 </div>
 
-                <div className="flex justify-end space-x-3 pt-4">
+                <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3 pt-4">
                   <button
                     type="button"
                     onClick={() => setShowEditModal(false)}
-                    className="btn btn-secondary"
+                    className="btn btn-secondary order-2 sm:order-1"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isUpdating}
-                    className="btn btn-theme-primary"
+                    className="btn btn-theme-primary order-1 sm:order-2"
                   >
                     {isUpdating ? (
                       <>
@@ -963,10 +1071,10 @@ export default function Customers() {
         </div>
       )}
 
-      {/* Customer Orders Modal */}
+      {/* Customer Orders Modal - Mobile Optimized */}
       {showOrdersModal && selectedCustomer && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-end sm:items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-4 sm:pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={() => {
               setShowOrdersModal(false);
               setCustomerGamificationHistory(null);
@@ -974,14 +1082,14 @@ export default function Customers() {
               setSelectedCustomer(null);
             }}></div>
             
-            <div className="inline-block w-full max-w-4xl my-4 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl max-h-[95vh] overflow-y-auto">
-              <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+            <div className="inline-block w-full max-w-4xl my-0 sm:my-4 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-t-2xl sm:rounded-2xl max-h-[95vh] overflow-y-auto">
+              <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
                       {selectedCustomer.name || 'Customer'} - Complete Profile
                     </h3>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0 text-xs sm:text-sm text-gray-600 mt-1">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 mt-1">
                       <div className="flex items-center space-x-1">
                         <Users className="w-3 h-3 sm:w-4 sm:h-4" />
                         <span>{selectedCustomer.visitCount} visits</span>
@@ -1011,9 +1119,9 @@ export default function Customers() {
                       setCustomerLoyaltyInfo(null);
                       setSelectedCustomer(null);
                     }}
-                    className="text-gray-400 hover:text-gray-600 self-start sm:self-center"
+                    className="text-gray-400 hover:text-gray-600 self-start sm:self-center flex-shrink-0"
                   >
-                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <X className="w-5 h-5 sm:w-6 sm:h-6" />
                   </button>
                 </div>
               </div>
@@ -1803,7 +1911,7 @@ export default function Customers() {
                               </div>
                               
                               <div className="text-left sm:text-right">
-                                <div className="text-lg sm:text-2xl font-bold text-gray-900">
+                                <div className="text-base sm:text-lg font-semibold text-gray-900">
                                   {formatCurrency(order.total)}
                                 </div>
                                 <span className={`inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium ${
@@ -1909,13 +2017,13 @@ export default function Customers() {
         </div>
       )}
 
-      {/* Spin Details Modal */}
+      {/* Spin Details Modal - Mobile Optimized */}
       {selectedSpin && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <div className="flex items-end sm:items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-4 sm:pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity bg-black bg-opacity-50" onClick={() => setSelectedSpin(null)}></div>
             
-            <div className="inline-block w-full max-w-2xl my-4 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
+            <div className="inline-block w-full max-w-2xl my-0 sm:my-4 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-t-2xl sm:rounded-2xl">
               {/* Header */}
               <div className="px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
                 <div className="flex items-center justify-between">
@@ -1933,7 +2041,7 @@ export default function Customers() {
                   </div>
                   <button
                     onClick={() => setSelectedSpin(null)}
-                    className="text-white hover:text-gray-200 transition-colors"
+                    className="text-white hover:text-gray-200 transition-colors flex-shrink-0"
                   >
                     <X className="w-6 h-6" />
                   </button>
@@ -1941,15 +2049,15 @@ export default function Customers() {
               </div>
 
               {/* Content */}
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 {/* Basic Info */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-gray-50 rounded-lg p-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
+                  <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
                     <div className="flex items-center space-x-2 mb-2">
                       <Clock className="w-4 h-4 text-gray-500" />
                       <span className="text-sm font-medium text-gray-700">Date & Time</span>
                     </div>
-                    <div className="text-lg font-semibold text-gray-900">
+                    <div className="text-base sm:text-lg font-semibold text-gray-900">
                       {new Date(selectedSpin.spinDate).toLocaleDateString()}
                     </div>
                     <div className="text-sm text-gray-600">
@@ -1957,12 +2065,12 @@ export default function Customers() {
                     </div>
                   </div>
                   
-                  <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
                     <div className="flex items-center space-x-2 mb-2">
                       <Star className="w-4 h-4 text-gray-500" />
                       <span className="text-sm font-medium text-gray-700">Loyalty Points</span>
                     </div>
-                    <div className="text-lg font-semibold text-purple-600">
+                    <div className="text-base sm:text-lg font-semibold text-purple-600">
                       {selectedSpin.pointsEarned > 0 ? `+${selectedSpin.pointsEarned}` : '0'} points
                     </div>
                     <div className="text-sm text-gray-600">
@@ -1973,7 +2081,7 @@ export default function Customers() {
 
                 {/* Coupon Information */}
                 {selectedSpin.couponCode && (
-                  <div className="bg-gradient-to-br from-green-50 to-blue-50 border border-green-200 rounded-lg p-6 mb-6">
+                  <div className="bg-gradient-to-br from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
                     <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                       <Gift className="w-5 h-5 mr-2 text-green-600" />
                       Coupon Details
@@ -1982,8 +2090,8 @@ export default function Customers() {
                     <div className="space-y-4">
                       <div>
                         <label className="text-sm font-medium text-gray-700">Coupon Code</label>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <div className="flex-1 bg-white border border-gray-300 rounded-lg px-4 py-3 font-mono text-lg font-bold text-center">
+                        <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 mt-1">
+                          <div className="flex-1 bg-white border border-gray-300 rounded-lg px-4 py-3 font-mono text-base sm:text-lg font-bold text-center">
                             {selectedSpin.couponCode}
                           </div>
                           <button
@@ -1991,7 +2099,7 @@ export default function Customers() {
                               navigator.clipboard.writeText(selectedSpin.couponCode);
                               toast.success('Coupon code copied to clipboard!');
                             }}
-                            className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                            className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
                           >
                             <Copy className="w-4 h-4" />
                             <span>Copy</span>
@@ -2002,7 +2110,7 @@ export default function Customers() {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="text-sm font-medium text-gray-700">Reward Value</label>
-                          <div className="mt-1 text-lg font-semibold text-green-600">
+                          <div className="mt-1 text-base sm:text-lg font-semibold text-green-600">
                             {selectedSpin.resultMessage}
                           </div>
                         </div>
@@ -2035,7 +2143,7 @@ export default function Customers() {
                 )}
 
                 {/* Redemption Status */}
-                <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="bg-gray-50 rounded-lg p-4 mb-4 sm:mb-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-3">Redemption Status</h4>
                   
                   <div className="space-y-3">
@@ -2061,14 +2169,14 @@ export default function Customers() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex justify-end space-x-3">
+                <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-3">
                   {selectedSpin.couponCode && !selectedSpin.isRedeemed && (
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(selectedSpin.couponCode);
                         toast.success('Coupon code copied! Customer can use this now.');
                       }}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 order-1 sm:order-1"
                     >
                       <Copy className="w-4 h-4" />
                       <span>Copy for Customer</span>
@@ -2077,7 +2185,7 @@ export default function Customers() {
                   
                   <button
                     onClick={() => setSelectedSpin(null)}
-                    className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                    className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors order-2 sm:order-2"
                   >
                     Close
                   </button>

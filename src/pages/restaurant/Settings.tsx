@@ -19,6 +19,7 @@ import {
   Building,
   QrCode,
   CreditCard,
+  X,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -76,6 +77,10 @@ export default function Settings() {
   const [showTableForm, setShowTableForm] = useState(false);
   const [editingTable, setEditingTable] = useState<Table | null>(null);
   const [selectedArea, setSelectedArea] = useState<string>('all');
+  // This new state will control which view is shown on mobile.
+  // 'areas' will show the list of areas.
+  // 'tables' will show the list of tables for the selected area.
+  const [mobileView, setMobileView] = useState<'areas' | 'tables'>('areas');
 
   const { register: registerBusiness, handleSubmit: handleBusinessSubmit, reset: resetBusiness, formState: { errors: businessErrors } } = useForm<BusinessInfoForm>();
   const { register: registerArea, handleSubmit: handleAreaSubmit, reset: resetArea, setValue: setAreaValue } = useForm<TableAreaForm>();
@@ -458,678 +463,371 @@ export default function Settings() {
   if (!restaurant) return null;
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => window.history.back()}
-                className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              
-              <div 
-                className="w-12 h-12 rounded-2xl flex items-center justify-center text-white"
-                style={{ background: 'var(--gradient-primary)' }}
-              >
-                <SettingsIcon className="w-6 h-6" />
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="py-4 flex items-center gap-4">
+            <div className="p-2 bg-indigo-100 rounded-lg">
+              <SettingsIcon className="h-6 w-6 text-indigo-600" />
               </div>
-              
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Restaurant Settings</h1>
-                <p className="text-gray-600">Manage your restaurant configuration</p>
+              <h1 className="text-2xl font-bold text-gray-900">App Settings</h1>
+              <p className="text-sm text-gray-500">Manage your restaurant's configuration and details</p>
               </div>
             </div>
           </div>
         </div>
-      </header>
 
-      {/* Tab Navigation */}
+      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-          <div className="flex">
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <div className="sm:hidden">
+            <select
+              id="tabs"
+              name="tabs"
+              className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as 'business' | 'tables')}
+            >
+              <option value="business">Business Info</option>
+              <option value="tables">Tables & Areas</option>
+            </select>
+          </div>
+          <div className="hidden sm:block">
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8" aria-label="Tabs">
             <button
               onClick={() => setActiveTab('business')}
-              className={`flex-1 px-6 py-4 text-sm font-medium rounded-l-lg transition-colors ${
+                  className={`${
                 activeTab === 'business'
-                  ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-500'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              <Building2 className="w-5 h-5 mr-2 inline" />
-              Business Information
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Business Info
             </button>
-            
             <button
               onClick={() => setActiveTab('tables')}
-              className={`flex-1 px-6 py-4 text-sm font-medium rounded-r-lg transition-colors ${
+                  className={`${
                 activeTab === 'tables'
-                  ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-500'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              <Users className="w-5 h-5 mr-2 inline" />
-              Table Management
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  Tables & Areas
             </button>
+              </nav>
           </div>
         </div>
-
-        {/* Business Information Tab */}
-        {activeTab === 'business' && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Business Information</h2>
-              <p className="text-gray-600">Update your restaurant's business details for bills and receipts</p>
             </div>
 
-            <form onSubmit={handleBusinessSubmit(handleBusinessInfoSubmit)} className="space-y-8">
-              {/* Basic Information */}
+        {/* Tab Content */}
+        {isLoading ? (
+          <div className="text-center py-12">
+            <p>Loading settings...</p>
+          </div>
+        ) : (
               <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {activeTab === 'business' && (
+              <form onSubmit={handleBusinessSubmit(handleBusinessInfoSubmit)}>
+                <div className="space-y-8">
+                  {/* Basic Information Section */}
+                  <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Basic Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Restaurant Name
-                    </label>
-                    <input
-                      type="text"
-                      value={restaurant.name}
-                      disabled
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Restaurant name cannot be changed</p>
+                        <label className="block text-sm font-medium text-gray-700">Restaurant Name</label>
+                        <input type="text" value={restaurant.name} disabled className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm" />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Business Type
-                    </label>
-                    <input
-                      type="text"
-                      value={restaurant.businessType.charAt(0).toUpperCase() + restaurant.businessType.slice(1)}
-                      disabled
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
-                    />
+                        <label className="block text-sm font-medium text-gray-700">Business Type</label>
+                        <input type="text" value={restaurant.businessType.charAt(0).toUpperCase() + restaurant.businessType.slice(1)} disabled className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm sm:text-sm" />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        {...registerBusiness('phone')}
-                        type="tel"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="+91 98765 43210"
-                      />
+                        <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                        <input {...registerBusiness('phone')} type="tel" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                     </div>
-                  </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        {...registerBusiness('email')}
-                        type="email"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="restaurant@example.com"
-                      />
+                        <label className="block text-sm font-medium text-gray-700">Email Address</label>
+                        <input {...registerBusiness('email')} type="email" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                     </div>
-                  </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Website
-                    </label>
-                    <div className="relative">
-                      <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        {...registerBusiness('website')}
-                        type="url"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="https://restaurant.com"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tax Rate (%)
-                    </label>
-                    <input
-                      {...registerBusiness('taxRate', { 
-                        required: 'Tax rate is required',
-                        min: { value: 0, message: 'Tax rate cannot be negative' },
-                        max: { value: 100, message: 'Tax rate cannot exceed 100%' }
-                      })}
-                      type="number"
-                      step="0.01"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="18.00"
-                    />
-                    {businessErrors.taxRate && (
-                      <p className="text-red-600 text-sm mt-1">{businessErrors.taxRate.message}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Business Registration */}
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Business Registration</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      GSTIN Number
-                    </label>
-                    <div className="relative">
-                      <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        {...registerBusiness('gstin')}
-                        type="text"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="22AAAAA0000A1Z5"
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">GST Identification Number for tax compliance</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      FSSAI License Number
-                    </label>
-                    <div className="relative">
-                      <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        {...registerBusiness('fssaiNumber')}
-                        type="text"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="12345678901234"
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">Food Safety and Standards Authority of India License</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Business Address */}
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Business Address</h3>
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Business Address
-                    </label>
-                    <div className="relative">
-                      <Building className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                      <textarea
-                        {...registerBusiness('businessAddress')}
-                        rows={3}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter complete business address for bills and legal documents"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        City
-                      </label>
-                      <input
-                        {...registerBusiness('city')}
-                        type="text"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Mumbai"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        State
-                      </label>
-                      <input
-                        {...registerBusiness('state')}
-                        type="text"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Maharashtra"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        PIN Code
-                      </label>
-                      <input
-                        {...registerBusiness('pincode')}
-                        type="text"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="400001"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Country
-                    </label>
-                    <input
-                      {...registerBusiness('country')}
-                      type="text"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="India"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* UPI Payment Settings */}
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">UPI Payment Settings</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      UPI ID
-                    </label>
-                    <div className="relative">
-                      <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        {...registerBusiness('upiId')}
-                        type="text"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="restaurant@paytm or 9876543210@ybl"
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">Enter your UPI ID for customer payments (e.g., yourname@paytm, phone@ybl)</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      QR Code Display
-                    </label>
-                    <div className="flex items-center space-x-3 mt-3">
-                      <input
-                        {...registerBusiness('enableQRCode')}
-                        type="checkbox"
-                        className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                      />
-                      <div className="flex items-center space-x-2">
-                        <QrCode className="w-5 h-5 text-gray-400" />
-                        <span className="text-sm text-gray-700">Show UPI QR code on bills and receipts</span>
+                        <label className="block text-sm font-medium text-gray-700">Website</label>
+                        <input {...registerBusiness('website')} type="url" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                       </div>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">When enabled, customers can scan the QR code to pay directly via UPI</p>
+                  </div>
+
+                  {/* Financial Information Section */}
+                  <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Financial & Tax</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                  <div>
+                        <label className="block text-sm font-medium text-gray-700">Tax Rate (%)</label>
+                        <input {...registerBusiness('taxRate', { required: 'Required', min: 0, max: 100 })} type="number" step="0.01" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                        {businessErrors.taxRate && <p className="text-red-600 text-xs mt-1">{businessErrors.taxRate.message}</p>}
+                  </div>
+              <div>
+                        <label className="block text-sm font-medium text-gray-700">GSTIN Number</label>
+                        <input {...registerBusiness('gstin')} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                    </div>
+                  <div>
+                        <label className="block text-sm font-medium text-gray-700">FSSAI License Number</label>
+                        <input {...registerBusiness('fssaiNumber')} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                  </div>
+                </div>
+              </div>
+
+                  {/* Address Information Section */}
+                  <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Business Address</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700">Full Business Address</label>
+                        <textarea {...registerBusiness('businessAddress')} rows={3} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">City</label>
+                        <input {...registerBusiness('city')} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">State</label>
+                        <input {...registerBusiness('state')} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">PIN Code</label>
+                        <input {...registerBusiness('pincode')} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                    </div>
+                  <div>
+                        <label className="block text-sm font-medium text-gray-700">Country</label>
+                        <input {...registerBusiness('country')} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                  </div>
+                </div>
+              </div>
+
+                  {/* UPI Settings Section */}
+                  <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">UPI Payments</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <div>
+                        <label className="block text-sm font-medium text-gray-700">UPI ID</label>
+                        <input {...registerBusiness('upiId')} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                    </div>
+                      <div className="flex items-center">
+                        <input {...registerBusiness('enableQRCode')} type="checkbox" className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                        <label htmlFor="enableQRCode" className="ml-2 block text-sm text-gray-900">Enable UPI QR Code on Bills</label>
                   </div>
                 </div>
               </div>
 
               {/* Save Button */}
-              <div className="flex justify-end pt-6 border-t border-gray-200">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="btn btn-primary"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Business Information
-                    </>
-                  )}
+                  <div className="flex justify-end pt-4">
+                    <button type="submit" disabled={isSubmitting} className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
+                      <Save className="h-5 w-5 mr-2" />
+                      {isSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
-            </form>
           </div>
+              </form>
         )}
-
-        {/* Table Management Tab */}
         {activeTab === 'tables' && (
-          <div className="space-y-6">
-            {/* Table Areas Management */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Table Areas</h2>
-                  <p className="text-gray-600">Manage dining areas for better table organization</p>
-                </div>
-                
-                <button
-                  onClick={handleCreateArea}
-                  className="btn btn-primary"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Area
+                {/* Mobile View: Toggle between Areas and Tables */}
+                <div className="lg:hidden">
+                  {mobileView === 'areas' ? (
+                    /* Mobile: Area List */
+                    <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border h-full">
+                       <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800">Table Areas</h3>
+                        <button onClick={handleCreateArea} className="inline-flex items-center gap-2 px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                          <Plus size={16} /> New Area
                 </button>
               </div>
-
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <p className="text-gray-600 mt-2">Loading areas...</p>
-                </div>
-              ) : tableAreas.length === 0 ? (
-                <div className="text-center py-8">
-                  <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No table areas</h3>
-                  <p className="text-gray-600 mb-4">Create your first dining area to organize tables</p>
-                  <div className="flex items-center justify-center space-x-3">
-                    {tables.length === 0 && (
-                      <button
-                        onClick={handleInitializeDefaults}
-                        className="btn btn-primary"
-                        disabled={isLoading}
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Setup Default Tables
-                      </button>
-                    )}
-                    <button
-                      onClick={handleCreateArea}
-                      className="btn btn-secondary"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create First Area
-                    </button>
-                  </div>
-
+                      {tableAreas.length === 0 ? (
+                         <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-lg">
+                          <MapPin className="mx-auto h-12 w-12 text-gray-400" />
+                          <h3 className="mt-2 text-sm font-medium text-gray-900">No table areas</h3>
+                          <p className="mt-1 text-sm text-gray-500">Create areas to organize your tables.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="space-y-3">
                   {tableAreas.map((area) => {
                     const areaTableCount = tables.filter(t => t.areaId === area.id).length;
-                    
-                    return (
-                      <div
-                        key={area.id}
-                        className={`p-4 border rounded-lg ${
-                          area.isActive ? 'border-gray-200 bg-white' : 'border-gray-200 bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-medium text-gray-900">{area.name}</h3>
-                          <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => handleEditArea(area)}
-                              className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                            >
-                              <Edit3 className="w-4 h-4" />
+                             return(
+                              <div key={area.id} className="p-3 rounded-lg border bg-white hover:bg-gray-50">
+                                <div className="flex justify-between items-center">
+                                  <button onClick={() => { setSelectedArea(area.id); setMobileView('tables'); }} className="text-left flex-grow">
+                                    <h4 className="font-semibold text-gray-900">{area.name}</h4>
+                                    <p className="text-sm text-gray-600">{areaTableCount} tables</p>
                             </button>
-                            <button
-                              onClick={() => handleDeleteArea(area)}
-                              className="p-1 text-gray-400 hover:text-red-600 rounded"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                                  <div className="flex items-center gap-2">
+                                     <button onClick={(e) => { e.stopPropagation(); handleEditArea(area);}} className="p-1 text-gray-400 hover:text-indigo-600"><Edit3 size={16} /></button>
+                                     <button onClick={(e) => { e.stopPropagation(); handleDeleteArea(area);}} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
                           </div>
                         </div>
-                        
-                        {area.description && (
-                          <p className="text-sm text-gray-600 mb-2">{area.description}</p>
-                        )}
-                        
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">{areaTableCount} tables</span>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            area.isActive 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {area.isActive ? 'Active' : 'Inactive'}
-                          </span>
                         </div>
-                      </div>
-                    );
+                             )
                   })}
                 </div>
               )}
+                    </div>
+                  ) : (
+                    /* Mobile: Table List for a selected area */
+                    <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border h-full">
+                       <button onClick={() => setMobileView('areas')} className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-800 mb-4">
+                         <ArrowLeft size={16} /> Back to Areas
+                       </button>
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800">Tables in {tableAreas.find(a => a.id === selectedArea)?.name}</h3>
+                         <button onClick={handleCreateTable} className="inline-flex items-center gap-2 px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                           <Plus size={16} /> New Table
+                        </button>
             </div>
 
-            {/* Tables Management */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-6">
+                       {tables.filter(t => t.areaId === selectedArea).length === 0 ? (
+                         <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-lg">
+                            <Users className="mx-auto h-12 w-12 text-gray-400" />
+                            <h3 className="mt-2 text-sm font-medium text-gray-900">No tables found</h3>
+                            <p className="mt-1 text-sm text-gray-500">Add a table to this area.</p>
+                         </div>
+                       ) : (
+                         <div className="space-y-3">
+                           {tables.filter(t => t.areaId === selectedArea).map((table) => (
+                              <div key={table.id} className="p-3 rounded-lg border bg-white flex justify-between items-center">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Tables</h2>
-                  <p className="text-gray-600">Manage individual tables and their settings</p>
+                                  <h4 className="font-semibold text-gray-800">Table {table.number}</h4>
+                                  <p className="text-sm text-gray-500">Capacity: {table.capacity}</p>
                 </div>
-                
-                <div className="flex items-center space-x-4">
-                  {tableAreas.length > 0 && (
-                    <select
-                      value={selectedArea}
-                      onChange={(e) => setSelectedArea(e.target.value)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="all">All Areas</option>
-                      {tableAreas.map(area => (
-                        <option key={area.id} value={area.id}>
-                          {area.name}
-                        </option>
-                      ))}
-                    </select>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => handleEditTable(table)} className="p-1 text-gray-400 hover:text-indigo-600"><Edit3 size={16} /></button>
+                                    <button onClick={() => handleDeleteTable(table)} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
+                                </div>
+                              </div>
+                           ))}
+                         </div>
+                       )}
+                    </div>
                   )}
-                  
-                  <button
-                    onClick={handleCreateTable}
-                    className="btn btn-primary"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Table
-                  </button>
                 </div>
+
+                {/* Desktop View: Two Columns */}
+                <div className="hidden lg:grid lg:grid-cols-12 lg:gap-8">
+                  {/* Left Column: Table Areas */}
+                  <div className="lg:col-span-5 mb-6 lg:mb-0">
+                    <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border h-full">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800">Table Areas</h3>
+                        <button onClick={handleCreateArea} className="inline-flex items-center gap-2 px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                          <Plus size={16} /> New Area
+                  </button>
               </div>
 
-              {tableAreas.length === 0 && tables.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                  <div className="flex items-center">
-                    <div className="text-yellow-600 text-sm">
-                      ⚠️ You have {tables.length} tables but no table areas configured. Consider organizing your tables into areas.
+                      {tableAreas.length === 0 ? (
+                        <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-lg">
+                          <MapPin className="mx-auto h-12 w-12 text-gray-400" />
+                          <h3 className="mt-2 text-sm font-medium text-gray-900">No table areas</h3>
+                          <p className="mt-1 text-sm text-gray-500">Create areas to organize your tables.</p>
                     </div>
-                    <button
-                      onClick={() => createTableAreasFromExistingTables(tables)}
-                      className="ml-4 px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700"
-                      disabled={isLoading}
-                    >
-                      Fix Table Areas Now
+                      ) : (
+                        <div className="space-y-3">
+                          {tableAreas.map((area) => {
+                             const areaTableCount = tables.filter(t => t.areaId === area.id).length;
+                             return(
+                              <div key={area.id} className={`p-3 rounded-lg border ${selectedArea === area.id ? 'bg-indigo-50 border-indigo-300' : 'bg-white hover:bg-gray-50'}`}>
+                                <div className="flex justify-between items-center">
+                                  <button onClick={() => setSelectedArea(area.id)} className="text-left flex-grow">
+                                    <h4 className="font-semibold text-gray-900">{area.name}</h4>
+                                    <p className="text-sm text-gray-600">{areaTableCount} tables</p>
                     </button>
+                                  <div className="flex items-center gap-2">
+                                     <button onClick={() => handleEditArea(area)} className="p-1 text-gray-400 hover:text-indigo-600"><Edit3 size={16} /></button>
+                                     <button onClick={() => handleDeleteArea(area)} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
                   </div>
+                                </div>
+                              </div>
+                             )
+                          })}
                 </div>
               )}
+                    </div>
+                  </div>
 
-              {tables.length === 0 ? (
-                <div className="text-center py-8">
-                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No tables found</h3>
-                  <p className="text-gray-600 mb-4">Get started by setting up your restaurant tables</p>
-                  
-                  <button
-                    onClick={handleInitializeDefaults}
-                    className="btn btn-primary"
-                    disabled={isLoading}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Setup Default Tables & Areas
+                  {/* Right Column: Tables */}
+                  <div className="lg:col-span-7">
+                    <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border h-full">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800">Tables in {tableAreas.find(a => a.id === selectedArea)?.name || 'All Areas'}</h3>
+                         <button onClick={handleCreateTable} className="inline-flex items-center gap-2 px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                           <Plus size={16} /> New Table
                   </button>
                 </div>
-              ) : filteredTables.length === 0 ? (
-                <div className="text-center py-8">
-                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No tables found</h3>
-                  <p className="text-gray-600">
-                    {selectedArea === 'all' 
-                      ? 'Add your first table to get started'
-                      : 'No tables in the selected area'
-                    }
-                  </p>
+                      
+                       {tables.filter(t => selectedArea === 'all' || t.areaId === selectedArea).length === 0 ? (
+                         <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-lg">
+                            <Users className="mx-auto h-12 w-12 text-gray-400" />
+                            <h3 className="mt-2 text-sm font-medium text-gray-900">No tables found</h3>
+                            <p className="mt-1 text-sm text-gray-500">Add a table to this area.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full table-fixed">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="w-1/5 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Table
-                        </th>
-                        <th className="w-1/5 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Area
-                        </th>
-                        <th className="w-1/5 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Capacity
-                        </th>
-                        <th className="w-1/5 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="w-1/5 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredTables.map((table) => (
-                        <tr key={table.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4">
+                         <div className="space-y-3">
+                           {tables.filter(t => selectedArea === 'all' || t.areaId === selectedArea).map((table) => (
+                              <div key={table.id} className="p-3 rounded-lg border bg-white flex justify-between items-center">
                             <div>
-                              <div className="font-medium text-gray-900">Table {table.number}</div>
-                              {table.description && (
-                                <div className="text-sm text-gray-500">{table.description}</div>
-                              )}
+                                  <h4 className="font-semibold text-gray-800">Table {table.number}</h4>
+                                  <p className="text-sm text-gray-500">Capacity: {table.capacity}</p>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 bg-blue-50">
-                            <div className="font-medium text-blue-900">
-                              {table.area || 'No Area'}
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => handleEditTable(table)} className="p-1 text-gray-400 hover:text-indigo-600"><Edit3 size={16} /></button>
+                                    <button onClick={() => handleDeleteTable(table)} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
-                            {table.capacity} guests
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col space-y-1">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                table.status === 'available' ? 'bg-green-100 text-green-800' :
-                                table.status === 'occupied' ? 'bg-red-100 text-red-800' :
-                                table.status === 'reserved' ? 'bg-yellow-100 text-yellow-800' :
-                                table.status === 'cleaning' ? 'bg-blue-100 text-blue-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {table.status.replace('_', ' ')}
-                              </span>
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                table.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {table.isActive ? 'Active' : 'Inactive'}
-                              </span>
                             </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => handleEditTable(table)}
-                                className="p-2 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteTable(table)}
-                                className="p-2 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"
-                                disabled={table.status === 'occupied'}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                           ))}
                 </div>
               )}
+                    </div>
+                  </div>
             </div>
           </div>
         )}
+          </div>
+        )}
+      </div>
 
         {/* Area Form Modal */}
         {showAreaForm && (
-          <div className="fixed inset-0 z-50 overflow-y-auto">
-            <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-              <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={() => setShowAreaForm(false)}></div>
-              
-              <div className="inline-block w-full max-w-md my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {editingArea ? 'Edit Area' : 'Create New Area'}
-                  </h3>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-lg m-0 sm:m-4">
+             <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl">
+              <div className="flex justify-between items-center p-4 border-b">
+                <h3 className="text-lg font-semibold">{editingArea ? 'Edit Area' : 'Create New Area'}</h3>
+                <button onClick={() => setShowAreaForm(false)} className="p-1 rounded-full hover:bg-gray-200">
+                  <X size={20} />
+                </button>
                 </div>
-
-                <form onSubmit={handleAreaSubmit(onAreaSubmit)} className="p-6 space-y-4">
+              <form onSubmit={handleAreaSubmit(onAreaSubmit)} className="p-4 space-y-4">
+                {/* Form fields */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Area Name *
-                    </label>
-                    <input
-                      {...registerArea('name', { required: 'Area name is required' })}
-                      type="text"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Main Dining"
-                    />
+                  <label className="block text-sm font-medium text-gray-700">Area Name *</label>
+                  <input {...registerArea('name', { required: 'Area name is required' })} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Description
-                    </label>
-                    <textarea
-                      {...registerArea('description')}
-                      rows={3}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Optional description"
-                    />
+                   <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <textarea {...registerArea('description')} rows={3} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Sort Order
-                    </label>
-                    <input
-                      {...registerArea('sortOrder', { required: true, min: 1 })}
-                      type="number"
-                      min="1"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                  <label className="block text-sm font-medium text-gray-700">Sort Order</label>
+                  <input {...registerArea('sortOrder', { required: true, min: 1 })} type="number" min="1" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                   </div>
-
                   <div className="flex items-center">
-                    <input
-                      {...registerArea('isActive')}
-                      type="checkbox"
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
+                  <input {...registerArea('isActive')} type="checkbox" className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                     <label className="ml-2 text-sm text-gray-700">Active</label>
                   </div>
-
-                  <div className="flex justify-end space-x-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowAreaForm(false)}
-                      className="btn btn-secondary"
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary">
-                      {editingArea ? 'Update' : 'Create'} Area
-                    </button>
+                {/* Actions */}
+                <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={() => setShowAreaForm(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200">Cancel</button>
+                  <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700">{editingArea ? 'Update' : 'Create'} Area</button>
                   </div>
                 </form>
               </div>
@@ -1139,99 +837,50 @@ export default function Settings() {
 
         {/* Table Form Modal */}
         {showTableForm && (
-          <div className="fixed inset-0 z-50 overflow-y-auto">
-            <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-              <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={() => setShowTableForm(false)}></div>
-              
-              <div className="inline-block w-full max-w-md my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {editingTable ? 'Edit Table' : 'Create New Table'}
-                  </h3>
+         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-lg m-0 sm:m-4">
+             <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl">
+               <div className="flex justify-between items-center p-4 border-b">
+                <h3 className="text-lg font-semibold">{editingTable ? 'Edit Table' : 'Create New Table'}</h3>
+                <button onClick={() => setShowTableForm(false)} className="p-1 rounded-full hover:bg-gray-200">
+                  <X size={20} />
+                </button>
                 </div>
-
-                <form onSubmit={handleTableSubmit(onTableSubmit)} className="p-6 space-y-4">
+              <form onSubmit={handleTableSubmit(onTableSubmit)} className="p-4 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Table Number *
-                    </label>
-                    <input
-                      {...registerTable('number', { required: 'Table number is required' })}
-                      type="text"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="1"
-                    />
+                  <label className="block text-sm font-medium text-gray-700">Table Number *</label>
+                  <input {...registerTable('number', { required: 'Table number is required' })} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Area *
-                    </label>
-                    <select
-                      {...registerTable('areaId', { required: 'Area is required' })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
+                   <label className="block text-sm font-medium text-gray-700">Area *</label>
+                  <select {...registerTable('areaId', { required: 'Area is required' })} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                       <option value="">Select an area</option>
                       {tableAreas.filter(area => area.isActive).map(area => (
-                        <option key={area.id} value={area.id}>
-                          {area.name}
-                        </option>
+                      <option key={area.id} value={area.id}>{area.name}</option>
                       ))}
                     </select>
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Capacity *
-                    </label>
-                    <input
-                      {...registerTable('capacity', { required: 'Capacity is required', min: 1 })}
-                      type="number"
-                      min="1"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="4"
-                    />
+                  <label className="block text-sm font-medium text-gray-700">Capacity *</label>
+                  <input {...registerTable('capacity', { required: 'Capacity is required', min: 1 })} type="number" min="1" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Description
-                    </label>
-                    <input
-                      {...registerTable('description')}
-                      type="text"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Window table"
-                    />
+                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <input {...registerTable('description')} type="text" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                   </div>
-
                   <div className="flex items-center">
-                    <input
-                      {...registerTable('isActive')}
-                      type="checkbox"
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
+                  <input {...registerTable('isActive')} type="checkbox" className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                     <label className="ml-2 text-sm text-gray-700">Active</label>
                   </div>
-
-                  <div className="flex justify-end space-x-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowTableForm(false)}
-                      className="btn btn-secondary"
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary">
-                      {editingTable ? 'Update' : 'Create'} Table
-                    </button>
+                 <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={() => setShowTableForm(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200">Cancel</button>
+                  <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700">{editingTable ? 'Update' : 'Create'} Table</button>
                   </div>
                 </form>
               </div>
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }

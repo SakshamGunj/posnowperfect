@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Tag, Gift, AlertCircle, User, Percent, DollarSign, CreditCard } from 'lucide-react';
+import { X, Tag, Gift, AlertCircle, User, Percent, CreditCard } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { CouponService } from '@/services/couponService';
 import { CustomerService } from '@/services/customerService';
@@ -63,10 +63,6 @@ export default function PaymentModalWithCoupons({
     value: 0,
     reason: ''
   });
-  
-  // Tip/Gratuity
-  const [tip, setTip] = useState(0);
-  const [customTip, setCustomTip] = useState('');
 
   // Load customers on mount
   useEffect(() => {
@@ -120,7 +116,7 @@ export default function PaymentModalWithCoupons({
   const discountedSubtotal = Math.max(0, originalSubtotal - totalDiscountAmount);
   const discountedTax = (discountedSubtotal * (restaurant?.settings?.taxRate || 8.5)) / 100;
   const subtotalWithTax = discountedSubtotal + discountedTax;
-  const finalTotal = subtotalWithTax + tip;
+  const finalTotal = subtotalWithTax;
   const totalSavings = totalDiscountAmount + freeItemsValue;
 
   // Set default amount received to full amount if not set
@@ -189,6 +185,9 @@ export default function PaymentModalWithCoupons({
     setShowCustomerDropdown(searchTerm.length > 0);
     if (searchTerm.length === 0) {
       setSelectedCustomerId('');
+      // Clear credit customer details when search is cleared
+      setCreditCustomerName('');
+      setCreditCustomerPhone('');
     }
   };
 
@@ -196,12 +195,20 @@ export default function PaymentModalWithCoupons({
     setSelectedCustomerId(customer.id);
     setCustomerSearchTerm(customer.name || customer.phone || '');
     setShowCustomerDropdown(false);
+    
+    // Set credit customer details when a customer is selected
+    setCreditCustomerName(customer.name || '');
+    setCreditCustomerPhone(customer.phone || '');
   };
 
   const clearCustomer = () => {
     setSelectedCustomerId('');
     setCustomerSearchTerm('');
     setShowCustomerDropdown(false);
+    
+    // Clear credit customer details when customer is cleared
+    setCreditCustomerName('');
+    setCreditCustomerPhone('');
   };
 
   const handleCreateNewCustomer = async (name: string, phone: string) => {
@@ -236,17 +243,6 @@ export default function PaymentModalWithCoupons({
       console.error('Error creating customer:', error);
       toast.error('Failed to create customer');
     }
-  };
-
-  const handleTipSelect = (tipAmount: number) => {
-    setTip(tipAmount);
-    setCustomTip('');
-  };
-
-  const handleCustomTipChange = (value: string) => {
-    setCustomTip(value);
-    const tipValue = parseFloat(value) || 0;
-    setTip(tipValue);
   };
 
   const filteredCustomers = customers.filter(customer =>
@@ -292,7 +288,6 @@ export default function PaymentModalWithCoupons({
       appliedCoupon,
       manualDiscount: manualDiscount.value > 0 ? manualDiscount : null,
       customerId: creditCustomerId || null,
-      tip: tip > 0 ? tip : null,
       finalTotal,
       originalTotal,
       subtotalWithTax,
@@ -324,10 +319,10 @@ export default function PaymentModalWithCoupons({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-1 sm:px-4 pt-2 pb-4 sm:pt-4 sm:pb-20 text-center sm:block sm:p-0">
+    <div className="fixed inset-0 z-50 bg-black bg-opacity-50 p-0 sm:p-4">
+      <div className="flex items-end sm:items-center justify-center min-h-screen">
         <div 
-          className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" 
+          className="fixed inset-0" 
           onClick={() => {
             setShowCustomerDropdown(false);
             setShowCreditCustomerDropdown(false);
@@ -335,66 +330,34 @@ export default function PaymentModalWithCoupons({
           }}
         ></div>
         
-        <div className="inline-block w-full max-w-2xl my-2 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-lg sm:rounded-2xl max-h-[98vh] sm:max-h-[95vh] overflow-y-auto">
-          {/* Header */}
-          <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Process Payment</h3>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
-                <X className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
+        <div className="relative w-full max-w-lg mx-0 sm:mx-4 mb-0 sm:mb-4 bg-white shadow-2xl rounded-t-3xl sm:rounded-2xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col border-t-4 border-green-500 sm:border-t-0">
+          {/* Mobile drag indicator */}
+          <div className="flex justify-center pt-3 pb-1 sm:hidden">
+            <div className="w-10 h-1 bg-gray-300 rounded-full"></div>
+          </div>
+          
+          {/* Enhanced Header */}
+          <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 bg-white rounded-t-3xl sm:rounded-t-2xl">
+            <div>
+              <h3 className="text-xl sm:text-lg font-bold text-gray-900">Payment Processing</h3>
+              <p className="text-sm text-gray-600 mt-1">Complete your order payment</p>
             </div>
-            <p className="text-xs sm:text-sm text-gray-600 mt-1">
-              Table {table.number} - Enhanced with Coupon Support
-            </p>
+            <button 
+              onClick={onClose} 
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          <div className="px-3 sm:px-6 py-3 sm:py-4 space-y-4 sm:space-y-6">
-            {/* Order Summary */}
-            <div>
-              <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Order Summary</h4>
-              <div className="bg-gray-50 rounded-lg p-3 sm:p-4 space-y-3">
-                {orders.length > 0 ? (
-                  // Show individual orders with their details
-                  orders.map((order) => (
-                    <div key={order.id} className="border-b border-gray-200 last:border-b-0 pb-2 last:pb-0">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-medium text-gray-600">
-                          Order #{order.orderNumber}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {new Date(order.createdAt).toLocaleTimeString('en-US', { 
-                            hour: 'numeric', 
-                            minute: '2-digit',
-                            hour12: true 
-                          })}
-                        </span>
-                      </div>
-                      {order.items.map((item: any, itemIndex: number) => (
-                        <div key={itemIndex} className="flex justify-between text-xs sm:text-sm ml-2">
-                          <span className="truncate mr-2">{item.quantity}x {item.name}</span>
-                          <span className="whitespace-nowrap">{formatCurrency(item.total)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))
-                ) : (
-                  // Fallback to cart items if no orders provided (backward compatibility)
-                  cartItems.map((item, index) => (
-                    <div key={index} className="flex justify-between text-xs sm:text-sm">
-                      <span className="truncate mr-2">{item.quantity}x {item.name}</span>
-                      <span className="whitespace-nowrap">{formatCurrency(item.total)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 space-y-6 bg-gray-50">
 
             {/* Customer Selection */}
-            <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3 flex items-center text-sm sm:text-base">
-                <User className="w-4 h-4 mr-2 text-purple-600" />
-                Customer
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm">
+              <h4 className="font-semibold text-gray-900 mb-4 flex items-center text-base">
+                <User className="w-5 h-5 mr-2 text-purple-600" />
+                Customer Selection
               </h4>
               
               <div className="relative">
@@ -404,20 +367,20 @@ export default function PaymentModalWithCoupons({
                   onChange={(e) => handleCustomerSearch(e.target.value)}
                   onFocus={() => setShowCustomerDropdown(true)}
                   placeholder="Search customer by name, phone, or email..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-base bg-gray-50 focus:bg-white transition-colors"
                 />
                 
                 {selectedCustomer && (
-                  <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-purple-900 text-sm sm:text-base">{selectedCustomer.name}</div>
-                      <div className="text-xs sm:text-sm text-purple-600">
-                        {selectedCustomer.phone} • {selectedCustomer.visitCount} visits • Total spent: {formatCurrency(selectedCustomer.totalSpent)}
+                      <div className="font-medium text-purple-900 text-sm">{selectedCustomer.name}</div>
+                      <div className="text-xs text-purple-600">
+                        {selectedCustomer.phone} • {selectedCustomer.visitCount} visits
                       </div>
                     </div>
                     <button
                       onClick={clearCustomer}
-                      className="text-purple-600 hover:text-purple-800 p-1 rounded self-start sm:self-center"
+                      className="text-purple-600 hover:text-purple-800 p-1 rounded"
                       title="Remove customer"
                     >
                       <X className="w-4 h-4" />
@@ -442,7 +405,7 @@ export default function PaymentModalWithCoupons({
                       ))
                     ) : (
                       <>
-                        <div className="px-3 py-2 text-gray-500 text-xs sm:text-sm border-b border-gray-100">
+                        <div className="px-3 py-2 text-gray-500 text-sm border-b border-gray-100">
                           No customers found for "{customerSearchTerm}"
                         </div>
                         {customerSearchTerm.length >= 2 && (
@@ -473,14 +436,14 @@ export default function PaymentModalWithCoupons({
             </div>
 
             {/* Manual Discount Section */}
-            <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3 flex items-center text-sm sm:text-base">
-                <Percent className="w-4 h-4 mr-2 text-orange-600" />
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-sm">
+              <h4 className="font-semibold text-gray-900 mb-4 flex items-center text-base">
+                <Percent className="w-5 h-5 mr-2 text-orange-600" />
                 Manual Discount
               </h4>
               
               <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
+                <div className="flex gap-2">
                   <select
                     value={manualDiscount.type}
                     onChange={(e) => setManualDiscount(prev => ({ ...prev, type: e.target.value as 'percentage' | 'fixed' }))}
@@ -512,7 +475,7 @@ export default function PaymentModalWithCoupons({
                 
                 {manualDiscountAmount > 0 && (
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                    <div className="text-xs sm:text-sm text-orange-700">
+                    <div className="text-sm text-orange-700">
                       Manual discount: {formatCurrency(manualDiscountAmount)}
                       {manualDiscount.reason && (
                         <span className="block text-orange-600">Reason: {manualDiscount.reason}</span>
@@ -524,28 +487,28 @@ export default function PaymentModalWithCoupons({
             </div>
 
             {/* Coupon Section */}
-            <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3 flex items-center text-sm sm:text-base">
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3 flex items-center text-sm">
                 <Tag className="w-4 h-4 mr-2 text-blue-600" />
                 Apply Coupon
               </h4>
 
               {appliedCoupon ? (
                 // Applied Coupon Display
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="flex items-start space-x-3 min-w-0 flex-1">
-                      <Gift className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <Gift className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                       <div className="min-w-0 flex-1">
-                        <div className="font-medium text-green-800 text-sm sm:text-base">{appliedCoupon.coupon.name}</div>
-                        <div className="text-xs sm:text-sm text-green-600">Code: {appliedCoupon.coupon.code}</div>
+                        <div className="font-medium text-green-800 text-sm">{appliedCoupon.coupon.name}</div>
+                        <div className="text-xs text-green-600">Code: {appliedCoupon.coupon.code}</div>
                         {couponDiscountAmount > 0 && (
-                          <div className="text-xs sm:text-sm text-green-600">
+                          <div className="text-xs text-green-600">
                             Discount: {formatCurrency(couponDiscountAmount)}
                           </div>
                         )}
                         {freeItems.length > 0 && (
-                          <div className="text-xs sm:text-sm text-green-600">
+                          <div className="text-xs text-green-600">
                             Free: {freeItems.map(item => `${item.quantity}x ${item.name}`).join(', ')}
                           </div>
                         )}
@@ -553,7 +516,7 @@ export default function PaymentModalWithCoupons({
                     </div>
                     <button
                       onClick={handleRemoveCoupon}
-                      className="text-green-600 hover:text-green-800 p-1 rounded self-start sm:self-center flex-shrink-0"
+                      className="text-green-600 hover:text-green-800 p-1 rounded flex-shrink-0"
                       title="Remove coupon"
                     >
                       <X className="w-4 h-4" />
@@ -563,7 +526,7 @@ export default function PaymentModalWithCoupons({
               ) : (
                 // Coupon Input
                 <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
+                  <div className="flex gap-2">
                     <input
                       type="text"
                       value={couponCode}
@@ -584,7 +547,7 @@ export default function PaymentModalWithCoupons({
                   {couponError && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start space-x-2">
                       <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-                      <span className="text-xs sm:text-sm text-red-700">{couponError}</span>
+                      <span className="text-sm text-red-700">{couponError}</span>
                     </div>
                   )}
                 </div>
@@ -592,60 +555,53 @@ export default function PaymentModalWithCoupons({
             </div>
 
             {/* Pricing Breakdown */}
-            <div className="border-t pt-4">
+            <div>
               <div className="space-y-2">
-                <div className="flex justify-between text-xs sm:text-sm">
+                <div className="flex justify-between text-sm">
                   <span>Subtotal:</span>
                   <span className={appliedCoupon ? 'line-through text-gray-500' : ''}>{formatCurrency(originalSubtotal)}</span>
                 </div>
                 
                 {couponDiscountAmount > 0 && (
-                  <div className="flex justify-between text-xs sm:text-sm text-green-600">
+                  <div className="flex justify-between text-sm text-green-600">
                     <span>Coupon Discount:</span>
                     <span>-{formatCurrency(couponDiscountAmount)}</span>
                   </div>
                 )}
                 
                 {manualDiscountAmount > 0 && (
-                  <div className="flex justify-between text-xs sm:text-sm text-orange-600">
+                  <div className="flex justify-between text-sm text-orange-600">
                     <span>Manual Discount ({manualDiscount.type === 'percentage' ? `${manualDiscount.value}%` : 'Fixed'}):</span>
                     <span>-{formatCurrency(manualDiscountAmount)}</span>
                   </div>
                 )}
                 
                 {totalDiscountAmount > 0 && (
-                  <div className="flex justify-between text-xs sm:text-sm">
+                  <div className="flex justify-between text-sm">
                     <span>Discounted Subtotal:</span>
                     <span>{formatCurrency(discountedSubtotal)}</span>
                   </div>
                 )}
                 
-                <div className="flex justify-between text-xs sm:text-sm">
+                <div className="flex justify-between text-sm">
                   <span>Tax ({restaurant?.settings?.taxRate || 8.5}%):</span>
                   <span>{formatCurrency(discountedTax)}</span>
                 </div>
                 
                 {freeItems.length > 0 && (
-                  <div className="flex justify-between text-xs sm:text-sm text-green-600">
+                  <div className="flex justify-between text-sm text-green-600">
                     <span>Free Items Value:</span>
                     <span>{formatCurrency(freeItemsValue)} (FREE)</span>
                   </div>
                 )}
                 
-                {tip > 0 && (
-                  <div className="flex justify-between text-xs sm:text-sm text-blue-600">
-                    <span>Tip/Gratuity:</span>
-                    <span>+{formatCurrency(tip)}</span>
-                  </div>
-                )}
-                
-                <div className="flex justify-between text-base sm:text-lg font-bold border-t pt-2">
+                <div className="flex justify-between text-lg font-bold border-t pt-2">
                   <span>Final Total:</span>
                   <span>{formatCurrency(finalTotal)}</span>
                 </div>
                 
                 {totalSavings > 0 && (
-                  <div className="flex justify-between text-xs sm:text-sm text-green-600 font-medium">
+                  <div className="flex justify-between text-sm text-green-600 font-medium">
                     <span>Total Savings:</span>
                     <span>{formatCurrency(totalSavings)}</span>
                   </div>
@@ -653,61 +609,9 @@ export default function PaymentModalWithCoupons({
               </div>
             </div>
 
-            {/* Tip/Gratuity Section */}
-            <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3 flex items-center text-sm sm:text-base">
-                <DollarSign className="w-4 h-4 mr-2 text-green-600" />
-                Tip / Gratuity
-              </h4>
-              
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2">
-                  {[10, 15, 20, 25].map((percentage) => {
-                    const tipAmount = (subtotalWithTax * percentage) / 100;
-                    return (
-                      <button
-                        key={percentage}
-                        onClick={() => handleTipSelect(tipAmount)}
-                        className={`p-2 border rounded-lg text-center text-xs sm:text-sm ${
-                          Math.abs(tip - tipAmount) < 0.01
-                            ? 'border-green-500 bg-green-50 text-green-700'
-                            : 'border-gray-300 hover:border-gray-400'
-                        }`}
-                      >
-                        {percentage}%<br />
-                        <span className="text-xs">{formatCurrency(tipAmount)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
-                  <input
-                    type="number"
-                    value={customTip}
-                    onChange={(e) => handleCustomTipChange(e.target.value)}
-                    placeholder="Custom tip amount"
-                    min="0"
-                    step="0.01"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
-                  />
-                  <button
-                    onClick={() => handleTipSelect(0)}
-                    className={`px-4 py-2 border rounded-lg text-xs sm:text-sm whitespace-nowrap ${
-                      tip === 0
-                        ? 'border-gray-500 bg-gray-50 text-gray-700'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    No Tip
-                  </button>
-                </div>
-              </div>
-            </div>
-
             {/* Payment Method Selection */}
-            <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 text-sm sm:text-base mb-4">Payment Method</h4>
+            <div>
+              <h4 className="font-medium text-gray-900 text-sm mb-4">Payment Method</h4>
               
               {/* Mobile-Optimized Payment Options */}
               <div className="space-y-3 mb-4">
@@ -762,7 +666,7 @@ export default function PaymentModalWithCoupons({
 
               {!isSplitPayment ? (
                 // Single Payment Method
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {['cash', 'upi', 'bank'].map((method) => (
                     <button
                       key={method}
@@ -889,7 +793,7 @@ export default function PaymentModalWithCoupons({
             {/* Amount Received - Show for all payment methods */}
             {!isSplitPayment && (
               <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Amount Received
                 </label>
                 <input
@@ -903,17 +807,17 @@ export default function PaymentModalWithCoupons({
                   placeholder={finalTotal.toString()}
                 />
                 {addWholeAmountAsCredit && (
-                  <div className="mt-2 text-xs sm:text-sm text-orange-600 font-medium">
+                  <div className="mt-2 text-sm text-orange-600 font-medium">
                     ✓ Whole amount will be added as credit
                   </div>
                 )}
                 {parseFloat(amountReceived) > finalTotal && !addWholeAmountAsCredit && (
-                  <div className="mt-2 text-xs sm:text-sm text-gray-600">
+                  <div className="mt-2 text-sm text-gray-600">
                     Change: {formatCurrency(parseFloat(amountReceived) - finalTotal)}
                   </div>
                 )}
                 {isCredit && !addWholeAmountAsCredit && (
-                  <div className="mt-2 text-xs sm:text-sm text-orange-600 font-medium">
+                  <div className="mt-2 text-sm text-orange-600 font-medium">
                     Credit Amount: {formatCurrency(creditAmount)}
                   </div>
                 )}
@@ -922,8 +826,8 @@ export default function PaymentModalWithCoupons({
 
             {/* Credit Customer Details - Show when amount is less than total OR whole amount as credit */}
             {isCredit && (
-              <div className="border border-orange-200 rounded-lg p-3 sm:p-4 bg-orange-50">
-                <h4 className="font-medium text-orange-900 mb-3 flex items-center text-sm sm:text-base">
+              <div className="border border-orange-200 rounded-lg p-3 bg-orange-50">
+                <h4 className="font-medium text-orange-900 mb-3 flex items-center text-sm">
                   <CreditCard className="w-4 h-4 mr-2" />
                   Credit Customer Details
                 </h4>
@@ -964,7 +868,7 @@ export default function PaymentModalWithCoupons({
                       💡 Tip: Search for a customer above or enter details manually below
                     </div>
                     <div className="relative">
-                      <label className="block text-xs sm:text-sm font-medium text-orange-700 mb-1">
+                      <label className="block text-sm font-medium text-orange-700 mb-1">
                         Customer Name *
                       </label>
                       <input
@@ -1038,7 +942,7 @@ export default function PaymentModalWithCoupons({
                     
                     {/* Add spacing between name and phone inputs */}
                     <div className="pt-3">
-                      <label className="block text-xs sm:text-sm font-medium text-orange-700 mb-1">
+                      <label className="block text-sm font-medium text-orange-700 mb-1">
                         Phone Number *
                       </label>
                       <input
@@ -1069,7 +973,7 @@ export default function PaymentModalWithCoupons({
                       </div>
                     )}
                     <div className="bg-orange-100 border border-orange-200 rounded p-3">
-                      <p className="text-xs sm:text-sm text-orange-800">
+                      <p className="text-sm text-orange-800">
                         <strong>Credit Summary:</strong><br />
                         Total Bill: {formatCurrency(finalTotal)}<br />
                         Amount Received: {formatCurrency(actualAmountReceived)}<br />
@@ -1082,23 +986,17 @@ export default function PaymentModalWithCoupons({
             )}
           </div>
 
-          {/* Footer */}
-          <div className="px-3 sm:px-6 py-3 sm:py-4 border-t border-gray-200">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-              <div className="text-xs sm:text-sm text-gray-600">
-              {appliedCoupon && (
-                <span className="text-green-600 font-medium">
-                  🎉 Coupon applied! You saved {formatCurrency(totalSavings)}
-                </span>
-              )}
-            </div>
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <button
-                onClick={onClose}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm sm:text-base"
-              >
-                Cancel
-              </button>
+          {/* Enhanced Sticky Footer */}
+          <div className="px-4 sm:px-6 py-4 sm:py-5 border-t border-gray-200 bg-white sticky bottom-0 z-10 shadow-[0_-4px_8px_rgba(0,0,0,0.1)]">
+            {appliedCoupon && (
+              <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-xl">
+                <div className="text-sm text-green-800 font-medium text-center">
+                  🎉 Coupon Applied! You saved {formatCurrency(totalSavings)}
+                </div>
+              </div>
+            )}
+            
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handlePayment}
                 disabled={isProcessing || 
@@ -1106,24 +1004,29 @@ export default function PaymentModalWithCoupons({
                   (isSplitPayment && (splitAmount1 <= 0 || splitAmount2 <= 0)) ||
                   (addWholeAmountAsCredit && !selectedCustomer && (!creditCustomerName.trim() || !creditCustomerPhone.trim()))
                 }
-                className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                className="flex-1 sm:flex-[2] px-6 py-3 bg-green-600 text-white border-2 border-green-600 rounded-xl hover:bg-green-700 hover:border-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-base font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center justify-center"
               >
-                <span className="block sm:hidden">
-                  {isProcessing ? 'Processing...' : 
-                   addWholeAmountAsCredit ? `Add ${formatCurrency(finalTotal)} as Credit` :
-                   isSplitPayment ? `Pay ${formatCurrency(totalSplitAmount)}${!isSplitAmountValid ? ` (${splitPaymentShortfall > 0 ? 'Short' : 'Over'})` : ''}` :
-                   isCredit ? `Pay ${formatCurrency(actualAmountReceived)}` : 
-                   `Pay ${formatCurrency(finalTotal)}`}
-                </span>
-                <span className="hidden sm:block">
-                  {isProcessing ? 'Processing...' : 
-                   addWholeAmountAsCredit ? `Add ${formatCurrency(finalTotal)} as Credit` :
-                   isSplitPayment ? `Pay ${formatCurrency(totalSplitAmount)}${!isSplitAmountValid ? ` (${splitPaymentShortfall > 0 ? 'Shortfall' : 'Overpayment'}: ${formatCurrency(Math.abs(splitPaymentShortfall))})` : ''}` :
-                   isCredit ? `Pay ${formatCurrency(actualAmountReceived)} (Credit: ${formatCurrency(creditAmount)})` : 
-                   `Pay ${formatCurrency(finalTotal)}`}
-                </span>
+                {isProcessing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                    Processing Payment...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-5 h-5 mr-2" />
+                    {addWholeAmountAsCredit ? `Add ${formatCurrency(finalTotal)} as Credit` :
+                     isSplitPayment ? `Pay ${formatCurrency(totalSplitAmount)}` :
+                     isCredit ? `Pay ${formatCurrency(actualAmountReceived)}` : 
+                     `Pay ${formatCurrency(finalTotal)}`}
+                  </>
+                )}
               </button>
-              </div>
+              <button
+                onClick={onClose}
+                className="w-full sm:w-auto px-6 py-3 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

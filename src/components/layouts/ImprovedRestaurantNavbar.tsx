@@ -9,12 +9,8 @@ import {
   CreditCard,
   Settings,
   Store,
-  Menu,
-  X,
   User,
   LogOut,
-  Bell,
-  Search,
   Gift,
   Grid3X3,
   ChevronDown,
@@ -25,6 +21,8 @@ import {
   Gamepad2,
   UserCheck,
   Smartphone,
+  Mic,
+  MicOff,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -38,23 +36,28 @@ export default function ImprovedRestaurantNavbar() {
   const userRoleDisplay = useUserRoleDisplay();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
+  const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false); // Keep for desktop dropdown
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(() => {
+    // Initialize from localStorage, default to true
+    const stored = localStorage.getItem('voiceEnabled');
+    return stored !== null ? JSON.parse(stored) : true;
+  });
+
+  // Update localStorage when voice state changes
+  const toggleVoice = () => {
+    const newState = !isVoiceEnabled;
+    setIsVoiceEnabled(newState);
+    localStorage.setItem('voiceEnabled', JSON.stringify(newState));
+  };
 
   if (!restaurant) return null;
 
   const primaryNavigationItems = [
     {
-      name: 'Dashboard',
-      href: `/${restaurant.slug}/dashboard`,
-      icon: Home,
-      current: location.pathname === `/${restaurant.slug}/dashboard` || location.pathname === `/${restaurant.slug}`,
-    },
-    {
       name: 'Tables',
       href: `/${restaurant.slug}/tables`,
       icon: Users,
-      current: location.pathname === `/${restaurant.slug}/tables`,
+      current: location.pathname === `/${restaurant.slug}/tables` || location.pathname === `/${restaurant.slug}`,
     },
     {
       name: 'Orders',
@@ -175,10 +178,39 @@ export default function ImprovedRestaurantNavbar() {
   // Filter menu items based on permissions
   const quickMenuItems = allQuickMenuItems.filter(item => canAccess(item.moduleId));
 
+  // Exclude primary navigation items from the quick menu list for mobile to avoid duplication
+  const mobileQuickMenuItems = quickMenuItems.filter(
+    item => !primaryNavigationItems.some(primary => primary.name === item.name || (primary.name === 'Orders' && item.name === 'Orders Dashboard') || (primary.name === 'Tables' && item.name === 'Manage Tables'))
+  );
+
+  // Function to simplify menu names to single words
+  const getSimplifiedName = (name: string) => {
+    const nameMap: { [key: string]: string } = {
+      'Tables': 'Tables',
+      'Orders': 'Orders', 
+      'Manage Tables': 'Tables',
+      'Orders Dashboard': 'Orders',
+      'Menu Management': 'Menu',
+      'Inventory Management': 'Inventory',
+      'Kitchen Display': 'Kitchen',
+      'Customer Portal': 'Portal',
+      'Customer Management': 'Customers',
+      'Credit Management': 'Credits',
+      'Coupon Dashboard': 'Coupons',
+      'Gamification Tools': 'Games',
+      'Employee Management': 'Employees',
+      'Marketplace': 'Market',
+      'Expense Tracker': 'Expenses',
+      'Business Reports': 'Reports',
+      'Settings': 'Settings'
+    };
+    
+    return nameMap[name] || name.split(' ')[0]; // Fallback to first word if not in map
+  };
+
   const handleNavigation = (href: string) => {
     navigate(href);
-    setIsMobileMenuOpen(false);
-    setIsQuickMenuOpen(false);
+    setIsQuickMenuOpen(false); // Close desktop dropdown on navigation
   };
 
   const handleLogout = async () => {
@@ -191,22 +223,24 @@ export default function ImprovedRestaurantNavbar() {
   };
 
   return (
-    <>
-      <nav className="bg-white/95 backdrop-blur-md shadow-lg border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
+    <div className="lg:hidden">
+      <nav className="bg-white/98 backdrop-blur-lg shadow-lg border-b border-gray-200/80 fixed top-0 left-0 right-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             {/* Logo and Restaurant Info */}
             <div className="flex items-center">
               <div className="flex-shrink-0 flex items-center">
                 <div 
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white mr-3 shadow-lg"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white mr-3 shadow-lg transition-transform duration-200 hover:scale-105"
                   style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
                 >
                   <Store className="w-5 h-5" />
                 </div>
                 <div className="hidden sm:block">
-                  <h1 className="text-xl font-bold text-gray-900">{restaurant.name}</h1>
-                  <p className="text-xs text-gray-500">Restaurant POS</p>
+                  <h1 className="text-xl font-bold text-gray-900 bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text">
+                    {restaurant.name}
+                  </h1>
+                  <p className="text-xs text-gray-500 font-medium">Restaurant POS</p>
                 </div>
               </div>
             </div>
@@ -220,10 +254,10 @@ export default function ImprovedRestaurantNavbar() {
                   <button
                     key={item.name}
                     onClick={() => handleNavigation(item.href)}
-                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 ${
+                    className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-105 active:scale-95 ${
                       item.current
-                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md transform scale-105'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
+                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg transform scale-105 border border-blue-400/30'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80 border border-transparent hover:border-gray-200'
                     }`}
                   >
                     <Icon className="w-4 h-4 mr-2" />
@@ -236,14 +270,14 @@ export default function ImprovedRestaurantNavbar() {
               <div className="relative">
                 <button
                   onClick={() => setIsQuickMenuOpen(!isQuickMenuOpen)}
-                  className="flex items-center px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100/80 transition-all duration-200 hover:scale-105"
+                  className="flex items-center px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100/80 transition-all duration-300 hover:scale-105 active:scale-95 border border-transparent hover:border-gray-200"
                 >
                   <Grid3X3 className="w-4 h-4 mr-2" />
                   Quick Menu
-                  <ChevronDown className={`w-4 h-4 ml-2 transition-transform duration-200 ${isQuickMenuOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 ml-2 transition-transform duration-300 ${isQuickMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* Dropdown Menu */}
+                {/* Dropdown Menu with enhanced styling */}
                 {isQuickMenuOpen && (
                   <>
                     <div 
@@ -264,7 +298,7 @@ export default function ImprovedRestaurantNavbar() {
                       }}
                     ></div>
                     <div 
-                      className="absolute top-full mt-2 w-80 max-h-96 bg-white rounded-xl shadow-2xl border border-gray-200 py-2 z-50 overflow-hidden"
+                      className="absolute top-full mt-2 w-80 max-h-96 bg-white/98 backdrop-blur-lg rounded-xl shadow-2xl border border-gray-200/80 py-2 z-50 overflow-hidden animate-in slide-in-from-top-2 duration-200"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="px-4 py-2 border-b border-gray-100">
@@ -280,15 +314,15 @@ export default function ImprovedRestaurantNavbar() {
                             <button
                               key={item.name}
                               onClick={() => handleNavigation(item.href)}
-                              className={`flex items-start w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
+                              className={`flex items-start w-full px-4 py-3 text-left hover:bg-gray-50 transition-all duration-200 active:scale-[0.98] ${
                                 isCurrentPage ? 'bg-blue-50 border-r-2 border-blue-500' : ''
                               }`}
                             >
-                              <Icon className={`w-5 h-5 mr-3 mt-0.5 flex-shrink-0 ${
+                              <Icon className={`w-5 h-5 mr-3 mt-0.5 flex-shrink-0 transition-colors duration-200 ${
                                 isCurrentPage ? 'text-blue-600' : 'text-gray-400'
                               }`} />
                               <div>
-                                <p className={`text-sm font-medium ${
+                                <p className={`text-sm font-medium transition-colors duration-200 ${
                                   isCurrentPage ? 'text-blue-900' : 'text-gray-900'
                                 }`}>
                                   {item.name}
@@ -305,58 +339,38 @@ export default function ImprovedRestaurantNavbar() {
               </div>
             </div>
 
-            {/* Right side - Search, Notifications, User Menu */}
+            {/* Right side - User Menu and Voice Toggle */}
             <div className="flex items-center space-x-3">
-              {/* Search - Hidden on small screens */}
-              <div className="hidden xl:block relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-4 w-4 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="block w-48 pl-10 pr-3 py-2 border border-gray-300 rounded-xl text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
-                />
-              </div>
-
-              {/* Search button for smaller screens */}
-              <button className="xl:hidden p-2.5 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100 transition-colors">
-                <Search className="w-5 h-5" />
-              </button>
-
-              {/* Notifications */}
-              <button className="p-2.5 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100 transition-colors relative">
-                <Bell className="w-5 h-5" />
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+              {/* Voice Toggle */}
+              <button
+                onClick={toggleVoice}
+                className={`p-2.5 rounded-xl transition-all duration-300 hover:scale-105 active:scale-95 ${
+                  isVoiceEnabled 
+                    ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 shadow-lg border border-blue-200' 
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200'
+                }`}
+                title={isVoiceEnabled ? 'Disable Voice Commands' : 'Enable Voice Commands'}
+              >
+                {isVoiceEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
               </button>
 
               {/* User Menu */}
-              <div className="hidden md:flex items-center space-x-3 bg-gray-50 rounded-xl px-3 py-2">
+              <div className="hidden md:flex items-center space-x-3 bg-gray-50/80 backdrop-blur-sm rounded-xl px-3 py-2 border border-gray-200/50 hover:bg-gray-100/80 transition-all duration-200">
                 <div className="text-right">
                   <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
                   <p className="text-xs text-gray-500">{userRoleDisplay}</p>
                 </div>
                 
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-md">
                   <User className="w-4 h-4 text-white" />
                 </div>
                 
                 <button
                   onClick={handleLogout}
-                  className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                  className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all duration-200 hover:scale-105 active:scale-95"
                   title="Logout"
                 >
                   <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Mobile menu button */}
-              <div className="lg:hidden">
-                <button
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  className="p-2.5 text-gray-600 hover:text-gray-900 rounded-xl hover:bg-gray-100 transition-colors"
-                >
-                  <Menu className="w-6 h-6" />
                 </button>
               </div>
             </div>
@@ -364,138 +378,138 @@ export default function ImprovedRestaurantNavbar() {
         </div>
       </nav>
 
-      {/* Mobile Sidebar Overlay */}
-      {isMobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-50">
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300"
-            onClick={() => setIsMobileMenuOpen(false)}
-          ></div>
-          
-          {/* Sidebar */}
-          <div className="fixed inset-y-0 right-0 w-80 max-w-[85vw] bg-white shadow-2xl transform transition-transform ease-in-out duration-300 flex flex-col">
-            {/* Sidebar Header */}
-            <div className="flex-shrink-0 flex items-center justify-between p-6 border-b border-gray-200">
-              <div className="flex items-center space-x-3">
-                <div 
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg"
-                  style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-                >
-                  <Store className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">{restaurant.name}</h2>
-                  <p className="text-xs text-gray-500">Restaurant POS</p>
-                </div>
-              </div>
-              
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100"
-              >
-                <X className="w-6 h-6" />
-              </button>
+      {/* Sticky Bottom Navigation for Mobile - Always Visible */}
+      <div className="lg:hidden fixed bottom-1 left-2 right-2 z-50">
+        <div className="bg-white/95 backdrop-blur-lg shadow-2xl border border-gray-200/80 rounded-t-2xl overflow-hidden">
+          <div className="w-full pt-1 pb-1">
+            {/* Horizontal scroll indicator */}
+            <div className="flex justify-center mb-1">
+              <div className="w-8 h-1 bg-gray-300 rounded-full opacity-60"></div>
             </div>
-
-            {/* Navigation Items */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-6 space-y-2" style={{ WebkitOverflowScrolling: 'touch' }}>
-              {/* Primary Items */}
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
-                  Main Navigation
-                </h3>
+            
+            {/* Scrollable container with gradient mask for scroll indication */}
+            <div 
+              className="relative overflow-x-auto overflow-y-hidden scrollbar-hide scroll-smooth"
+              style={{
+                WebkitOverflowScrolling: 'touch',
+                maskImage: 'linear-gradient(to right, transparent, black 10px, black 90%, transparent)',
+                maskSize: '100% 100%',
+                maskRepeat: 'no-repeat',
+              }}
+            >
+              <div 
+                className="flex items-center space-x-0.5 px-3 py-1"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              >
+                {/* Primary Navigation Items */}
                 {primaryNavigationItems.map((item) => {
                   const Icon = item.icon;
+                  const isCurrentPage = item.current;
                   return (
                     <button
-                      key={item.name}
+                      key={`primary-${item.name}`}
                       onClick={() => handleNavigation(item.href)}
-                      className={`flex items-center w-full px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                        item.current
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                      }`}
+                      className="mobile-nav-button flex-shrink-0"
                     >
-                      <Icon className="w-5 h-5 mr-3" />
-                      {item.name}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Quick Menu Items */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
-                  Quick Access
-                </h3>
-                {quickMenuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isCurrentPage = location.pathname === item.href;
-                  return (
-                    <button
-                      key={item.name}
-                      onClick={() => handleNavigation(item.href)}
-                      className={`flex items-start w-full px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                        isCurrentPage
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Icon className="w-5 h-5 mr-3 mt-0.5" />
-                      <div className="text-left">
-                        <div>{item.name}</div>
-                        <div className={`text-xs mt-0.5 ${
-                          isCurrentPage ? 'text-blue-100' : 'text-gray-500'
-                        }`}>
-                          {item.description}
-                        </div>
+                      <div className={`
+                        flex flex-col items-center justify-center h-full w-[64px] p-1 rounded-xl
+                        transition-all duration-200 transform
+                        ${isCurrentPage 
+                          ? 'bg-blue-600 text-white shadow-lg scale-100' 
+                          : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
+                        }`
+                      }>
+                        <Icon className="w-4 h-4 mb-0.5" />
+                        <span className="text-xs text-center leading-tight font-medium">
+                          {getSimplifiedName(item.name)}
+                        </span>
                       </div>
                     </button>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Mobile Search */}
-            <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-4 w-4 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Mobile User Info */}
-            <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200">
-              <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                    <User className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
-                    <p className="text-xs text-gray-500">{userRoleDisplay}</p>
-                  </div>
-                </div>
                 
-                <button
-                  onClick={handleLogout}
-                  className="p-2 text-gray-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-colors"
-                  title="Logout"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
+                {/* Separator */}
+                <div className="h-10 w-px bg-gray-200/80 mx-1"></div>
+
+                {/* Quick Menu Items */}
+                {mobileQuickMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isCurrentPage = location.pathname === item.href;
+                  return (
+                    <button
+                      key={`quick-${item.name}`}
+                      onClick={() => handleNavigation(item.href)}
+                      className="mobile-nav-button flex-shrink-0"
+                    >
+                       <div className={`
+                        flex flex-col items-center justify-center h-full w-[64px] p-1 rounded-xl
+                        transition-all duration-200 transform
+                        ${isCurrentPage 
+                          ? 'bg-blue-600 text-white shadow-lg scale-100' 
+                          : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
+                        }`
+                      }>
+                        <Icon className="w-4 h-4 mb-0.5" />
+                        <span className="text-xs text-center leading-tight font-medium">
+                          {getSimplifiedName(item.name)}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+                
+                {/* User Actions Section Separator */}
+                <div className="h-10 w-px bg-gray-200/80 mx-1"></div>
+
+                {/* User Actions Section */}
+                <div className="flex items-center space-x-0.5">
+                  {/* Voice Toggle Button */}
+                  <button
+                    onClick={toggleVoice}
+                    className="mobile-nav-button flex-shrink-0"
+                  >
+                    <div className={`
+                      flex flex-col items-center justify-center h-full w-[64px] p-1 rounded-xl
+                      transition-all duration-200 transform
+                      ${isVoiceEnabled 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
+                      }`
+                    }>
+                      {isVoiceEnabled 
+                        ? <Mic className="w-4 h-4 mb-0.5" /> 
+                        : <MicOff className="w-4 h-4 mb-0.5" />}
+                      <span className="text-xs text-center leading-tight font-medium">Voice</span>
+                    </div>
+                  </button>
+                  
+                  {/* User Profile Button */}
+                  <button
+                    onClick={() => {/* TODO: navigate to profile page */}}
+                    className="mobile-nav-button flex-shrink-0"
+                  >
+                    <div className="flex flex-col items-center justify-center h-full w-[64px] p-1 rounded-xl text-gray-700 hover:bg-gray-100 active:bg-gray-200 transition-all duration-200">
+                      <User className="w-4 h-4 mb-0.5" />
+                      <span className="text-xs text-center leading-tight font-medium">Profile</span>
+                    </div>
+                  </button>
+                  
+                  {/* Logout Button */}
+                  <button
+                    onClick={handleLogout}
+                    className="mobile-nav-button flex-shrink-0"
+                  >
+                    <div className="flex flex-col items-center justify-center h-full w-[64px] p-1 rounded-xl text-red-600 hover:bg-red-50 active:bg-red-100 transition-all duration-200">
+                      <LogOut className="w-4 h-4 mb-0.5" />
+                      <span className="text-xs text-center leading-tight font-medium">Logout</span>
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      )}
-    </>
+      </div>
+    </div>
   );
 } 

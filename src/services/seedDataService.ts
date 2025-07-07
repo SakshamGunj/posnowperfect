@@ -9,7 +9,8 @@ import {
   Table, 
   Order, 
   OrderItem,
-  Category
+  Category,
+  OrderStatus
 } from '@/types';
 import { generateId, generateOrderNumber } from '@/lib/utils';
 
@@ -352,7 +353,7 @@ export class SeedDataService {
         orderNumber: generateOrderNumber(restaurantId),
         tableId: table.id,
         type: 'dine_in',
-        status: ['completed', 'delivered', 'ready', 'preparing'][Math.floor(Math.random() * 4)] as any,
+        status: OrderStatus.COMPLETED,
         items: orderItems,
         subtotal,
         tax,
@@ -379,7 +380,7 @@ export class SeedDataService {
         orderNumber: generateOrderNumber(restaurantId),
         tableId: table.id,
         type: 'dine_in',
-        status: 'completed',
+        status: OrderStatus.COMPLETED,
         items: orderItems,
         subtotal,
         tax,

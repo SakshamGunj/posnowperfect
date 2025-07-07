@@ -1,11 +1,14 @@
 // Removed React import since it's not needed in React 18+ with automatic JSX runtime
 import { useState, useEffect, useCallback } from 'react';
-import { X, Save, Package, Clock, TrendingUp, TrendingDown, RotateCcw, AlertTriangle, Search, Link, Plus, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
+import { X, Save, Package, Clock, TrendingUp, TrendingDown, RotateCcw, AlertTriangle, Search, Link, Plus, ToggleLeft, ToggleRight, Trash2, Edit, History, Minus, Calendar as CalendarIcon, Filter } from 'lucide-react';
 import { InventoryItem, MenuItem, InventoryTransaction, InventoryUnit, InventoryLinkedItem } from '@/types';
 import { formatCurrency, generateId } from '@/lib/utils';
 import { InventoryService } from '@/services/inventoryService';
 import { useRestaurantAuth } from '@/contexts/RestaurantAuthContext';
 import toast from 'react-hot-toast';
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/dist/style.css';
+import { format } from 'date-fns';
 
 // Menu Item Search Component
 interface MenuItemSearchProps {
@@ -678,21 +681,7 @@ function LinkItemModal({
   );
 }
 
-// Inventory Create/Edit Dialog
-interface InventoryDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (data: any) => void;
-  inventory: InventoryItem | null;
-  menuItems: MenuItem[];
-  existingInventory: InventoryItem[];
-  register: any;
-  handleSubmit: any;
-  setValue: any;
-  selectedUnit: InventoryUnit;
-  isSubmitting: boolean;
-}
-
+// REFACTORED InventoryDialog
 export function InventoryDialog({
   isOpen,
   onClose,
@@ -705,451 +694,273 @@ export function InventoryDialog({
   setValue,
   selectedUnit,
   isSubmitting,
-}: InventoryDialogProps) {
-  const { user } = useRestaurantAuth();
+}) {
+  const [isStandalone, setIsStandalone] = useState(false);
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
-  const [showLinkDialog, setShowLinkDialog] = useState(false);
-  const [linkedItems, setLinkedItems] = useState<InventoryLinkedItem[]>([]);
-  const [isStandaloneItem, setIsStandaloneItem] = useState(false);
-  const [standaloneItemName, setStandaloneItemName] = useState('');
+
+  const formInputClasses = "mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm border focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 px-3 py-2";
+  const formLabelClasses = "block text-sm font-medium text-gray-700";
 
   useEffect(() => {
-    if (inventory) {
-      // Editing existing inventory
-      setIsStandaloneItem(!inventory.menuItemId);
-      if (!inventory.menuItemId) {
-        // This is a standalone item, extract name from some field
-        setStandaloneItemName(inventory.displayName || inventory.id || '');
-      } else {
-        // Find the corresponding menu item
-        const menuItem = menuItems.find(item => item.id === inventory.menuItemId);
-        setSelectedMenuItem(menuItem || null);
-        setStandaloneItemName('');
+    const isNewStandalone = !inventory && isStandalone;
+    const isEditStandalone = inventory && (inventory.isStandaloneItem || inventory.menuItemId?.startsWith('standalone_'));
+    if (isNewStandalone || isEditStandalone) {
+      setIsStandalone(true);
+      if (isEditStandalone) {
+          setValue('standaloneItemName', inventory.displayName || inventory.standaloneItemName);
       }
-      setLinkedItems(inventory.linkedItems || []);
     } else {
-      // Creating new inventory
-      setIsStandaloneItem(false);
-      setSelectedMenuItem(null);
-      setStandaloneItemName('');
-      setLinkedItems([]);
+      setIsStandalone(false);
     }
-  }, [inventory, menuItems]);
-
-  const availableMenuItems = menuItems.filter(item => 
-    !existingInventory.some(inv => inv.menuItemId === item.id && inv.id !== inventory?.id)
-  );
+  }, [isOpen, inventory, isStandalone]);
 
   const handleMenuItemSelect = (menuItem: MenuItem | null) => {
     setSelectedMenuItem(menuItem);
-    setIsStandaloneItem(false);
-    setStandaloneItemName('');
-    if (menuItem) {
-      setValue('menuItemId', menuItem.id);
-    } else {
-      setValue('menuItemId', '');
-    }
+    setValue('menuItemId', menuItem?.id);
+  };
+  
+  const handleCreateStandalone = (name: string) => {
+    setValue('standaloneItemName', name);
+    setValue('menuItemId', `standalone_${generateId()}`);
+    setValue('isStandaloneItem', true);
   };
 
-  const handleCreateStandalone = (itemName: string) => {
-    setIsStandaloneItem(true);
-    setStandaloneItemName(itemName);
-    setSelectedMenuItem(null);
-    setValue('menuItemId', ''); // Clear menu item ID for standalone items
-  };
-
-  const handleFormSubmit = (data: any) => {
-    console.log('📝 Form submission:', { data, isStandaloneItem, standaloneItemName, selectedMenuItem });
-    
-    // Validate that either menu item is selected OR standalone name is provided
-    if (!isStandaloneItem && !selectedMenuItem) {
-      alert('Please select a menu item or create a standalone inventory item');
-      return;
-    }
-
-    if (isStandaloneItem && !standaloneItemName.trim()) {
-      alert('Please provide a name for the standalone inventory item');
-      return;
-    }
-
-    const submitData = {
-      ...data,
-      linkedItems,
-      isStandaloneItem,
-      standaloneItemName: isStandaloneItem ? standaloneItemName : undefined,
-      menuItemId: isStandaloneItem ? null : selectedMenuItem?.id,
-    };
-
-    console.log('🚀 Submitting inventory data:', submitData);
-    onSave(submitData);
-  };
-
-  const handleLinkItems = (linkedItems: InventoryLinkedItem[]) => {
-    console.log('🔗 LinkItems received:', linkedItems);
-    setLinkedItems(linkedItems);
-    setShowLinkDialog(false);
-  };
-
-  const handleCreateNewInventory = (menuItem: MenuItem, quantity: number, unit: InventoryUnit, customUnit?: string) => {
-    // Implementation for creating linked inventory - existing logic
-    console.log('Creating new linked inventory:', { menuItem, quantity, unit, customUnit });
-    
-    // This will be handled by the parent component
-    // For now, we'll just close the link dialog
-    setShowLinkDialog(false);
-  };
-
-  const renderLinkedItemsPreview = () => {
-    if (!linkedItems.length) return null;
-
-    return (
-      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-        <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
-          <Link className="w-4 h-4 mr-2" />
-          Linked Items ({linkedItems.length})
-        </h4>
-        <div className="space-y-2">
-          {linkedItems.slice(0, 3).map((item) => (
-            <div key={item.id} className="flex items-center justify-between text-sm">
-              <span className="text-gray-700">{item.linkedMenuItemName}</span>
-              <span className="text-gray-500">Ratio: 1:{item.ratio}</span>
-            </div>
-          ))}
-          {linkedItems.length > 3 && (
-            <div className="text-xs text-gray-500">
-              +{linkedItems.length - 3} more items
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const getUnitDisplay = (unit: InventoryUnit, customUnit?: string): string => {
-    return unit === 'custom' && customUnit ? customUnit : unit;
-  };
-
+  const currentMenuItem = menuItems.find(item => item.id === inventory?.menuItemId);
+  
   if (!isOpen) return null;
 
   return (
-    <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-gray-900">
-                {inventory ? 'Edit Inventory Item' : 'Add New Inventory Item'}
-              </h3>
-            <button
-                type="button"
-              onClick={onClose}
-                className="text-gray-400 hover:text-gray-600"
-            >
-                <X className="w-6 h-6" />
-            </button>
-          </div>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-50 p-0 sm:p-4">
+      <div className="w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] border-t-4 border-blue-500 sm:border-t-0">
+        {/* Mobile drag indicator */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-10 h-1 bg-gray-300 rounded-full"></div>
         </div>
         
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="p-6 space-y-6">
-            {/* Menu Item Selection or Standalone Creation */}
+        <div className="flex justify-between items-center p-4 sm:p-6 border-b sticky top-0 bg-white z-10 rounded-t-3xl sm:rounded-t-2xl">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-                {isStandaloneItem ? 'Inventory Item Name' : 'Menu Item'}
-                <span className="text-red-500 ml-1">*</span>
-            </label>
-              
-              {!inventory && ( // Only show search for new items
-            <MenuItemSearch
-              menuItems={availableMenuItems}
-                  onSelect={handleMenuItemSelect}
-                  onCreateStandalone={handleCreateStandalone}
-                  initialValue={selectedMenuItem}
-                  allowStandaloneCreation={true}
-                  placeholder="Search menu items or type to create standalone item..."
-            />
-              )}
+            <h3 className="text-xl sm:text-lg font-bold text-gray-900">{inventory ? 'Edit Inventory Item' : 'Create Inventory Item'}</h3>
+            <p className="text-sm text-gray-600 mt-1">Manage your inventory tracking settings</p>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-              {inventory && isStandaloneItem && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center text-sm text-blue-700">
-                    <Package className="w-4 h-4 mr-2" />
-                    <span>Standalone inventory item: <strong>{standaloneItemName}</strong></span>
-                  </div>
-                  <p className="text-xs text-blue-600 mt-1">
-                    This item is not linked to any menu items - it's for inventory tracking only.
-                  </p>
+        <form onSubmit={handleSubmit(onSave)} className="flex-1 overflow-y-auto">
+          <div className="p-4 sm:p-6 space-y-6">
+            
+            {/* Item Selection */}
+            <div className="p-4 sm:p-5 border-2 border-gray-200 rounded-xl bg-gray-50/50">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
+                <div className="flex items-center">
+                  <Package className="w-5 h-5 text-blue-600 mr-2" />
+                  <label className="font-semibold text-gray-900 text-base">Track Inventory For</label>
                 </div>
-              )}
-
-              {inventory && !isStandaloneItem && selectedMenuItem && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center text-sm text-green-700">
-                    <Package className="w-4 h-4 mr-2" />
-                    <span>Linked to menu item: <strong>{selectedMenuItem.name}</strong></span>
-          </div>
-                  <p className="text-xs text-green-600 mt-1">
-                    Price: {formatCurrency(selectedMenuItem.price)}
-                  </p>
-                </div>
-              )}
-
-              {/* Hidden input for form registration */}
-              <input type="hidden" {...register('menuItemId')} />
-            </div>
-
-            {/* Rest of the form fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Current Quantity */}
-            <div>
-                <label className="form-label">
-                  Current Quantity <span className="text-red-500">*</span>
-              </label>
-              <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                {...register('currentQuantity', { 
-                    required: 'Current quantity is required',
-                    min: { value: 0, message: 'Quantity cannot be negative' }
-                })}
-                  className="input"
-                  placeholder="Enter current stock quantity"
-              />
-            </div>
-            
-              {/* Unit */}
-            <div>
-                <label className="form-label">
-                  Unit <span className="text-red-500">*</span>
-              </label>
-              <select
-                {...register('unit', { required: 'Unit is required' })}
-                  className="input"
-                >
-                  <option value="">Select Unit</option>
-                  <option value="pieces">Pieces</option>
-                  <option value="kg">Kilograms (kg)</option>
-                  <option value="grams">Grams (g)</option>
-                  <option value="liters">Liters (L)</option>
-                  <option value="ml">Milliliters (ml)</option>
-                  <option value="cups">Cups</option>
-                  <option value="portions">Portions</option>
-                  <option value="bottles">Bottles</option>
-                  <option value="cans">Cans</option>
-                  <option value="custom">Custom Unit</option>
-              </select>
-          </div>
-
-              {/* Custom Unit (conditional) */}
-          {selectedUnit === 'custom' && (
-                <div className="md:col-span-2">
-                  <label className="form-label">
-                    Custom Unit <span className="text-red-500">*</span>
-              </label>
-              <input
-                    type="text"
-                {...register('customUnit', { 
-                  required: selectedUnit === 'custom' ? 'Custom unit name is required' : false
-                })}
-                    className="input"
-                    placeholder="Enter custom unit (e.g., boxes, packets, trays)"
-              />
-            </div>
-          )}
-
-              {/* Minimum Threshold */}
-            <div>
-                <label className="form-label">
-                  Minimum Threshold <span className="text-red-500">*</span>
-              </label>
-              <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                {...register('minimumThreshold', { 
-                  required: 'Minimum threshold is required',
-                    min: { value: 0, message: 'Threshold cannot be negative' }
-                })}
-                  className="input"
-                  placeholder="Alert when stock falls below this level"
-              />
-            </div>
-            
-              {/* Consumption Per Order */}
-            <div>
-                <label className="form-label">
-                  Consumption Per Order <span className="text-red-500">*</span>
-              </label>
-              <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                {...register('consumptionPerOrder', { 
-                  required: 'Consumption per order is required',
-                    min: { value: 0, message: 'Consumption cannot be negative' }
-                })}
-                  className="input"
-                placeholder="How much is used per order"
-              />
-          </div>
-
-              {/* Max Capacity */}
-            <div>
-                <label className="form-label">Max Capacity (Optional)</label>
-              <input
-                type="number"
-                  step="0.01"
-                  min="0"
-                  {...register('maxCapacity')}
-                  className="input"
-                  placeholder="Maximum storage capacity"
-              />
-            </div>
-            
-              {/* Cost Per Unit */}
-            <div>
-                <label className="form-label">Cost Per Unit (Optional)</label>
-              <input
-                type="number"
-                step="0.01"
-                  min="0"
-                  {...register('costPerUnit')}
-                  className="input"
-                placeholder="Cost price per unit"
-              />
-          </div>
-
-              {/* Supplier */}
-              <div className="md:col-span-2">
-                <label className="form-label">Supplier (Optional)</label>
-            <input
-              type="text"
-                  {...register('supplier')}
-                  className="input"
-                  placeholder="Enter supplier name"
-            />
+                {!inventory && (
+                  <button 
+                    type="button" 
+                    onClick={() => setIsStandalone(!isStandalone)} 
+                    className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
+                  >
+                    {isStandalone ? 'Link to Menu Item' : 'Create Standalone Item'}
+                  </button>
+                )}
               </div>
-          </div>
+              {isStandalone ? (
+                  <div>
+                    <label className={`${formLabelClasses} text-sm font-medium mb-2`}>Standalone Item Name</label>
+                    <input 
+                      {...register('standaloneItemName', { required: true })} 
+                      placeholder="e.g., Flour, Cleaning Supplies, Raw Materials" 
+                      className={`${formInputClasses} text-base`} 
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Create an inventory item not linked to any menu item</p>
+                  </div>
+              ) : (
+                <div>
+                  <label className={`${formLabelClasses} text-sm font-medium mb-2`}>Select Menu Item</label>
+                  <MenuItemSearch 
+                    menuItems={menuItems.filter(item => !existingInventory.some(inv => inv.menuItemId === item.id && inv.id !== inventory?.id))}
+                    onSelect={handleMenuItemSelect}
+                    initialValue={currentMenuItem}
+                    disabled={!!inventory}
+                    allowStandaloneCreation={!inventory}
+                    onCreateStandalone={(name) => {
+                        setIsStandalone(true);
+                        handleCreateStandalone(name);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
 
-            {/* Tracking Settings */}
-            <div className="border-t pt-6">
-              <h4 className="text-lg font-medium text-gray-900 mb-4">Tracking Settings</h4>
+            {/* Stock Details */}
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-gray-200">
+              <div className="flex items-center mb-4">
+                <TrendingUp className="w-5 h-5 text-green-600 mr-2" />
+                <h4 className="font-semibold text-gray-900 text-base">Stock Details</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <div>
+                  <label className={`${formLabelClasses} text-sm font-medium mb-2`}>Current Quantity</label>
+                  <input 
+                    {...register('currentQuantity', { required: true, valueAsNumber: true })} 
+                    type="number" 
+                    placeholder="0"
+                    className={`${formInputClasses} text-base`} 
+                  />
+                </div>
+                <div>
+                  <label className={`${formLabelClasses} text-sm font-medium mb-2`}>Unit</label>
+                  <select {...register('unit')} className={`${formInputClasses} text-base`}>
+                      <option value="pieces">Pieces</option>
+                      <option value="kg">Kilograms (kg)</option>
+                      <option value="g">Grams (g)</option>
+                      <option value="liters">Liters (L)</option>
+                      <option value="ml">Milliliters (ml)</option>
+                      <option value="custom">Custom</option>
+                  </select>
+                </div>
+                {selectedUnit === 'custom' && (
+                  <div className="sm:col-span-2">
+                    <label className={`${formLabelClasses} text-sm font-medium mb-2`}>Custom Unit Name</label>
+                    <input 
+                      {...register('customUnit')} 
+                      placeholder="e.g., Bottle, Box, Pack" 
+                      className={`${formInputClasses} text-base`} 
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Tracking & Threshold */}
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-gray-200">
+              <div className="flex items-center mb-4">
+                <AlertTriangle className="w-5 h-5 text-orange-600 mr-2" />
+                <h4 className="font-semibold text-gray-900 text-base">Thresholds & Consumption</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <div>
+                  <label className={`${formLabelClasses} text-sm font-medium mb-2`}>Minimum Threshold</label>
+                  <input 
+                    {...register('minimumThreshold', { required: true, valueAsNumber: true })} 
+                    type="number" 
+                    placeholder="10"
+                    className={`${formInputClasses} text-base`} 
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Alert when stock falls below this level</p>
+                </div>
+                <div>
+                  <label className={`${formLabelClasses} text-sm font-medium mb-2`}>Consumption per Order</label>
+                  <input 
+                    {...register('consumptionPerOrder', { valueAsNumber: true })} 
+                    type="number" 
+                    step="any" 
+                    placeholder="1"
+                    className={`${formInputClasses} text-base`} 
+                  />
+                  <p className="text-xs text-gray-500 mt-1">How much is used per customer order</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Info */}
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-gray-200">
+              <div className="flex items-center mb-4">
+                <Clock className="w-5 h-5 text-purple-600 mr-2" />
+                <h4 className="font-semibold text-gray-900 text-base">Additional Information</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <div>
+                  <label className={`${formLabelClasses} text-sm font-medium mb-2`}>Supplier (Optional)</label>
+                  <input 
+                    {...register('supplier')} 
+                    placeholder="e.g., ABC Supplies Co."
+                    className={`${formInputClasses} text-base`} 
+                  />
+                </div>
+                <div>
+                  <label className={`${formLabelClasses} text-sm font-medium mb-2`}>Cost per Unit (Optional)</label>
+                  <input 
+                    {...register('costPerUnit', { valueAsNumber: true })} 
+                    type="number" 
+                    step="any" 
+                    placeholder="0.00"
+                    className={`${formInputClasses} text-base`} 
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Toggles */}
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-gray-200">
+              <div className="flex items-center mb-4">
+                <RotateCcw className="w-5 h-5 text-indigo-600 mr-2" />
+                <h4 className="font-semibold text-gray-900 text-base">Tracking Settings</h4>
+              </div>
               
               <div className="space-y-4">
-                {/* Is Tracked */}
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
                   <div>
-                    <h5 className="text-sm font-medium text-gray-900">Enable Inventory Tracking</h5>
-                    <p className="text-sm text-gray-600">Track stock levels and receive low stock alerts</p>
+                    <span className="font-medium text-gray-900">Track Stock</span>
+                    <p className="text-sm text-gray-600">Monitor stock levels and receive alerts</p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                      {...register('isTracked')}
-                      className="sr-only peer"
-              />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-                </div>
-
-                {/* Auto Deduct */}
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <input {...register('isTracked')} type="checkbox" className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"/>
+                </label>
+                
+                <label className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
                   <div>
-                    <h5 className="text-sm font-medium text-gray-900">Auto-Deduct from Orders</h5>
+                    <span className="font-medium text-gray-900">Auto-deduct from Orders</span>
                     <p className="text-sm text-gray-600">Automatically reduce stock when orders are placed</p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                      {...register('autoDeduct')}
-                      className="sr-only peer"
-              />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-                </div>
+                  <input {...register('autoDeduct')} type="checkbox" className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"/>
+                </label>
               </div>
+            </div>
           </div>
-
-            {/* Linking System */}
-            {selectedMenuItem && !isStandaloneItem && (
-              <div className="border-t pt-6">
-                <div className="flex items-center justify-between mb-4">
-                <div>
-                    <h4 className="text-lg font-medium text-gray-900">Inventory Linking</h4>
-                  <p className="text-sm text-gray-600">
-                      Link this inventory to other menu items for automatic stock management
-                  </p>
-                </div>
-                <button
-                  type="button"
-                    onClick={() => setShowLinkDialog(true)}
-                    className="btn btn-secondary flex items-center"
-                >
-                    <Link className="w-4 h-4 mr-2" />
-                    {linkedItems.length > 0 ? 'Manage Links' : 'Add Links'}
-                </button>
-              </div>
-              
-                {renderLinkedItemsPreview()}
-                </div>
-              )}
-
-            {/* Form Actions */}
-            <div className="flex items-center justify-end space-x-3 pt-6 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                disabled={isSubmitting}
+          
+          {/* Sticky Footer */}
+          <div className="p-4 sm:p-6 bg-white border-t border-gray-200 flex flex-col sm:flex-row gap-3 sticky bottom-0 shadow-[0_-4px_8px_rgba(0,0,0,0.05)]">
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="w-full sm:w-auto px-6 py-3 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
             >
               Cancel
             </button>
-            <button
-              type="submit"
+            <button 
+              type="submit" 
               disabled={isSubmitting}
-                className="btn btn-theme-primary flex items-center disabled:opacity-50"
+              className="w-full sm:w-auto px-6 py-3 text-sm font-semibold text-white bg-blue-600 border-2 border-blue-600 rounded-xl hover:bg-blue-700 hover:border-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center"
             >
               {isSubmitting ? (
+                <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Saving...
+                </>
               ) : (
+                <>
                   <Save className="w-4 h-4 mr-2" />
+                  {inventory ? 'Update Item' : 'Create Item'}
+                </>
               )}
-                {isSubmitting ? 'Saving...' : (inventory ? 'Update Inventory' : 'Create Inventory')}
             </button>
           </div>
         </form>
-        </div>
       </div>
-        
-      {/* Link Items Dialog */}
-      {showLinkDialog && selectedMenuItem && (
-          <LinkItemModal
-          isOpen={showLinkDialog}
-          onClose={() => setShowLinkDialog(false)}
-            onSave={handleLinkItems}
-          currentInventory={inventory || {} as InventoryItem}
-          currentMenuItem={selectedMenuItem}
-            menuItems={menuItems}
-            existingInventory={existingInventory}
-            onCreateNewInventory={handleCreateNewInventory}
-          />
-        )}
-    </>
+    </div>
   );
 }
 
-// Adjustment Dialog
-interface AdjustmentDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (data: any) => void;
-  inventory: InventoryItem;
-  menuItemName: string;
-  register: any;
-  handleSubmit: any;
-  isSubmitting: boolean;
-}
-
+// REFACTORED AdjustmentDialog
 export function AdjustmentDialog({
   isOpen,
   onClose,
@@ -1158,135 +969,128 @@ export function AdjustmentDialog({
   menuItemName,
   register,
   handleSubmit,
+  setValue,
+  watch,
   isSubmitting,
-}: AdjustmentDialogProps) {
-  if (!isOpen) return null;
+}) {
+  const [adjustmentType, setAdjustmentType] = useState<'restock' | 'waste' | 'correction'>('restock');
+  const [currentQuantity, setCurrentQuantity] = useState(1);
 
-  const getUnitDisplay = (unit: InventoryUnit, customUnit?: string): string => {
-    return unit === 'custom' && customUnit ? customUnit : unit;
+  useEffect(() => {
+    // When the adjustment type changes, reset the quantity to 1
+    const newQuantity = 1;
+    setCurrentQuantity(newQuantity);
+    setValue('quantity', newQuantity, { shouldTouch: true });
+  }, [adjustmentType, setValue]);
+
+  const handleQuantityChange = (newValue: number | string) => {
+    let numericValue: number;
+
+    if (typeof newValue === 'string') {
+      if (newValue.trim() === '' || newValue.trim() === '-') {
+        numericValue = 0;
+      } else {
+        const parsed = parseFloat(newValue);
+        numericValue = isNaN(parsed) ? 0 : parsed;
+      }
+    } else {
+      numericValue = newValue;
+    }
+
+    if (adjustmentType !== 'correction' && numericValue < 0) {
+      numericValue = 0;
+    }
+
+    setCurrentQuantity(numericValue);
+    setValue('quantity', numericValue, { shouldTouch: true });
+  };
+  
+  const getUnitLabel = (unit: string, customUnit?: string) => {
+    if (unit === 'custom' && customUnit) return customUnit;
+    if (!unit) return '';
+    return unit.charAt(0).toUpperCase() + unit.slice(1);
   };
 
+  const formInputClasses = "mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm border focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 px-3 py-2";
+  const formLabelClasses = "block text-sm font-medium text-gray-700";
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-md w-full">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">Adjust Inventory</h2>
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-50">
+      <div className="w-full max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col max-h-[90vh]">
+        <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
+          <div>
+            <h3 className="text-lg font-semibold">Adjust Stock</h3>
+            <p className="text-sm text-gray-500">{menuItemName}</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-200"><X size={20} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit(onSave)} className="flex-1 overflow-y-auto">
+          <div className="p-4 space-y-6">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                <p className="text-sm text-blue-700">Current Stock</p>
+                <p className="text-3xl font-bold text-blue-900">{inventory.currentQuantity} <span className="text-xl">{getUnitLabel(inventory.unit, inventory.customUnit)}</span></p>
+            </div>
+            
+            <div>
+                <label className={formLabelClasses}>Adjustment Type</label>
+                <select {...register('type')} onChange={(e) => setAdjustmentType(e.target.value as any)} className={formInputClasses}>
+                    <option value="restock">Restock</option>
+                    <option value="waste">Record Waste</option>
+                    <option value="correction">Manual Correction</option>
+                </select>
+            </div>
+            
+            <div>
+                <label className={formLabelClasses}>
+                    {adjustmentType === 'restock' && 'Quantity to Add'}
+                    {adjustmentType === 'waste' && 'Quantity to Remove'}
+                    {adjustmentType === 'correction' && 'New Total Quantity'}
+                </label>
+                 <div className="flex items-center justify-center gap-4 mt-2">
+                    <button type="button" onClick={() => handleQuantityChange(currentQuantity - 1)} className="p-3 bg-gray-200 rounded-full text-gray-700 hover:bg-gray-300 disabled:opacity-50" disabled={adjustmentType !== 'correction' && currentQuantity <= 0}>
+                        <Minus size={20} />
+                    </button>
+                    <span className="text-2xl font-bold w-20 text-center tabular-nums">{currentQuantity}</span>
+                    <button type="button" onClick={() => handleQuantityChange(currentQuantity + 1)} className="p-3 bg-gray-200 rounded-full text-gray-700 hover:bg-gray-300">
+                        <Plus size={20} />
+                    </button>
+                </div>
+                <div className="mt-4">
+                     <label htmlFor="manual-quantity" className="block text-sm font-medium text-gray-500 mb-1 text-center">Or enter amount directly</label>
+                     <input 
+                        id="manual-quantity"
+                        type="text"
+                        inputMode={adjustmentType === 'correction' ? "decimal" : "numeric"}
+                        value={currentQuantity}
+                        onChange={(e) => handleQuantityChange(e.target.value)}
+                        className={`${formInputClasses} text-center max-w-xs mx-auto`}
+                    />
+                </div>
+                <input type="hidden" {...register('quantity')} />
+            </div>
+
+            <div>
+              <label className={formLabelClasses}>Reason / Notes (Optional)</label>
+              <textarea {...register('notes')} rows={3} className={formInputClasses} placeholder="e.g., Damaged goods, stock count..."></textarea>
+            </div>
+          </div>
+          
+          <div className="p-4 bg-gray-50 border-t flex justify-end gap-3 sticky bottom-0">
+            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Adjust Stock'}
             </button>
           </div>
-        </div>
-        
-        <div className="p-6">
-          <div className="mb-6">
-            <h3 className="font-medium text-gray-900 mb-2">{menuItemName}</h3>
-            <p className="text-sm text-gray-600">
-              Current Stock: {inventory.currentQuantity} {getUnitDisplay(inventory.unit, inventory.customUnit)}
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit(onSave)} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                New Quantity *
-              </label>
-              <input
-                {...register('newQuantity', { 
-                  required: 'New quantity is required',
-                  min: { value: 0, message: 'Quantity cannot be negative' }
-                })}
-                type="number"
-                step="0.1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={`Enter quantity in ${getUnitDisplay(inventory.unit, inventory.customUnit)}`}
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Adjustment Type *
-              </label>
-              <select
-                {...register('type', { required: 'Type is required' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="restock">🔄 Restock</option>
-                <option value="manual_adjustment">⚙️ Manual Adjustment</option>
-                <option value="waste">🗑️ Waste/Loss</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Reason
-              </label>
-              <input
-                {...register('reason')}
-                type="text"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Brief reason for adjustment"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Notes
-              </label>
-              <textarea
-                {...register('notes')}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Additional notes (optional)"
-              />
-            </div>
-
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2 inline-block"></div>
-                    Adjusting...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2 inline" />
-                    Adjust Inventory
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
+        </form>
       </div>
     </div>
   );
 }
 
-// History Dialog
-interface HistoryDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  inventory: InventoryItem;
-  menuItemName: string;
-  transactions: InventoryTransaction[];
-  onRefreshTransactions?: () => Promise<void>;
-}
-
+// REFACTORED HistoryDialog
 export function HistoryDialog({
   isOpen,
   onClose,
@@ -1294,243 +1098,219 @@ export function HistoryDialog({
   menuItemName,
   transactions,
   onRefreshTransactions,
-}: HistoryDialogProps) {
-  const { user } = useRestaurantAuth();
-  const [isCreatingInitial, setIsCreatingInitial] = useState(false);
+  isLoading,
+}) {
+  const [filterType, setFilterType] = useState<'all' | 'order_deduction' | 'adjustment'>('all');
+  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
-  const handleCreateInitialTransaction = async () => {
-    if (!user || !inventory) return;
-
-    try {
-      setIsCreatingInitial(true);
-      
-      const result = await InventoryService.createInitialTransactionForInventory(
-        inventory.id,
-        inventory.restaurantId,
-        user.id
-      );
-
-      if (result.success) {
-        if (result.data) {
-          toast.success('Initial transaction created successfully');
-          if (onRefreshTransactions) {
-            await onRefreshTransactions();
-          }
-        } else {
-          toast.success(result.message || 'No transaction needed');
-        }
-      } else {
-        toast.error(result.error || 'Failed to create initial transaction');
-      }
-    } catch (error) {
-      console.error('Error creating initial transaction:', error);
-      toast.error('Failed to create initial transaction');
-    } finally {
-      setIsCreatingInitial(false);
+  const setDatePreset = (preset: string) => {
+    const to = new Date();
+    const from = new Date();
+    
+    switch (preset) {
+      case 'today':
+        from.setHours(0, 0, 0, 0);
+        to.setHours(23, 59, 59, 999);
+        break;
+      case 'yesterday':
+        from.setDate(from.getDate() - 1);
+        from.setHours(0, 0, 0, 0);
+        to.setDate(to.getDate() - 1);
+        to.setHours(23, 59, 59, 999);
+        break;
+      case 'last7':
+        from.setDate(from.getDate() - 6);
+        from.setHours(0, 0, 0, 0);
+        to.setHours(23, 59, 59, 999);
+        break;
+      case 'last30':
+        from.setDate(from.getDate() - 29);
+        from.setHours(0, 0, 0, 0);
+        to.setHours(23, 59, 59, 999);
+        break;
+      default:
+        setDateRange({});
+        setActivePreset(null);
+        return;
     }
+    setDateRange({ from, to });
+    setActivePreset(preset);
+    setShowDatePicker(false);
   };
 
-  const getUnitDisplay = (unit: InventoryUnit, customUnit?: string): string => {
-    return unit === 'custom' && customUnit ? customUnit : unit;
+  const handleDateSelect = (range: any) => {
+    setDateRange(range);
+    setActivePreset(null); // Deactivate presets when custom range is chosen
+  }
+  
+  const handleRefresh = () => {
+    onRefreshTransactions({ dateRange, type: filterType });
   };
+  
+  useEffect(() => {
+    // Refresh when filters change
+    handleRefresh();
+  }, [filterType, dateRange]);
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
-      case 'restock':
-        return <TrendingUp className="w-4 h-4 text-green-600" />;
-      case 'order_deduction':
-        return <TrendingDown className="w-4 h-4 text-red-600" />;
-      case 'manual_adjustment':
-        return <RotateCcw className="w-4 h-4 text-blue-600" />;
-      case 'waste':
-        return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
-      default:
-        return <Package className="w-4 h-4 text-gray-600" />;
+      case 'restock': return <TrendingUp className="w-5 h-5 text-green-500" />;
+      case 'order_deduction': return <TrendingDown className="w-5 h-5 text-red-500" />;
+      case 'waste': return <Trash2 className="w-5 h-5 text-yellow-600" />;
+      case 'correction': return <Edit className="w-5 h-5 text-blue-500" />;
+      default: return <History className="w-5 h-5 text-gray-500" />;
     }
   };
-
+  
   const getTransactionLabel = (type: string) => {
-    switch (type) {
-      case 'restock':
-        return 'Restock';
-      case 'order_deduction':
-        return 'Order Deduction';
-      case 'manual_adjustment':
-        return 'Manual Adjustment';
-      case 'waste':
-        return 'Waste/Loss';
-      case 'return':
-        return 'Return';
-      default:
-        return type;
-    }
-  };
+    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  if (!isOpen) return null;
+
+  const FilterButton = ({ value, label }) => (
+    <button
+      onClick={() => setFilterType(value)}
+      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+        filterType === value
+          ? 'bg-blue-600 text-white'
+          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  const PresetButton = ({ label, preset }) => (
+    <button
+      onClick={() => setDatePreset(preset)}
+      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+        activePreset === preset
+          ? 'bg-blue-600 text-white'
+          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+      }`}
+    >
+      {label}
+    </button>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">Inventory History</h2>
-              <p className="text-gray-600">{menuItemName}</p>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-50">
+      <div className="w-full max-w-3xl bg-white rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col max-h-[90vh]">
+        <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
+          <div>
+            <h3 className="text-lg font-semibold">Transaction History</h3>
+            <p className="text-sm text-gray-500">{menuItemName}</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-200"><X size={20} /></button>
+        </div>
+        
+        {/* Filters */}
+        <div className="p-4 border-b space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">Type:</span>
+            <FilterButton value="all" label="All" />
+            <FilterButton value="order_deduction" label="From Orders" />
+            <FilterButton value="adjustment" label="Adjustments" />
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">Date:</span>
+            <PresetButton label="Today" preset="today" />
+            <PresetButton label="Yesterday" preset="yesterday" />
+            <PresetButton label="Last 7 Days" preset="last7" />
+            <PresetButton label="Last 30 Days" preset="last30" />
+
+            <div className="relative">
+              <button
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activePreset === null && dateRange.from ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <CalendarIcon size={16} />
+                <span>
+                  {dateRange.from && activePreset === null ? 
+                    `${format(dateRange.from, 'LLL dd, y')} - ${dateRange.to ? format(dateRange.to, 'LLL dd, y') : '...'}` 
+                    : 'Custom Range'
+                  }
+                </span>
+              </button>
+              {showDatePicker && (
+                <div className="absolute top-full mt-2 bg-white border shadow-lg rounded-md z-20" onMouseLeave={() => setShowDatePicker(false)}>
+                  <DayPicker
+                    mode="range"
+                    selected={dateRange.from && dateRange.to ? { from: dateRange.from, to: dateRange.to } : undefined}
+                    onSelect={handleDateSelect}
+                    numberOfMonths={2}
+                  />
+                </div>
+              )}
             </div>
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
+             <button
+                onClick={() => {
+                  setDateRange({});
+                  setActivePreset(null);
+                }}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Clear
+              </button>
           </div>
         </div>
         
-        <div className="p-6">
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="font-medium text-gray-900 mb-2">Current Status</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-600">Current Stock:</span>
-                <p className="font-medium">
-                  {inventory.currentQuantity} {getUnitDisplay(inventory.unit, inventory.customUnit)}
-                </p>
+        {/* Transaction List */}
+        <div className="flex-1 overflow-y-auto p-4">
+            {isLoading ? (
+              <div className="text-center py-16">
+                <p>Loading history...</p>
               </div>
-              <div>
-                <span className="text-gray-600">Minimum Threshold:</span>
-                <p className="font-medium">
-                  {inventory.minimumThreshold} {getUnitDisplay(inventory.unit, inventory.customUnit)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="font-medium text-gray-900">Transaction History</h3>
-            
-            {transactions.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Clock className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <h4 className="text-lg font-medium text-gray-700 mb-2">No transaction history available</h4>
-                <div className="text-sm text-gray-600 space-y-2">
-                  <p>Transaction history will show when:</p>
-                  <div className="bg-gray-50 rounded-lg p-4 text-left max-w-md mx-auto">
-                    <ul className="space-y-2">
-                      <li className="flex items-center">
-                        <TrendingUp className="w-4 h-4 text-green-600 mr-2 flex-shrink-0" />
-                        Inventory is restocked
-                      </li>
-                      <li className="flex items-center">
-                        <TrendingDown className="w-4 h-4 text-red-600 mr-2 flex-shrink-0" />
-                        Items are sold (order deductions)
-                      </li>
-                      <li className="flex items-center">
-                        <RotateCcw className="w-4 h-4 text-blue-600 mr-2 flex-shrink-0" />
-                        Manual adjustments are made
-                      </li>
-                      <li className="flex items-center">
-                        <AlertTriangle className="w-4 h-4 text-yellow-600 mr-2 flex-shrink-0" />
-                        Waste or loss is recorded
-                      </li>
-                    </ul>
-                  </div>
-                                     <p className="text-xs text-gray-500 mt-3">
-                     Try adjusting the inventory quantity or processing some orders to see transactions appear.
-                   </p>
-                 </div>
-                 
-                 {inventory.currentQuantity > 0 && (
-                   <div className="mt-6">
-                     <button
-                       onClick={handleCreateInitialTransaction}
-                       disabled={isCreatingInitial}
-                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                     >
-                       {isCreatingInitial ? (
-                         <>
-                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                           Creating...
-                         </>
-                       ) : (
-                         <>
-                           <TrendingUp className="w-4 h-4 mr-2" />
-                           Create Initial Stock Record
-                         </>
-                       )}
-                     </button>
-                     <p className="text-xs text-gray-500 mt-2">
-                       This will create a record of your current {inventory.currentQuantity} {getUnitDisplay(inventory.unit, inventory.customUnit)} stock
-                     </p>
-                   </div>
-                 )}
-               </div>
+            ) : transactions.length === 0 ? (
+                <div className="text-center py-16">
+                    <Package className="mx-auto text-gray-400" size={48}/>
+                    <h4 className="mt-4 font-semibold">No Transactions Found</h4>
+                    <p className="text-gray-500 text-sm mt-1">No history matches your current filters.</p>
+                </div>
             ) : (
-              <div className="space-y-3">
-                {transactions.map(transaction => (
-                  <div key={transaction.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        {getTransactionIcon(transaction.type)}
-                        <span className="font-medium text-gray-900">
-                          {getTransactionLabel(transaction.type)}
-                        </span>
-                      </div>
-                      <span className="text-sm text-gray-500">
-                        {new Date(transaction.createdAt).toLocaleDateString()} {new Date(transaction.createdAt).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-600">Change:</span>
-                        <p className={`font-medium ${transaction.quantityChanged >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {transaction.quantityChanged >= 0 ? '+' : ''}{transaction.quantityChanged} {getUnitDisplay(inventory.unit, inventory.customUnit)}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Previous:</span>
-                        <p className="font-medium">{transaction.previousQuantity} {getUnitDisplay(inventory.unit, inventory.customUnit)}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">New:</span>
-                        <p className="font-medium">{transaction.newQuantity} {getUnitDisplay(inventory.unit, inventory.customUnit)}</p>
-                      </div>
-                    </div>
-                    
-                    {transaction.reason && (
-                      <div className="mt-2">
-                        <span className="text-gray-600 text-sm">Reason:</span>
-                        <p className="text-sm">{transaction.reason}</p>
-                      </div>
-                    )}
-                    
-                    {transaction.notes && (
-                      <div className="mt-2">
-                        <span className="text-gray-600 text-sm">Notes:</span>
-                        <p className="text-sm">{transaction.notes}</p>
-                      </div>
-                    )}
-                    
-                    {transaction.orderId && (
-                      <div className="mt-2">
-                        <span className="text-gray-600 text-sm">Order ID:</span>
-                        <p className="text-sm font-mono">{transaction.orderId}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                <div className="space-y-3">
+                    {transactions.map(tx => (
+                        <div key={tx.id} className="flex items-start gap-4 p-3 bg-gray-50 rounded-lg border">
+                            <div className="mt-1">{getTransactionIcon(tx.type)}</div>
+                            <div className="flex-1">
+                                <div className="flex justify-between items-baseline">
+                                    <p className="font-semibold">{getTransactionLabel(tx.type)}</p>
+                                    <p className="text-xs text-gray-500">{format(tx.createdAt, 'PPpp')}</p>
+                                </div>
+                                <div className="flex justify-between items-end mt-1">
+                                    <div>
+                                        <p className="text-sm text-gray-600">
+                                            Change: 
+                                            <span className={`font-bold ${tx.quantityChanged > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {tx.quantityChanged > 0 ? '+' : ''}{tx.quantityChanged}
+                                            </span>
+                                        </p>
+                                        <p className="text-sm text-gray-500">New Balance: <span className="font-bold text-gray-800">{tx.newQuantity}</span></p>
+                                    </div>
+                                    <div className="text-right text-xs">
+                                        {tx.orderId && <p>Order ID: {tx.orderId.substring(0, 8)}...</p>}
+                                        {tx.staffId && <p>By: {tx.staffId}</p>}
+                                        {tx.reason && <p className="italic text-gray-500">"{tx.reason}"</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             )}
-          </div>
-
-          <div className="flex justify-end pt-6">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Close
-            </button>
-          </div>
+        </div>
+        
+        <div className="p-4 bg-gray-50 border-t flex justify-end gap-3 sticky bottom-0">
+          <button type="button" onClick={handleRefresh} className="btn btn-secondary" disabled={isLoading}>
+            {isLoading ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button type="button" onClick={onClose} className="btn btn-primary">Close</button>
         </div>
       </div>
     </div>

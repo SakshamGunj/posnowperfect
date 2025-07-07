@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
@@ -18,7 +18,6 @@ import AdminLogin from '@/pages/admin/AdminLogin';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 
 // Restaurant Pages
-import RestaurantDashboard from '@/pages/restaurant/Dashboard';
 import RestaurantLogin from '@/pages/restaurant/Login';
 import Tables from '@/pages/restaurant/Tables';
 import TakeOrder from '@/pages/restaurant/TakeOrder';
@@ -52,6 +51,9 @@ import RestaurantWrapper from '@/components/restaurant/RestaurantWrapper';
 
 // Layouts
 import RestaurantLayout from '@/components/layouts/RestaurantLayout';
+
+// Lazy load pages
+const PublicBillPage = lazy(() => import("./pages/public/PublicBillPage"));
 
 export default function App() {
   useEffect(() => {
@@ -160,87 +162,90 @@ export default function App() {
           }}
         />
         
-        <Routes>
-          {/* Admin Routes */}
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          
-          {/* Old spin wheel route removed - now handled by restaurant root */}
-          
-          {/* User Dashboard Route */}
-          <Route path="/my-rewards" element={<UserDashboardPage />} />
-          
-          {/* Default redirect */}
-          <Route path="/" element={<Navigate to="/admin/login" replace />} />
-          
-          {/* Restaurant Routes */}
-          <Route path="/:slug/*" element={
-            <RestaurantProvider>
-              <RestaurantAuthProvider>
-                <VoiceProvider>
-                <RestaurantWrapper>
-                  <Routes>
-                    {/* Public restaurant routes */}
-                    <Route path="login" element={<RestaurantLogin />} />
-                    
-                    {/* Spin Wheel Route */}
-                    <Route path="spin-wheel" element={<SpinWheelPage />} />
-                    
-                    {/* Customer Ordering Portal Route (Public) */}
-                    <Route path="menu-portal" element={<CustomerOrderingPage />} />
-                    
-                    {/* Table-specific Customer Ordering Portal Route (Public) */}
-                    <Route path="menu-portal/:tableId" element={<CustomerOrderingPage />} />
-                    
-                    {/* Customer Order Status Route (Public) */}
-                    <Route path="order-status" element={<CustomerOrderStatus />} />
-                    
-                    {/* Customer Dashboard Route (Public) */}
-                    <Route path="customer-dashboard" element={<UserDashboardPage />} />
-                    
-                    {/* Debug Route */}
-                    <Route path="debug" element={<RestaurantDebug />} />
-                    
-                    {/* Protected restaurant routes with shared layout */}
-                    <Route path="/*" element={
-                      <RestaurantProtectedRoute>
-                        <RestaurantLayout />
-                      </RestaurantProtectedRoute>
-                    }>
-                      <Route path="" element={<RestaurantDashboard />} />
-                      <Route path="dashboard" element={<RestaurantDashboard />} />
-                      <Route path="tables" element={<Tables />} />
-                      <Route path="menu" element={<MenuManagement />} />
-                      <Route path="inventory" element={<InventoryManagement />} />
-                      <Route path="orders" element={<OrderDashboard />} />
-                      <Route path="settings" element={<Settings />} />
-                      <Route path="customers" element={<Customers />} />
-                      <Route path="coupons" element={<CouponDashboard />} />
-                      <Route path="gamification" element={<GamificationDashboard />} />
-                      <Route path="credits" element={<Credits />} />
-                      <Route path="employees" element={<EmployeePage />} />
-                      <Route path="marketplace" element={<MarketplacePage />} />
-                      <Route path="kitchen" element={<KitchenDisplay />} />
-                      <Route path="customer-portal" element={<CustomerMenuPortal />} />
-                      <Route path="expenses" element={<ExpenseTracker />} />
-                      <Route path="reports" element={<ReportsDashboard />} />
-                      <Route path="takeaway" element={<TakeawayOrders />} />
-                      <Route path="takeaway/new" element={<NewTakeawayOrder />} />
-                      <Route path="order/:tableId" element={<TakeOrder />} />
-                    </Route>
-                    
-                    {/* Restaurant 404 */}
-                    <Route path="*" element={<NotFoundPage />} />
-                  </Routes>
-                </RestaurantWrapper>
-                </VoiceProvider>
-              </RestaurantAuthProvider>
-            </RestaurantProvider>
-          } />
-          
-          {/* Global 404 Page - This should be last */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+        <Suspense fallback={<div>Loading...</div>}>
+          <Routes>
+            {/* Admin Routes */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            
+            {/* Old spin wheel route removed - now handled by restaurant root */}
+            
+            {/* User Dashboard Route */}
+            <Route path="/my-rewards" element={<UserDashboardPage />} />
+            
+            {/* Default redirect */}
+            <Route path="/" element={<Navigate to="/admin/login" replace />} />
+            
+            {/* Restaurant Routes */}
+            <Route path="/:slug/*" element={
+              <RestaurantProvider>
+                <RestaurantAuthProvider>
+                  <VoiceProvider>
+                  <RestaurantWrapper>
+                    <Routes>
+                      {/* Public restaurant routes */}
+                      <Route path="login" element={<RestaurantLogin />} />
+                      
+                      {/* Spin Wheel Route */}
+                      <Route path="spin-wheel" element={<SpinWheelPage />} />
+                      
+                      {/* Customer Ordering Portal Route (Public) */}
+                      <Route path="menu-portal" element={<CustomerOrderingPage />} />
+                      
+                      {/* Table-specific Customer Ordering Portal Route (Public) */}
+                      <Route path="menu-portal/:tableId" element={<CustomerOrderingPage />} />
+                      
+                      {/* Customer Order Status Route (Public) */}
+                      <Route path="order-status" element={<CustomerOrderStatus />} />
+                      
+                      {/* Customer Dashboard Route (Public) */}
+                      <Route path="customer-dashboard" element={<UserDashboardPage />} />
+                      
+                      {/* Debug Route */}
+                      <Route path="debug" element={<RestaurantDebug />} />
+                      
+                      {/* Protected restaurant routes with shared layout */}
+                      <Route path="/*" element={
+                        <RestaurantProtectedRoute>
+                          <RestaurantLayout />
+                        </RestaurantProtectedRoute>
+                      }>
+                        <Route index element={<Navigate to="tables" replace />} />
+                        <Route path="" element={<Navigate to="tables" replace />} />
+                        <Route path="tables" element={<Tables />} />
+                        <Route path="menu" element={<MenuManagement />} />
+                        <Route path="inventory" element={<InventoryManagement />} />
+                        <Route path="orders" element={<OrderDashboard />} />
+                        <Route path="settings" element={<Settings />} />
+                        <Route path="customers" element={<Customers />} />
+                        <Route path="coupons" element={<CouponDashboard />} />
+                        <Route path="gamification" element={<GamificationDashboard />} />
+                        <Route path="credits" element={<Credits />} />
+                        <Route path="employees" element={<EmployeePage />} />
+                        <Route path="marketplace" element={<MarketplacePage />} />
+                        <Route path="kitchen" element={<KitchenDisplay />} />
+                        <Route path="customer-portal" element={<CustomerMenuPortal />} />
+                        <Route path="expenses" element={<ExpenseTracker />} />
+                        <Route path="reports" element={<ReportsDashboard />} />
+                        <Route path="takeaway" element={<TakeawayOrders />} />
+                        <Route path="takeaway/new" element={<NewTakeawayOrder />} />
+                        <Route path="order/:tableId" element={<TakeOrder />} />
+                      </Route>
+                      
+                      {/* Restaurant 404 */}
+                      <Route path="*" element={<NotFoundPage />} />
+                    </Routes>
+                  </RestaurantWrapper>
+                  </VoiceProvider>
+                </RestaurantAuthProvider>
+              </RestaurantProvider>
+            } />
+            
+            {/* Global 404 Page - This should be last */}
+            <Route path="*" element={<NotFoundPage />} />
+            <Route path="/bill/:restaurantId/:orderId" element={<PublicBillPage />} />
+          </Routes>
+        </Suspense>
       </Router>
     </ErrorBoundary>
   );

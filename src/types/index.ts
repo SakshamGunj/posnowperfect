@@ -259,7 +259,15 @@ export interface Table {
   updatedAt: Date;
 }
 
-export type OrderStatus = 'draft' | 'placed' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+export enum OrderStatus {
+  DRAFT = 'draft',
+  PLACED = 'placed',
+  CONFIRMED = 'confirmed',
+  PREPARING = 'preparing',
+  READY = 'ready',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled'
+}
 export type OrderType = 'dine_in' | 'takeaway' | 'delivery';
 
 export interface Order {

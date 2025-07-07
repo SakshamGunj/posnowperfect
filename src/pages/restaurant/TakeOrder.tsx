@@ -16,7 +16,6 @@ import {
   Trash2,
   Utensils,
   ArrowRightLeft,
-  MoreVertical,
 } from 'lucide-react';
 
 import { useRestaurant } from '@/contexts/RestaurantContext';
@@ -27,7 +26,7 @@ import { TableService } from '@/services/tableService';
 import { CustomerService } from '@/services/customerService';
 import { CouponService } from '@/services/couponService';
 import { CreditService } from '@/services/creditService';
-import { MenuItem, Category, Table, Order, PaymentMethod, Discount, SelectedVariant } from '@/types';
+import { MenuItem, Category, Table, Order, PaymentMethod, Discount, SelectedVariant, OrderStatus } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 import { generateUPIPaymentString, generateQRCodeDataURL } from '@/utils/upiUtils';
 import VariantSelectionModal from '@/components/restaurant/VariantSelectionModal';
@@ -77,7 +76,6 @@ export default function TakeOrder() {
   const [showVariantModal, setShowVariantModal] = useState(false);
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
   const [showTableManagement, setShowTableManagement] = useState(false);
-  const [showMobileActionsMenu, setShowMobileActionsMenu] = useState(false);
   
   // Voice command loading states
   const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
@@ -120,23 +118,6 @@ export default function TakeOrder() {
       loading: false // Note: loading state not available in this component
     });
   }, [user]);
-
-  // Close mobile actions menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (showMobileActionsMenu) {
-        const target = event.target as Element;
-        if (!target.closest('.mobile-actions-menu')) {
-          setShowMobileActionsMenu(false);
-        }
-      }
-    };
-
-    if (showMobileActionsMenu) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [showMobileActionsMenu]);
 
   // Load table, menu, and cart data
   const loadData = async () => {
@@ -204,8 +185,8 @@ export default function TakeOrder() {
       const ordersResult = await OrderService.getOrdersByTable(restaurant.id, tableId);
       if (ordersResult.success && ordersResult.data) {
         const activeOrders = ordersResult.data.filter(order => 
-          ['placed', 'confirmed', 'preparing', 'ready'].includes(order.status) ||
-          (order.status === 'completed' && order.paymentStatus !== 'paid')
+          [OrderStatus.PLACED, OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.READY].includes(order.status) ||
+          (order.status === OrderStatus.COMPLETED && order.paymentStatus !== 'paid')
         );
         
         console.log(`🍽️ TakeOrder: Found ${activeOrders.length} active orders for table ${tableId}`, {
@@ -220,7 +201,7 @@ export default function TakeOrder() {
           console.log(`🔧 TakeOrder: Auto-cancelling ${activeOrders.length} stale orders for available table ${table.number}`);
           
           const cancelPromises = activeOrders.map(async (order) => {
-            return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
+            return OrderService.updateOrderStatus(order.id, restaurant.id, OrderStatus.CANCELLED, {
               notes: `Auto-cancelled: Table marked as available but order was still active - ${new Date().toLocaleString()}`
             });
           });
@@ -783,7 +764,7 @@ export default function TakeOrder() {
           updateData.customerId = data.customerId;
         }
         
-        return OrderService.updateOrderStatus(order.id, restaurant.id, 'completed', updateData);
+        return OrderService.updateOrderStatus(order.id, restaurant.id, OrderStatus.COMPLETED, updateData);
       });
       
       const results = await Promise.all(updatePromises);
@@ -859,7 +840,7 @@ export default function TakeOrder() {
 
       // Update all active orders status to cancelled
       const cancelPromises = allOrders.map(async (order) => {
-        return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
+        return OrderService.updateOrderStatus(order.id, restaurant.id, OrderStatus.CANCELLED, {
           notes: 'Order cancelled manually - ' + new Date().toLocaleString()
         });
       });
@@ -943,94 +924,64 @@ export default function TakeOrder() {
   };
 
   const handleSendWhatsApp = async () => {
-    if (!whatsappNumber.trim()) {
-      toast.error('Please enter a WhatsApp number');
+    if (!whatsappNumber.trim() || whatsappNumber.length !== 10) {
+      toast.error('Please enter a valid 10-digit phone number.');
       return;
     }
 
-    if (!restaurant || !table) {
-      toast.error('Restaurant or table data not available');
+    if (!restaurant) {
+      toast.error('Restaurant data not available');
       return;
     }
 
-    setIsSendingWhatsApp(true);
+    // Find the most recent completed order
+    const completedOrders = allOrders
+      .filter(order => order.status === OrderStatus.COMPLETED)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    try {
-      // Import WhatsApp utilities
-      const { WhatsAppUtils } = await import('@/utils/whatsappUtils');
+    let latestCompletedOrder = completedOrders[0];
 
-      // Get orders data - use current state or fetch recent completed orders
-      let ordersToUse = allOrders;
-      
-      if (ordersToUse.length === 0) {
-        // Fallback: fetch recent completed orders for this table
-        console.log('🔄 WhatsApp: No orders in state, fetching recent completed orders...');
+    if (!latestCompletedOrder) {
+      // Fallback: fetch recent completed orders for this table from Firestore
         const ordersResult = await OrderService.getOrdersByTable(restaurant.id, tableId || '');
-        
         if (ordersResult.success && ordersResult.data) {
-          // Get completed orders from today
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          
-          const recentCompletedOrders = ordersResult.data.filter(order => 
-            order.status === 'completed' && 
-            new Date(order.createdAt) >= today
-          ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          
-          if (recentCompletedOrders.length > 0) {
-            ordersToUse = recentCompletedOrders;
-            console.log(`✅ WhatsApp: Found ${ordersToUse.length} recent completed orders`);
-          }
-        }
+        const remoteCompleted = ordersResult.data
+          .filter(o => o.status === OrderStatus.COMPLETED || o.paymentStatus === 'paid')
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        latestCompletedOrder = remoteCompleted[0];
       }
+    }
 
-      if (ordersToUse.length === 0) {
-        toast.error('No recent orders found for this table');
+    if (!latestCompletedOrder) {
+      toast.error('No completed order found to generate a bill link.');
         return;
       }
 
-      // Generate bill content for WhatsApp
-      const lastPaymentData = {
-        method: 'cash', // Default, can be enhanced to store actual payment data
-        amountReceived: ordersToUse.reduce((sum, order) => sum + order.total, 0),
-        finalTotal: ordersToUse.reduce((sum, order) => sum + order.total, 0),
-        originalTotal: ordersToUse.reduce((sum, order) => sum + order.total, 0)
-      };
+    setIsSendingWhatsApp(true);
+    const toastId = toast.loading('Preparing WhatsApp message...');
 
-      const billContent = await generateCombinedBillContent(ordersToUse, restaurant, table, lastPaymentData);
+    try {
+      // Construct the dynamic bill link
+      const billLink = `${window.location.origin}/bill/${restaurant.id}/${latestCompletedOrder.id}`;
       
-      // Create formatted message using utility
-      const messageData = {
-        restaurantName: restaurant.name || 'Restaurant',
-        tableNumber: table.number,
-        orderNumbers: ordersToUse.map(order => order.orderNumber),
-        totalAmount: ordersToUse.reduce((sum, order) => sum + order.total, 0),
-        billContent: billContent
-      };
-
-      const messageText = WhatsAppUtils.generateBillMessage(messageData);
-
-      // Create WhatsApp URL using utility
-      const whatsappUrl = WhatsAppUtils.createWhatsAppUrl(whatsappNumber, messageText, useWhatsAppWeb);
+      const message = `Hello! Thank you for your order at ${restaurant.name}. You can view your digital bill here: ${billLink}`;
       
-      // Open WhatsApp in a new window/tab
+      const encodedMessage = encodeURIComponent(message);
+      const fullPhoneNumber = `91${whatsappNumber}`;
+      
+      // Choose platform
+      const whatsappUrl = useWhatsAppWeb
+        ? `https://web.whatsapp.com/send?phone=${fullPhoneNumber}&text=${encodedMessage}`
+        : `https://wa.me/${fullPhoneNumber}?text=${encodedMessage}`;
+      
+      // Open WhatsApp
       window.open(whatsappUrl, '_blank');
       
-      const successMessage = useWhatsAppWeb 
-        ? 'WhatsApp Web opened! Send the bill to complete sharing.'
-        : 'WhatsApp opened! Send the bill to complete sharing.';
-      toast.success(successMessage);
-      
-      // Clear the WhatsApp number after successful operation
-      setWhatsappNumber('');
+      toast.success('Redirecting to WhatsApp...', { id: toastId });
       
     } catch (error) {
-      console.error('Error preparing WhatsApp bill:', error);
-      if (error instanceof Error && error.message.includes('Invalid phone number')) {
-        toast.error('Please enter a valid phone number');
-      } else {
-        toast.error('Failed to prepare WhatsApp bill');
-      }
+      console.error('Error preparing WhatsApp link:', error);
+      toast.error('Failed to create WhatsApp message.', { id: toastId });
     } finally {
       setIsSendingWhatsApp(false);
     }
@@ -1067,7 +1018,7 @@ export default function TakeOrder() {
           today.setHours(0, 0, 0, 0);
           
           const recentCompletedOrders = ordersResult.data.filter(order => 
-            order.status === 'completed' && 
+            order.status === OrderStatus.COMPLETED && 
             new Date(order.createdAt) >= today
           ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           
@@ -1614,7 +1565,7 @@ export default function TakeOrder() {
       
       // Update all active orders status to cancelled
       const cancelPromises = allOrders.map(async (order) => {
-        return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
+        return OrderService.updateOrderStatus(order.id, restaurant.id, OrderStatus.CANCELLED, {
           notes: 'Voice command cancellation - ' + new Date().toLocaleString()
         });
       });
@@ -1862,8 +1813,8 @@ export default function TakeOrder() {
         
         // Filter for active orders (including completed but unpaid)
         const activeOrders = tableOrders.filter(order => 
-          ['placed', 'confirmed', 'preparing', 'ready'].includes(order.status) ||
-          (order.status === 'completed' && order.paymentStatus !== 'paid')
+          [OrderStatus.PLACED, OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.READY].includes(order.status) ||
+          (order.status === OrderStatus.COMPLETED && order.paymentStatus !== 'paid')
         );
 
         console.log(`🔄 TakeOrder: Real-time update for table ${tableId}:`, {
@@ -1884,7 +1835,7 @@ export default function TakeOrder() {
           // Auto-cancel these stale orders
           const cancelStaleOrders = async () => {
             const cancelPromises = activeOrders.map(async (order) => {
-              return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
+              return OrderService.updateOrderStatus(order.id, restaurant.id, OrderStatus.CANCELLED, {
                 notes: `Auto-cancelled via real-time sync: Table marked as available - ${new Date().toLocaleString()}`
               });
             });
@@ -2002,7 +1953,7 @@ export default function TakeOrder() {
     <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <button
@@ -2013,10 +1964,10 @@ export default function TakeOrder() {
               </button>
               
               <div className="min-w-0 flex-1">
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                <h1 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
                   Table {table.number} - {table.area}
                 </h1>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-600">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
                   <span className="whitespace-nowrap">Capacity: {table.capacity} guests</span>
                   <span className="capitalize whitespace-nowrap">Status: {table.status.replace('_', ' ')}</span>
                   {orderState === 'placed' && allOrders.length > 0 && (
@@ -2029,129 +1980,7 @@ export default function TakeOrder() {
             </div>
             
             <div className="flex items-center space-x-3">
-              {/* Action Buttons - Desktop */}
-              {orderState === 'placed' && allOrders.length > 0 && cartItems.length === 0 && (
-                <div className="hidden sm:flex items-center space-x-2">
-                  <button
-                    onClick={handleAddMoreOrder}
-                    className="btn btn-theme-primary text-sm px-3 py-1.5"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add More
-                  </button>
-                  
-                  <button
-                    onClick={handlePrintKOT}
-                    className="btn btn-secondary text-sm px-3 py-1.5"
-                  >
-                    <Printer className="w-4 h-4 mr-1" />
-                    KOT
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowPaymentModal(true)}
-                    className="btn bg-green-600 text-white hover:bg-green-700 text-sm px-3 py-1.5"
-                  >
-                    <CreditCard className="w-4 h-4 mr-1" />
-                    Payment
-                  </button>
-                  
-                  <button
-                    onClick={() => setShowTableManagement(true)}
-                    className="btn bg-blue-600 text-white hover:bg-blue-700 text-sm px-3 py-1.5"
-                  >
-                    <ArrowRightLeft className="w-4 h-4 mr-1" />
-                    Manage
-                  </button>
-                  
-                  <button
-                    onClick={handleCancelAllOrders}
-                    disabled={isPlacingOrder}
-                    className="btn bg-red-600 text-white hover:bg-red-700 text-sm px-3 py-1.5"
-                  >
-                    <X className="w-4 h-4 mr-1" />
-                    {isPlacingOrder ? 'Cancelling...' : 'Cancel Order'}
-                  </button>
-                </div>
-              )}
-              
-              {/* Mobile Action Button */}
-              {orderState === 'placed' && allOrders.length > 0 && cartItems.length === 0 && (
-                <div className="sm:hidden">
-                  <div className="relative mobile-actions-menu">
-                  <button
-                      onClick={() => setShowMobileActionsMenu(!showMobileActionsMenu)}
-                      className="btn bg-blue-600 text-white hover:bg-blue-700 text-sm px-3 py-1.5 relative"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                    
-                    {/* Mobile Actions Dropdown */}
-                    {showMobileActionsMenu && (
-                      <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                        <button
-                          onClick={() => {
-                            handleAddMoreOrder();
-                            setShowMobileActionsMenu(false);
-                          }}
-                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          <Plus className="w-4 h-4 mr-3" />
-                          Add More Items
-                        </button>
-                        
-                        <button
-                          onClick={() => {
-                            handlePrintKOT();
-                            setShowMobileActionsMenu(false);
-                          }}
-                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          <Printer className="w-4 h-4 mr-3" />
-                          Print KOT
-                        </button>
-                        
-                        <button
-                          onClick={() => {
-                            setShowPaymentModal(true);
-                            setShowMobileActionsMenu(false);
-                          }}
-                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                          <CreditCard className="w-4 h-4 mr-3" />
-                          Payment
-                        </button>
-                        
-                        <button
-                          onClick={() => {
-                            setShowTableManagement(true);
-                            setShowMobileActionsMenu(false);
-                          }}
-                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          <ArrowRightLeft className="w-4 h-4 mr-3" />
-                          Manage Table
-                        </button>
-                        
-                        <div className="border-t border-gray-200"></div>
-                        
-                        <button
-                          onClick={() => {
-                            handleCancelAllOrders();
-                            setShowMobileActionsMenu(false);
-                          }}
-                          disabled={isPlacingOrder}
-                          className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                        >
-                          <X className="w-4 h-4 mr-3" />
-                          {isPlacingOrder ? 'Cancelling...' : 'Cancel Order'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              
+              {/* Only show Clear Cart button for cart states */}
               {['cart', 'adding_more'].includes(orderState) && cartItems.length > 0 && (
                 <button
                   onClick={clearCart}
@@ -2173,38 +2002,74 @@ export default function TakeOrder() {
         </div>
       </header>
 
-      <div className="h-[calc(100vh-80px)]">
+      {/* Mobile Search and Filter Bar - Sticky at top - Only show during cart states */}
+      {(orderState === 'cart' || orderState === 'adding_more') && (
+        <div className="lg:hidden bg-white border-b border-gray-200 px-1 py-2 sticky top-16 z-30">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search menu items..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              <Filter className="w-4 h-4 text-gray-600" />
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Categories</option>
+                {categories.map(category => (
+                  <option key={category.id} value={category.name}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+        </div>
+      )}
+
+      <div className={orderState === 'completed' ? 'min-h-screen' : 'lg:h-[calc(100vh-80px)]'} style={orderState !== 'completed' ? { height: 'calc(100vh - 140px)' } : {}}>
         {/* Main Content - Full Width */}
-        <div className="h-full overflow-hidden">
-          <main className="h-full px-4 sm:px-6 lg:px-8 py-6">
+        <div className={orderState === 'completed' ? 'min-h-full' : 'h-full overflow-hidden'}>
+          <main className={orderState === 'completed' ? 'min-h-full px-2 sm:px-4 lg:px-6 xl:px-8 2xl:px-12 py-4' : 'h-full px-2 sm:px-4 lg:px-6 xl:px-8 2xl:px-12 py-4'}>
 
 
             {(orderState === 'cart' || orderState === 'adding_more') && (
           <>
             {/* Desktop Layout */}
-            <div className="hidden lg:flex gap-6 h-[calc(100vh-200px)]">
+            <div className="hidden lg:flex gap-8 h-[calc(100vh-200px)]">
             {/* Left Side - Menu Items */}
             <div className="flex-1 overflow-hidden">
               {/* Search and Filter Bar */}
-              <div className="card p-4 mb-6">
-                <div className="flex flex-col md:flex-row gap-4">
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 mb-6">
+                <div className="flex flex-col xl:flex-row gap-4">
                   <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                     <input
                       type="text"
                       placeholder="Search menu items..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full pl-11 pr-4 py-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 focus:bg-white transition-colors"
                     />
                   </div>
                   
-                  <div className="flex items-center space-x-3">
-                    <Filter className="w-4 h-4 text-gray-600" />
+                  <div className="flex items-center gap-3 xl:w-80">
+                    <Filter className="w-5 h-5 text-gray-600 flex-shrink-0" />
                     <select
                       value={selectedCategory}
                       onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 px-3 py-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50 focus:bg-white transition-colors"
                     >
                       <option value="all">All Categories</option>
                       {categories.map(category => (
@@ -2218,7 +2083,14 @@ export default function TakeOrder() {
               </div>
 
               {/* Menu Items Grid */}
-              <div className="overflow-y-auto h-full">
+              <div 
+                className="overflow-y-auto h-full" 
+                style={{ 
+                  maxHeight: 'calc(100vh - 250px)',
+                  WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
+                  overscrollBehavior: 'contain' // Prevent overscroll
+                }}
+              >
                 {isLoading ? (
                   <div className="text-center py-12">
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
@@ -2245,7 +2117,7 @@ export default function TakeOrder() {
                 ) : (
                   <div 
                     key={`desktop-grid-${searchTerm}-${filteredItems.length}`}
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 pb-6"
+                    className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4 pb-6"
                   >
                     {filteredItems.map((item, index) => {
                       const cartItem = cartItems.find(ci => ci.menuItemId === item.id);
@@ -2264,7 +2136,7 @@ export default function TakeOrder() {
             </div>
 
             {/* Right Side - Order Summary */}
-            <div className="w-80 lg:w-96 flex flex-col">
+            <div className="w-72 lg:w-80 xl:w-[320px] 2xl:w-[340px] flex flex-col">
               <div className="card h-full flex flex-col">
                 <div className="p-4 border-b border-gray-200">
                   <h2 className="text-lg font-semibold text-gray-900">Current Order</h2>
@@ -2330,7 +2202,7 @@ export default function TakeOrder() {
                         <button
                           type="submit"
                           disabled={isPlacingOrder}
-                          className="flex-2 btn btn-theme-primary"
+                          className="flex-[2] sm:flex-1 btn btn-theme-primary"
                         >
                           {isPlacingOrder ? (
                             <>
@@ -2353,42 +2225,64 @@ export default function TakeOrder() {
             </div>
 
             {/* Mobile Layout */}
-            <div className="lg:hidden">
-              {/* Search and Filter Bar */}
-              <div className="card p-4 mb-4">
-                <div className="flex flex-col gap-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type="text"
-                      placeholder="Search menu items..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    <Filter className="w-4 h-4 text-gray-600" />
-                    <select
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            <div className="lg:hidden h-full flex flex-col">
+              {/* Scrollable Menu Items Container */}
+              <div 
+                className="flex-1 overflow-y-auto px-1"
+                style={{ 
+                  height: 'calc(100vh - 220px)', // Adjust for header + search + cart button + nav
+                  WebkitOverflowScrolling: 'touch',
+                  overscrollBehavior: 'contain'
+                }}
+              >
+                <div className={`${cartItems.length > 0 ? 'pb-40' : 'pb-24'}`}>
+                  {isLoading ? (
+                    <div className="text-center py-8">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                      <p className="text-gray-600">Loading menu...</p>
+                    </div>
+                  ) : filteredItems.length === 0 ? (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Search className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No items found</h3>
+                      <p className="text-gray-600 mb-4">
+                        {searchTerm ? `No menu items match "${searchTerm}"` : `No items in "${selectedCategory}" category`}
+                      </p>
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm('')}
+                          className="btn btn-secondary"
+                        >
+                          Clear search
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div 
+                      key={`mobile-grid-${searchTerm}-${filteredItems.length}`}
+                      className="grid grid-cols-2 sm:grid-cols-2 gap-3 py-2"
                     >
-                      <option value="all">All Categories</option>
-                      {categories.map(category => (
-                        <option key={category.id} value={category.name}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      {filteredItems.map((item, index) => {
+                        const cartItem = cartItems.find(ci => ci.menuItemId === item.id);
+                        return (
+                          <MenuItemCard
+                            key={`mobile-${item.id}-${index}-${item.name.replace(/\s+/g, '-').toLowerCase()}`}
+                            item={item}
+                            onAddToCart={addToCart}
+                            cartQuantity={cartItem?.quantity || 0}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Cart Summary Bar (Mobile) */}
               {cartItems.length > 0 && (
-                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40">
+                <div className="fixed bottom-20 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 lg:hidden">
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <div className="text-sm text-gray-600">{cartItems.length} items</div>
@@ -2403,51 +2297,6 @@ export default function TakeOrder() {
             </div>
           </div>
               )}
-
-              {/* Menu Items Grid */}
-              <div className={`${cartItems.length > 0 ? 'pb-24' : 'pb-6'}`}>
-                {isLoading ? (
-                  <div className="text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                    <p className="text-gray-600">Loading menu...</p>
-                  </div>
-                ) : filteredItems.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Search className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No items found</h3>
-                    <p className="text-gray-600 mb-4">
-                      {searchTerm ? `No menu items match "${searchTerm}"` : `No items in "${selectedCategory}" category`}
-                    </p>
-                    {searchTerm && (
-                      <button
-                        onClick={() => setSearchTerm('')}
-                        className="btn btn-secondary"
-                      >
-                        Clear search
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div 
-                    key={`mobile-grid-${searchTerm}-${filteredItems.length}`}
-                    className="grid grid-cols-2 sm:grid-cols-2 gap-4"
-                  >
-                    {filteredItems.map((item, index) => {
-                      const cartItem = cartItems.find(ci => ci.menuItemId === item.id);
-                      return (
-                        <MenuItemCard
-                          key={`mobile-${item.id}-${index}-${item.name.replace(/\s+/g, '-').toLowerCase()}`}
-                          item={item}
-                          onAddToCart={addToCart}
-                          cartQuantity={cartItem?.quantity || 0}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
 
               {/* Mobile Cart Sidebar */}
               {showSidePanel && (
@@ -2481,7 +2330,7 @@ export default function TakeOrder() {
                           <div className="space-y-3">
                             {cartItems.map((item, index) => (
                               <OrderItemCard
-                                key={`mobile-${item.menuItemId}-${index}-${item.variants?.map(v => `${v.variantName}-${v.optionName}`).join('-') || 'no-variants'}`}
+                                key={`mobile-cart-${item.menuItemId}-${index}-${item.variants?.map(v => `${v.variantName}-${v.optionName}`).join('-') || 'no-variants'}`}
                                 item={item}
                                 onUpdateQuantity={updateCartItemQuantity}
                                 onRemove={removeFromCart}
@@ -2493,58 +2342,58 @@ export default function TakeOrder() {
                       
                       {cartItems.length > 0 && (
                         <div className="border-t border-gray-200 p-4">
-                          <div className="space-y-2 mb-4">
-                            <div className="flex justify-between text-sm">
-                              <span>Subtotal:</span>
-                              <span>{formatCurrency(cartTotal)}</span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span>Tax ({restaurant?.settings.taxRate || 8.5}%):</span>
-                              <span>{formatCurrency(taxAmount)}</span>
-                            </div>
-                            <div className="flex justify-between text-lg font-bold border-t pt-2">
-                              <span>Total:</span>
-                              <span>{formatCurrency(finalTotal)}</span>
-                            </div>
-                          </div>
-                          
-                          <form onSubmit={handleSubmit(handlePlaceOrder)} className="space-y-3">
+                          <form onSubmit={handleSubmit(handlePlaceOrder)} className="space-y-4 mb-4">
                             <textarea
                               {...register('orderNotes')}
-                              rows={2}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              rows={3}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                               placeholder="Order notes (optional)"
                             />
                             
-                            <div className="flex space-x-2">
+                            <div className="flex space-x-3">
                               <button
                                 type="button"
                                 onClick={clearCart}
-                                className="flex-1 btn btn-secondary"
+                                className="flex-1 btn btn-secondary py-3 text-base font-medium"
                               >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Clear
+                                <Trash2 className="w-5 h-5 mr-2" />
+                                Clear Cart
                               </button>
                               
                               <button
                                 type="submit"
                                 disabled={isPlacingOrder}
-                                className="flex-2 btn btn-theme-primary"
+                                className="flex-[2] sm:flex-1 btn btn-theme-primary py-3 text-base font-medium"
                               >
                                 {isPlacingOrder ? (
                                   <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                    Placing...
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                                    Placing Order...
                                   </>
                                 ) : (
                                   <>
-                                    <Check className="w-4 h-4 mr-2" />
+                                    <Check className="w-5 h-5 mr-2" />
                                     Place Order
                                   </>
                                 )}
                               </button>
                             </div>
                           </form>
+                          
+                          <div className="space-y-2 pt-4 border-t border-gray-100">
+                            <div className="flex justify-between text-sm text-gray-600">
+                              <span>Subtotal:</span>
+                              <span>{formatCurrency(cartTotal)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm text-gray-600">
+                              <span>Tax ({restaurant?.settings.taxRate || 8.5}%):</span>
+                              <span>{formatCurrency(taxAmount)}</span>
+                            </div>
+                            <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-gray-200">
+                              <span>Total:</span>
+                              <span>{formatCurrency(finalTotal)}</span>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2552,11 +2401,199 @@ export default function TakeOrder() {
                 </div>
               )}
             </div>
-          </>
-        )}
+            </>
+            )}
 
-            {orderState === 'placed' && allOrders.length > 0 && (
-              <div className="max-w-4xl mx-auto px-3 sm:px-4">
+            {/* Desktop Orders Placed State */}
+            {orderState === 'placed' && allOrders.length > 0 && cartItems.length === 0 && (
+              <div className="hidden lg:block">
+                <div className="w-full px-6 lg:px-8 xl:px-12">
+                  {/* Success Banner */}
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-8">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <Check className="w-8 h-8 text-green-600" />
+                      </div>
+                      <div className="ml-4">
+                        <h3 className="text-lg font-semibold text-green-900">
+                          Orders Placed!
+                        </h3>
+                        <p className="text-green-700 mt-1">
+                          {allOrders.length} active order{allOrders.length > 1 ? 's' : ''} for Table {table.number}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Combined Orders Layout - Desktop with Sidebar */}
+                  <div className="flex gap-6 max-w-7xl mx-auto">
+                    {/* Left Side - Order Details */}
+                    <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-lg">
+                      {/* Combined Order Header */}
+                      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900">
+                              {allOrders.length === 1 ? `Order #${allOrders[0].orderNumber}` : `Combined Orders (${allOrders.length})`}
+                              </h4>
+                            <p className="text-sm text-gray-600">
+                              {allOrders.length > 1 ? `${allOrders.map(o => `#${o.orderNumber}`).join(', ')}` : `Table ${table.number}`}
+                            </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm text-gray-500">
+                              Latest: {allOrders[allOrders.length - 1]?.createdAt?.toLocaleTimeString() || 'Time not available'}
+                            </p>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 bg-yellow-100 text-yellow-800">
+                              {allOrders.length} Active Order{allOrders.length > 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                      {/* Combined Order Items */}
+                      <div className="px-6 py-4">
+                        {allOrders.length > 1 && (
+                          <div className="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                            <strong>Combined View:</strong> Showing all items from {allOrders.length} orders placed for Table {table.number}
+                          </div>
+                        )}
+                        
+                        <div className="space-y-4 max-h-96 overflow-y-auto">
+                          {allOrders.map((order, orderIndex) => (
+                            <div key={order.id} className={`${allOrders.length > 1 ? 'border-l-4 border-blue-500 pl-4 bg-gray-50 rounded-r-lg py-3' : ''}`}>
+                              {allOrders.length > 1 && (
+                                <div className="flex justify-between items-center mb-3">
+                                  <h5 className="font-medium text-gray-900">Order #{order.orderNumber}</h5>
+                                  <span className="text-sm text-gray-600">{order.createdAt?.toLocaleTimeString()}</span>
+                                </div>
+                              )}
+                              
+                              <div className="space-y-2">
+                            {order.items.map((item, itemIndex) => (
+                                  <div key={`${order.id}-${itemIndex}`} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">{item.name}</p>
+                                  {item.notes && (
+                                    <p className="text-sm text-gray-600 mt-1">{item.notes}</p>
+                                  )}
+                                </div>
+                                <div className="text-right ml-4">
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {item.quantity} × {formatCurrency(item.price)}
+                                  </p>
+                                      <p className="text-sm font-bold text-gray-900">
+                                        {formatCurrency(item.total)}
+                                      </p>
+                                </div>
+                                  </div>
+                                ))}
+                              </div>
+                              
+                              {allOrders.length > 1 && (
+                                <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-200">
+                                  <span className="text-sm font-medium text-gray-700">Order Subtotal:</span>
+                                  <span className="text-sm font-bold text-gray-900">{formatCurrency(order.total)}</span>
+                                </div>
+                              )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                      {/* Combined Total Section */}
+                      <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xl font-bold text-gray-900">
+                            {allOrders.length > 1 ? 'Combined Total:' : 'Order Total:'}
+                          </span>
+                          <span className="text-2xl font-bold text-green-600">
+                            {formatCurrency(allOrders.reduce((total, order) => total + order.total, 0))}
+                          </span>
+                        </div>
+                      </div>
+                          </div>
+                          
+                    {/* Right Side - Fixed Action Buttons */}
+                    <div className="w-80 bg-white rounded-xl border border-gray-200 shadow-lg h-fit sticky top-4">
+                      <div className="p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-6">Order Actions</h3>
+                        
+                        {/* Action Buttons */}
+                        <div className="space-y-4">
+                          {/* Primary Actions */}
+                          <div className="space-y-3">
+                              <button
+                                onClick={handleAddMoreOrder}
+                              className="w-full px-4 py-4 text-base font-semibold text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all duration-200 flex items-center justify-center"
+                              >
+                              <Plus className="w-5 h-5 mr-3" />
+                              Add More Items
+                              </button>
+                              
+                              <button
+                              onClick={() => setShowPaymentModal(true)}
+                              className="w-full px-4 py-4 text-base font-semibold text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm transition-all duration-200 flex items-center justify-center"
+                              >
+                              <CreditCard className="w-5 h-5 mr-3" />
+                              Process Payment
+                              </button>
+                            </div>
+                            
+                          {/* Secondary Actions */}
+                          <div className="pt-4 border-t border-gray-200 space-y-2">
+                              <button
+                                onClick={handlePrintKOT}
+                              className="w-full px-4 py-3 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-300 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all duration-200 flex items-center justify-center"
+                              >
+                                <Printer className="w-4 h-4 mr-2" />
+                                Print KOT
+                              </button>
+                              
+                              <button
+                                onClick={() => setShowTableManagement(true)}
+                              className="w-full px-4 py-3 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-sm transition-all duration-200 flex items-center justify-center"
+                              >
+                                <ArrowRightLeft className="w-4 h-4 mr-2" />
+                              Table Management
+                              </button>
+                            
+                            <button
+                              onClick={handleCancelAllOrders}
+                              disabled={isPlacingOrder}
+                              className="w-full px-4 py-3 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all duration-200 flex items-center justify-center"
+                            >
+                              <X className="w-4 h-4 mr-2" />
+                              {isPlacingOrder ? 'Cancelling All Orders...' : 'Cancel All Orders'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Order Summary Info */}
+                        <div className="mt-6 pt-6 border-t border-gray-200">
+                          <div className="text-center">
+                            <p className="text-sm text-gray-600 mb-2">Table {table.number}</p>
+                            <p className="text-xs text-gray-500">
+                              {allOrders.length} active order{allOrders.length > 1 ? 's' : ''}
+                            </p>
+                            <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                              <p className="text-sm font-medium text-green-800">Total Amount</p>
+                              <p className="text-lg font-bold text-green-600">
+                                {formatCurrency(allOrders.reduce((total, order) => total + order.total, 0))}
+                              </p>
+                      </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Orders Placed State */}
+            {orderState === 'placed' && allOrders.length > 0 && cartItems.length === 0 && (
+              <div className="lg:hidden max-w-4xl mx-auto px-3 sm:px-4">
                 <div className="text-center mb-4 sm:mb-6">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
                     <Receipt className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" />
@@ -2614,11 +2651,12 @@ export default function TakeOrder() {
                 </div>
 
                 {/* Mobile Action Bar - Fixed at bottom */}
-                <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-40">
-                  <div className="flex space-x-2">
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-50 shadow-lg lg:hidden">
+                  <div className="max-w-lg mx-auto">
+                    <div className="grid grid-cols-2 gap-2 mb-2">
                     <button
                       onClick={handleAddMoreOrder}
-                      className="flex-1 btn btn-theme-primary text-sm py-3"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center text-sm"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       Add More
@@ -2626,58 +2664,77 @@ export default function TakeOrder() {
                     
                     <button
                       onClick={() => setShowPaymentModal(true)}
-                      className="flex-1 btn bg-green-600 text-white hover:bg-green-700 text-sm py-3"
+                        className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center text-sm"
                     >
                       <CreditCard className="w-4 h-4 mr-2" />
                       Payment
                     </button>
                   </div>
                   
-                  <div className="flex space-x-2 mt-2">
+                    <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={handlePrintKOT}
-                      className="flex-1 btn btn-secondary text-sm py-2"
+                        className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-3 rounded-lg transition-colors flex items-center justify-center text-xs"
                     >
-                      <Printer className="w-4 h-4 mr-2" />
+                        <Printer className="w-3 h-3 mr-1" />
                       Print KOT
                     </button>
                     
                     <button
                       onClick={() => setShowTableManagement(true)}
-                      className="flex-1 btn bg-blue-600 text-white hover:bg-blue-700 text-sm py-2"
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 rounded-lg transition-colors flex items-center justify-center text-xs"
                     >
-                      <ArrowRightLeft className="w-4 h-4 mr-2" />
+                        <ArrowRightLeft className="w-3 h-3 mr-1" />
                       Manage
                     </button>
+                      
+                      <button
+                        onClick={handleCancelAllOrders}
+                        disabled={isPlacingOrder}
+                        className="bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 px-3 rounded-lg transition-colors flex items-center justify-center text-xs"
+                      >
+                        <X className="w-3 h-3 mr-1" />
+                        {isPlacingOrder ? 'Cancelling...' : 'Cancel'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Add bottom padding to prevent content from being hidden behind fixed bar */}
-                <div className="sm:hidden h-32"></div>
+                <div className="h-24 lg:hidden"></div>
               </div>
             )}
 
             {orderState === 'completed' && (
-              <div className="max-w-2xl mx-auto text-center">
-                <div className="card p-8">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Check className="w-8 h-8 text-green-600" />
+              <div className="w-full px-3 sm:px-6 lg:px-8 pb-8 lg:pb-4">
+              <div className="max-w-3xl mx-auto">
+                {/* Success Banner */}
+                  <div className="relative overflow-hidden rounded-lg shadow-sm mb-6 lg:mb-8 bg-gradient-to-r from-green-600 to-emerald-500 text-white p-4 sm:p-6 md:p-10 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                      <div className="bg-white/20 rounded-full p-3 sm:p-4">
+                        <Check className="w-6 h-6 sm:w-8 sm:h-8" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Completed!</h2>
-                  <p className="text-gray-600 mb-6">
-                    All orders for Table {table.number} have been paid and completed.
-                  </p>
-
-                  {/* WhatsApp Bill Sharing Section */}
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-                    <div className="flex items-center justify-center mb-4">
-                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-2">
-                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.787"/>
-                        </svg>
+                    <div>
+                        <h2 className="text-xl sm:text-2xl font-bold">Payment Successful</h2>
+                        <p className="opacity-90 text-sm sm:text-base">All orders for Table {table.number} are paid and completed.</p>
                       </div>
-                      <h3 className="text-lg font-semibold text-green-800">Share Bill on WhatsApp</h3>
+                  </div>
+                  <div className="hidden md:block">
+                    <button
+                      className="btn btn-white text-green-700 hover:bg-white/90"
+                      onClick={() => navigate(`/${restaurant.slug}/tables`)}
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-2" /> Back to Tables
+                    </button>
+                  </div>
                     </div>
+ 
+                {/* WhatsApp & PDF Share Card */}
+                  <div className="bg-white shadow-md rounded-lg p-4 sm:p-6 md:p-8 border border-gray-200 mb-6">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.787"/></svg>
+                    Share Digital Bill
+                  </h3>
                     
                     <div className="space-y-4">
                       <div>
@@ -2694,7 +2751,7 @@ export default function TakeOrder() {
                             setWhatsappNumber(value);
                           }}
                           placeholder="Enter WhatsApp number (e.g., 9876543210)"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          className="w-full px-3 sm:px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm sm:text-base"
                           disabled={isSendingWhatsApp}
                           maxLength={10}
                         />
@@ -2708,41 +2765,42 @@ export default function TakeOrder() {
                         <label className="block text-sm font-medium text-gray-700 mb-3">
                           Choose WhatsApp Platform
                         </label>
-                        <div className="space-y-2">
-                          <label className="flex items-center">
+                        <div className="space-y-3 sm:space-y-2">
+                          <label className="flex items-start sm:items-center">
                             <input
                               type="radio"
                               name="whatsappPlatform"
                               checked={useWhatsAppWeb}
                               onChange={() => setUseWhatsAppWeb(true)}
-                              className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+                              className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 mt-0.5 sm:mt-0"
                               disabled={isSendingWhatsApp}
                             />
-                            <span className="ml-2 text-sm text-gray-700">
+                            <span className="ml-2 text-sm text-gray-700 leading-relaxed">
                               <strong>WhatsApp Web</strong> - Open in browser (recommended if you have WhatsApp Web open)
                             </span>
                           </label>
-                          <label className="flex items-center">
+                          <label className="flex items-start sm:items-center">
                             <input
                               type="radio"
                               name="whatsappPlatform"
                               checked={!useWhatsAppWeb}
                               onChange={() => setUseWhatsAppWeb(false)}
-                              className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
+                              className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 mt-0.5 sm:mt-0"
                               disabled={isSendingWhatsApp}
                             />
-                            <span className="ml-2 text-sm text-gray-700">
+                            <span className="ml-2 text-sm text-gray-700 leading-relaxed">
                               <strong>WhatsApp App</strong> - Open mobile/desktop app
                             </span>
                           </label>
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* WhatsApp Action Buttons */}
+                      <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-1 md:grid-cols-2 sm:gap-3">
                         <button
                           onClick={handleSendWhatsApp}
                           disabled={isSendingWhatsApp || isGeneratingPDF || !whatsappNumber.trim() || whatsappNumber.length !== 10}
-                          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center text-sm sm:text-base min-h-[48px] sm:min-h-[52px]"
                         >
                           {isSendingWhatsApp ? (
                             <>
@@ -2751,10 +2809,8 @@ export default function TakeOrder() {
                             </>
                           ) : (
                             <>
-                              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.787"/>
-                              </svg>
-                              Send Text Bill
+                              <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.787"/></svg>
+                              <span className="truncate">Send Text Bill</span>
                             </>
                           )}
                         </button>
@@ -2762,7 +2818,7 @@ export default function TakeOrder() {
                         <button
                           onClick={handleDownloadPDFAndShare}
                           disabled={isSendingWhatsApp || isGeneratingPDF || !whatsappNumber.trim() || whatsappNumber.length !== 10}
-                          className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center text-sm sm:text-base min-h-[48px] sm:min-h-[52px]"
                         >
                           {isGeneratingPDF ? (
                             <>
@@ -2771,17 +2827,15 @@ export default function TakeOrder() {
                             </>
                           ) : (
                             <>
-                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              Download PDF & Share
+                              <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                              <span className="truncate">Download PDF & Share</span>
                             </>
                           )}
                         </button>
                       </div>
 
-                      <div className="text-center">
-                        <p className="text-xs text-gray-600">
+                      <div className="text-center bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-600 leading-relaxed">
                           <span className="font-medium">Text Bill:</span> Send formatted bill text directly in WhatsApp<br/>
                           <span className="font-medium">PDF Bill:</span> Download PDF and manually attach to WhatsApp
                         </p>
@@ -2789,7 +2843,8 @@ export default function TakeOrder() {
                     </div>
                   </div>
                   
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  {/* Navigation Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8 lg:mb-4">
                     <button
                       onClick={() => {
                         // Reset for new order on same table
@@ -2799,7 +2854,7 @@ export default function TakeOrder() {
                         setCartItems([]);
                         CartManager.clearCart(restaurant.id, tableId);
                       }}
-                      className="btn btn-theme-primary"
+                      className="btn btn-theme-primary w-full sm:w-auto min-h-[48px] flex items-center justify-center text-sm sm:text-base"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       Start New Order
@@ -2807,7 +2862,7 @@ export default function TakeOrder() {
                     
                     <button
                       onClick={() => navigate(`/${restaurant.slug}/tables`)}
-                      className="btn btn-secondary"
+                      className="btn btn-secondary w-full sm:w-auto md:hidden min-h-[48px] flex items-center justify-center text-sm sm:text-base"
                     >
                       <ArrowLeft className="w-4 h-4 mr-2" />
                       Back to Tables
@@ -2921,6 +2976,8 @@ export default function TakeOrder() {
       />
 
 
+
+
     </div>
   );
 }
@@ -2972,7 +3029,7 @@ function MenuItemCard({ item, onAddToCart, cartQuantity }: MenuItemCardProps) {
               e.stopPropagation();
               onAddToCart(item, 1);
             }}
-            className="btn btn-theme-primary btn-sm w-full"
+            className="btn btn-theme-primary btn-sm w-full text-xs lg:text-xs"
           >
             <Plus className="w-3 h-3 mr-1" />
             Add to Order
@@ -3918,7 +3975,7 @@ async function generateCombinedBillContent(orders: Order[], restaurant: any, tab
                alt="UPI QR Code" 
                style="width: 80px; height: 80px; display: block; margin: 0 auto; background: white;" />
         </div>
-        ` : ''}
+        ` : ''} 
 
         <!-- Footer -->
       <div class="footer">

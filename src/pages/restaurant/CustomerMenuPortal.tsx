@@ -79,7 +79,7 @@ export default function CustomerMenuPortal() {
       phoneVerification: true,
       maxOrderValue: 5000,
       operatingHours: {
-        enabled: true,
+        enabled: false, // Start disabled for easier setup
         open: '09:00',
         close: '22:00'
       }
@@ -94,6 +94,23 @@ export default function CustomerMenuPortal() {
     averageOrderValue: 0,
     conversionRate: 0
   });
+
+  const defaultPortalSettings: CustomerPortalSettings = {
+    isEnabled: false,
+    location: { latitude: 0, longitude: 0, address: '', radius: 100 },
+    customization: {
+      primaryColor: '#3B82F6',
+      logo: '',
+      welcomeMessage: 'Welcome! Browse our menu and place your order.',
+      orderingInstructions: 'Scan the QR code at your table to get started.'
+    },
+    security: {
+      locationVerification: true,
+      phoneVerification: true,
+      maxOrderValue: 5000,
+      operatingHours: { enabled: false, open: '09:00', close: '22:00' }
+    }
+  };
 
   useEffect(() => {
     if (restaurant) {
@@ -138,7 +155,15 @@ export default function CustomerMenuPortal() {
     // Load from localStorage for now (in production, this would be from database)
     const savedSettings = localStorage.getItem(`portal_settings_${restaurant.id}`);
     if (savedSettings) {
-      setPortalSettings(JSON.parse(savedSettings));
+      const parsed = JSON.parse(savedSettings);
+      setPortalSettings({
+        ...defaultPortalSettings,
+        ...parsed,
+        location: {
+          ...defaultPortalSettings.location,
+          ...(parsed.location || {})
+        }
+      });
     } else {
       // Initialize with default settings
       console.log('📝 Initializing default portal settings for admin dashboard');
@@ -296,18 +321,18 @@ export default function CustomerMenuPortal() {
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center">
                 <Smartphone className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Customer Menu Portal</h1>
-                <p className="text-gray-600">Enable customers to order directly from their phones</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Customer Menu Portal</h1>
+                <p className="text-gray-600 mt-1 hidden sm:block">Enable customers to order directly from their phones</p>
               </div>
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4 w-full sm:w-auto">
               <div className={`flex items-center space-x-2 px-3 py-2 rounded-full text-sm ${
                 portalSettings.isEnabled 
                   ? 'bg-green-100 text-green-700' 
@@ -335,13 +360,13 @@ export default function CustomerMenuPortal() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* Main Settings */}
           <div className="lg:col-span-2 space-y-6">
             
             {/* Location Setup */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6">
               <div className="flex items-center space-x-3 mb-6">
                 <MapPin className="w-6 h-6 text-blue-600" />
                 <h2 className="text-xl font-semibold text-gray-900">Restaurant Location</h2>
@@ -375,7 +400,7 @@ export default function CustomerMenuPortal() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Verification Radius (meters)
@@ -409,7 +434,7 @@ export default function CustomerMenuPortal() {
             </div>
 
             {/* Portal Customization */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6">
               <div className="flex items-center space-x-3 mb-6">
                 <Palette className="w-6 h-6 text-purple-600" />
                 <h2 className="text-xl font-semibold text-gray-900">Portal Customization</h2>
@@ -542,7 +567,7 @@ export default function CustomerMenuPortal() {
             </div>
 
             {/* Security Settings */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="bg-white rounded-xl shadow-sm border p-4 sm:p-6">
               <div className="flex items-center space-x-3 mb-6">
                 <Settings className="w-6 h-6 text-gray-600" />
                 <h2 className="text-xl font-semibold text-gray-900">Security Settings</h2>
@@ -587,7 +612,7 @@ export default function CustomerMenuPortal() {
                   </label>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Max Order Value (₹)
@@ -606,11 +631,11 @@ export default function CustomerMenuPortal() {
                     />
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Operating Hours
-                    </label>
-                    <div className="flex items-center space-x-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Operating Hours
+                      </label>
                       <input
                         type="time"
                         value={portalSettings.security.operatingHours.open}
@@ -623,7 +648,9 @@ export default function CustomerMenuPortal() {
                         }))}
                         className="px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
-                      <span className="text-gray-500">-</span>
+                    </div>
+                    <span className="text-gray-500">-</span>
+                    <div>
                       <input
                         type="time"
                         value={portalSettings.security.operatingHours.close}
@@ -733,7 +760,7 @@ export default function CustomerMenuPortal() {
                       <img 
                         src={qrCodeUrl} 
                         alt="Portal QR Code" 
-                        className="w-48 h-48"
+                        className="rounded-lg border shadow-sm mx-auto w-full max-w-[200px]"
                       />
                     </div>
                     <div className="flex items-center justify-center space-x-2 mt-4">

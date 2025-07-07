@@ -47,7 +47,8 @@ import {
   BarChart3,
   Settings,
   RefreshCw,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 
 // Icon mapping for categories
@@ -828,54 +829,41 @@ export default function ExpenseTracker() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
       {/* Header */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600"></div>
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }}></div>
-        
-        <div className="relative">
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center py-4 sm:py-6 lg:py-8 gap-4">
-              <div className="text-white flex-1">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-2">
-                  <div className="p-2 sm:p-3 bg-white/20 rounded-xl sm:rounded-2xl backdrop-blur-sm border border-white/20">
-                    <Receipt className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-full mx-auto px-2 sm:px-4 lg:px-6 xl:px-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 sm:py-6 gap-3 sm:gap-4">
+            <div className="flex-1">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                <div className="p-2 sm:p-2.5 bg-indigo-100 rounded-lg sm:rounded-xl">
+                  <Receipt className="h-6 w-6 sm:h-7 sm:w-7 text-indigo-600" />
                   </div>
                   <div>
-                    <h1 className="text-xl sm:text-2xl lg:text-4xl font-bold mb-1">Expense Tracker</h1>
-                    <p className="text-blue-100 text-xs sm:text-sm lg:text-lg font-medium">
-                      Manage and track all business expenses for {restaurant.name}
+                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Expense Tracker</h1>
+                  <p className="text-gray-600 text-sm sm:text-base">
+                    <span className="hidden sm:inline">Manage and track all business expenses for </span>
+                    <span className="sm:hidden">Track expenses for </span>
+                    {restaurant.name}
                     </p>
                   </div>
                 </div>
               </div>
               
-              <div className="flex flex-col xs:flex-row items-stretch gap-2 sm:gap-3 w-full lg:w-auto">
+            <div className="w-full sm:w-auto flex flex-col gap-2 lg:hidden">
                 <button
-                  onClick={handleShowAnalytics}
-                  className="flex items-center justify-center gap-2 px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-3 bg-white/20 backdrop-blur-sm text-white rounded-lg sm:rounded-xl hover:bg-white/30 transition-all duration-300 border border-white/20 text-xs sm:text-sm lg:text-base"
+                onClick={() => setShowAddModal(true)}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-3 sm:py-4 bg-indigo-600 text-white rounded-lg sm:rounded-xl hover:bg-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl font-semibold text-base sm:text-lg"
                 >
-                  <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
-                  <span className="font-medium">Analytics</span>
+                <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span>Add Expense</span>
                 </button>
                 
                 <button
-                  onClick={() => setShowExportModal(true)}
-                  className="flex items-center justify-center gap-2 px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-3 bg-white/20 backdrop-blur-sm text-white rounded-lg sm:rounded-xl hover:bg-white/30 transition-all duration-300 border border-white/20 text-xs sm:text-sm lg:text-base"
-                >
-                  <Download className="h-4 w-4 sm:h-5 sm:w-5" />
-                  <span className="font-medium">Export Report</span>
+                onClick={() => setShowAddCategoryModal(true)}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-2.5 sm:py-3 bg-gray-100 text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-200 transition-all duration-300 text-sm sm:text-base"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Category</span>
                 </button>
-                
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="flex items-center justify-center gap-2 px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-3 bg-white text-indigo-600 rounded-lg sm:rounded-xl hover:bg-gray-50 transition-all duration-300 shadow-lg hover:shadow-xl font-medium text-xs sm:text-sm lg:text-base"
-                >
-                  <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-                  <span>Add Expense</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -883,72 +871,49 @@ export default function ExpenseTracker() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 -mt-6 sm:-mt-8 relative z-10">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-            <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 shadow-lg border border-gray-200">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Today's Expenses</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">{formatCurrency(stats.todayExpenses)}</p>
-                </div>
-                <div className="p-2 sm:p-3 bg-blue-100 rounded-lg sm:rounded-xl mt-2 sm:mt-0 sm:ml-2 self-start sm:self-auto">
-                  <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-blue-600" />
-                </div>
+        <div className="max-w-full mx-auto px-2 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6">
+          <div className="bg-white rounded-lg shadow border border-gray-200 p-3 sm:p-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4 text-center">
+              <div>
+                <p className="text-[10px] sm:text-xs font-medium text-gray-500">Total Expense</p>
+                <p className="mt-1 text-base sm:text-lg font-semibold text-gray-900">{formatCurrency(stats?.yearExpenses || 0)}</p>
               </div>
-            </div>
-
-            <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 shadow-lg border border-gray-200">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">This Month</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">{formatCurrency(stats.monthExpenses)}</p>
-                </div>
-                <div className="p-2 sm:p-3 bg-green-100 rounded-lg sm:rounded-xl mt-2 sm:mt-0 sm:ml-2 self-start sm:self-auto">
-                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-green-600" />
-                </div>
+              <div>
+                <p className="text-[10px] sm:text-xs font-medium text-gray-500">This Month</p>
+                <p className="mt-1 text-base sm:text-lg font-semibold text-gray-900">{formatCurrency(stats.monthExpenses)}</p>
               </div>
-            </div>
-
-            <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 shadow-lg border border-gray-200">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Pending Expenses</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-orange-600 truncate">{stats.pendingExpenses}</p>
-                </div>
-                <div className="p-2 sm:p-3 bg-orange-100 rounded-lg sm:rounded-xl mt-2 sm:mt-0 sm:ml-2 self-start sm:self-auto">
-                  <Clock className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-orange-600" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 shadow-lg border border-gray-200 col-span-2 lg:col-span-1">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Top Category</p>
-                  <p className="text-sm sm:text-base lg:text-lg font-bold text-gray-900 truncate">
-                    {(() => {
-                      // Find the actual category name by looking up the category
-                      const topCategoryName = stats.topCategory.name;
-                      const category = categories.find(cat => cat.id === topCategoryName || cat.name === topCategoryName);
-                      return category ? category.name : (topCategoryName || 'No expenses');
-                    })()}
-                  </p>
-                  <p className="text-xs sm:text-sm text-gray-600 truncate">{formatCurrency(stats.topCategory.amount)}</p>
-                </div>
-                <div className="p-2 sm:p-3 bg-purple-100 rounded-lg sm:rounded-xl mt-2 sm:mt-0 sm:ml-2 self-start sm:self-auto">
-                  <PieChart className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6 text-purple-600" />
-                </div>
+              <div>
+                <p className="text-[10px] sm:text-xs font-medium text-gray-500">Pending</p>
+                <p className="mt-1 text-base sm:text-lg font-semibold text-orange-600">{stats.pendingExpenses}</p>
               </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* Desktop Button Row */}
+      <div className="hidden lg:flex max-w-full mx-auto px-6 xl:px-8 pb-4 gap-3">
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition shadow-lg font-semibold"
+        >
+          <Plus className="h-5 w-5" />
+          Add Expense
+        </button>
+        <button
+          onClick={() => setShowAddCategoryModal(true)}
+          className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-medium"
+        >
+          <Plus className="h-4 w-4" />
+          New Category
+        </button>
+      </div>
+
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-8 sm:pb-12">
+      <div className="max-w-full mx-auto px-2 sm:px-4 lg:px-6 xl:px-8 pb-6 sm:pb-8 lg:pb-12">
         {/* Filters and Search */}
-        <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 lg:p-6 shadow-lg border border-gray-200 mb-4 sm:mb-6 lg:mb-8">
-          <div className="flex flex-col gap-3 sm:gap-4">
+        <div className="bg-white rounded-lg sm:rounded-xl lg:rounded-2xl p-3 sm:p-4 lg:p-6 shadow-lg border border-gray-200 mb-3 sm:mb-4 lg:mb-6">
+          <div className="space-y-3 sm:space-y-4">
             <div className="relative">
               <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
               <input
@@ -956,16 +921,16 @@ export default function ExpenseTracker() {
                 placeholder="Search expenses..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 w-full border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                className="pl-10 sm:pl-12 pr-3 sm:pr-4 py-2 sm:py-2.5 lg:py-3 w-full border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
               />
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
+            <div className="flex flex-wrap xl:flex-nowrap gap-2 overflow-x-auto xl:overflow-visible scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {/* Category Filter */}
               <select
                 value={selectedCategoryFilter}
                 onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                className="px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                className="flex-shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 lg:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base min-w-[140px]"
               >
                 <option value="">All Categories</option>
                 {categories.filter(cat => cat.isActive).map((category) => (
@@ -979,7 +944,7 @@ export default function ExpenseTracker() {
               <select
                 value={selectedDateRange}
                 onChange={(e) => setSelectedDateRange(e.target.value)}
-                className="px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base"
+                className="flex-shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 lg:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm sm:text-base min-w-[120px]"
               >
                 <option value="all">All Time</option>
                 <option value="today">Today</option>
@@ -991,10 +956,10 @@ export default function ExpenseTracker() {
               <button 
                 onClick={loadExpenseData}
                 disabled={loading}
-                className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 bg-indigo-600 text-white rounded-lg sm:rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 text-sm sm:text-base"
+                className="flex-shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 lg:py-3 bg-indigo-600 text-white rounded-lg sm:rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 text-sm sm:text-base min-w-[80px] sm:min-w-[100px]"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                <span className="hidden xs:inline">Refresh</span>
+                <span className="hidden sm:inline">Refresh</span>
               </button>
 
               {/* Clear Filters */}
@@ -1004,10 +969,10 @@ export default function ExpenseTracker() {
                   setSelectedCategoryFilter('');
                   setSelectedDateRange('all');
                 }}
-                className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl hover:bg-gray-50 transition-colors text-sm sm:text-base"
+                className="flex-shrink-0 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 lg:py-3 border border-gray-300 rounded-lg sm:rounded-xl hover:bg-gray-50 transition-colors text-sm sm:text-base min-w-[70px] sm:min-w-[110px]"
               >
                 <XCircle className="h-4 w-4" />
-                <span className="hidden xs:inline">Clear Filters</span>
+                <span className="hidden sm:inline">Clear</span>
               </button>
             </div>
 
@@ -1040,39 +1005,56 @@ export default function ExpenseTracker() {
 
         {/* Quick Summary for Filtered Results */}
         {(searchTerm || selectedCategoryFilter || selectedDateRange !== 'all') && filteredExpenses.length > 0 && (
-          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 mb-6 border border-indigo-200">
-            <h3 className="text-lg font-semibold text-indigo-900 mb-4">Filtered Results Summary</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg sm:rounded-xl lg:rounded-2xl p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 lg:mb-6 border border-indigo-200">
+            <h3 className="text-base sm:text-lg font-semibold text-indigo-900 mb-2 sm:mb-4">Filtered Results Summary</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <div className="text-center">
-                <p className="text-2xl font-bold text-indigo-600">
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-indigo-600">
                   {filteredExpenses.length}
                 </p>
-                <p className="text-sm text-indigo-700">Expenses Found</p>
+                <p className="text-xs sm:text-sm text-indigo-700">Expenses Found</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-purple-600">
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-600">
                   {formatCurrency(filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0))}
                 </p>
-                <p className="text-sm text-purple-700">Total Amount</p>
+                <p className="text-xs sm:text-sm text-purple-700">Total Amount</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-pink-600">
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold text-pink-600">
                   {formatCurrency(filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0) / Math.max(filteredExpenses.length, 1))}
                 </p>
-                <p className="text-sm text-pink-700">Average Amount</p>
+                <p className="text-xs sm:text-sm text-pink-700">Average Amount</p>
               </div>
             </div>
           </div>
         )}
 
         {/* Expenses List */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-200">
+        <div className="bg-white rounded-lg sm:rounded-xl lg:rounded-2xl shadow-lg border border-gray-200">
           <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
               <div>
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Recent Expenses</h2>
-                <p className="text-sm sm:text-base text-gray-600">Manage and track all your business expenses</p>
+                <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900">Recent Expenses</h2>
+                <p className="text-xs sm:text-sm lg:text-base text-gray-600">Manage and track all your business expenses</p>
               </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleShowAnalytics}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-xs sm:text-sm"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Analytics</span>
+                </button>
+                
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-xs sm:text-sm"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Export</span>
+                </button>
+
               {filteredExpenses.length > 0 && (
                 <button
                   onClick={() => {
@@ -1092,28 +1074,29 @@ export default function ExpenseTracker() {
                     URL.revokeObjectURL(url);
                     toast.success('Expense list exported!');
                   }}
-                  className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-xs sm:text-sm"
                 >
                   <Download className="h-4 w-4" />
-                  <span className="hidden sm:inline">Export List</span>
+                    <span className="hidden sm:inline">CSV</span>
                 </button>
               )}
+              </div>
             </div>
           </div>
 
           {loading ? (
-            <div className="p-12 text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto text-indigo-600 mb-4" />
-              <p className="text-gray-600">Loading expenses...</p>
+            <div className="p-8 sm:p-12 text-center">
+              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin mx-auto text-indigo-600 mb-3 sm:mb-4" />
+              <p className="text-sm sm:text-base text-gray-600">Loading expenses...</p>
             </div>
           ) : filteredExpenses.length === 0 ? (
-            <div className="p-12 text-center">
-              <Receipt className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No expenses found</h3>
-              <p className="text-gray-600 mb-6">Get started by adding your first expense</p>
+            <div className="p-8 sm:p-12 text-center">
+              <Receipt className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-gray-400 mb-3 sm:mb-4" />
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No expenses found</h3>
+              <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">Get started by adding your first expense</p>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
+                className="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-indigo-600 text-white rounded-lg sm:rounded-xl hover:bg-indigo-700 transition-colors text-sm sm:text-base"
               >
                 <Plus className="h-4 w-4" />
                 Add First Expense
@@ -1225,19 +1208,19 @@ export default function ExpenseTracker() {
 
             {/* Mobile Card View */}
             <div className="lg:hidden">
-              <div className="space-y-3 sm:space-y-4 p-3 sm:p-4 lg:p-6">
+              <div className="space-y-2 sm:space-y-3 p-3 sm:p-4">
                 {filteredExpenses.map((expense) => {
                   const category = getCategoryById(expense.categoryId);
                   const IconComponent = category ? ICON_MAP[category.icon] : Receipt;
                   
                   return (
-                    <div key={expense.id} className="bg-gray-50 rounded-lg sm:rounded-xl p-3 sm:p-4 space-y-3">
+                    <div key={expense.id} className="bg-gray-50 rounded-lg sm:rounded-xl p-3 sm:p-4 space-y-2 sm:space-y-3">
                       {/* Header */}
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-2 sm:gap-3">
                         <div className="flex-1 min-w-0">
                           <h3 className="text-sm sm:text-base font-semibold text-gray-900 truncate">{expense.title}</h3>
                           {expense.description && (
-                            <p className="text-xs sm:text-sm text-gray-600 mt-1 line-clamp-2">{expense.description}</p>
+                            <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1 line-clamp-2">{expense.description}</p>
                           )}
                         </div>
                         <span className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-xs font-medium ${getStatusColor(expense.status)} whitespace-nowrap flex-shrink-0`}>
@@ -1266,13 +1249,13 @@ export default function ExpenseTracker() {
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <div className="text-base sm:text-lg font-bold text-gray-900">{formatCurrency(expense.amount)}</div>
+                          <div className="text-sm sm:text-base lg:text-lg font-bold text-gray-900">{formatCurrency(expense.amount)}</div>
                           <div className="text-xs text-gray-500">{expense.expenseDate.toLocaleDateString()}</div>
                         </div>
                       </div>
 
                       {/* Vendor and Actions */}
-                      <div className="flex items-center justify-between pt-2 sm:pt-3 border-t border-gray-200">
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-200">
                         <div className="text-xs sm:text-sm text-gray-600 truncate flex-1 pr-2">
                           {expense.vendor ? (
                             <span>Vendor: {expense.vendor.name}</span>
@@ -1283,7 +1266,7 @@ export default function ExpenseTracker() {
                         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                           <button
                             onClick={() => handleViewExpense(expense)}
-                            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                            className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
@@ -1291,7 +1274,7 @@ export default function ExpenseTracker() {
                           {expense.status === 'approved' && (
                             <button
                               onClick={() => handleMarkAsPaid(expense)}
-                              className="p-2 text-blue-400 hover:text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                              className="p-1.5 sm:p-2 text-blue-400 hover:text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
                               title="Mark as Paid"
                             >
                               <DollarSign className="h-4 w-4" />
@@ -1311,15 +1294,26 @@ export default function ExpenseTracker() {
 
       {/* Add Expense Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
-          <div className="bg-white rounded-lg sm:rounded-xl lg:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200">
-              <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900">Add New Expense</h2>
-              <p className="text-xs sm:text-sm lg:text-base text-gray-600">Record a new business expense</p>
+        <div className="fixed inset-0 z-50 overflow-y-auto px-2 sm:px-4 py-4 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[95vh]">
+            {/* Drag handle & Header */}
+            <div className="py-2 flex flex-col items-center border-b border-gray-200 relative">
+              <span className="w-12 h-1.5 bg-gray-300 rounded-full"></span>
+              <h2 className="mt-2 text-base sm:text-lg font-semibold text-gray-900">Add New Expense</h2>
+              <button
+                type="button"
+                onClick={() => { setShowAddModal(false); reset(); }}
+                className="absolute right-4 top-2 p-2 text-gray-400 hover:text-gray-600"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <p className="text-xs text-gray-500">Record a new business expense</p>
             </div>
 
-            <form onSubmit={handleSubmit(handleCreateExpense)} className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-4">
+            <form id="expenseForm" onSubmit={handleSubmit(handleCreateExpense)} className="space-y-4">
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">
@@ -1335,7 +1329,7 @@ export default function ExpenseTracker() {
                   </div>
                   <select
                     {...register('categoryId', { required: 'Category is required' })}
-                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                  className="w-full p-2 sm:p-2.5 lg:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   >
                     <option value="">Select Category</option>
                     {categories.filter(cat => cat.isActive).map((category) => (
@@ -1360,13 +1354,12 @@ export default function ExpenseTracker() {
                       required: 'Amount is required',
                       min: { value: 0, message: 'Amount must be positive' }
                     })}
-                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                  className="w-full p-2 sm:p-2.5 lg:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                     placeholder="0.00"
                   />
                   {errors.amount && (
                     <p className="mt-1 text-xs sm:text-sm text-red-600">{errors.amount.message}</p>
                   )}
-                </div>
               </div>
 
               <div>
@@ -1376,7 +1369,7 @@ export default function ExpenseTracker() {
                 <input
                   type="text"
                   {...register('title')}
-                  className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                  className="w-full p-2 sm:p-2.5 lg:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   placeholder="e.g., Office supplies, Staff salaries..."
                 />
                 {errors.title && (
@@ -1391,7 +1384,7 @@ export default function ExpenseTracker() {
                 <textarea
                   {...register('description')}
                   rows={3}
-                  className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                  className="w-full p-2 sm:p-2.5 lg:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   placeholder="Additional details about this expense..."
                 />
               </div>
@@ -1403,7 +1396,7 @@ export default function ExpenseTracker() {
                   </label>
                   <select
                     {...register('paymentMethod', { required: 'Payment method is required' })}
-                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                    className="w-full p-2 sm:p-2.5 lg:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   >
                     <option value="cash">Cash</option>
                     <option value="bank_transfer">Bank Transfer</option>
@@ -1421,7 +1414,7 @@ export default function ExpenseTracker() {
                   <input
                     type="date"
                     {...register('expenseDate', { required: 'Expense date is required' })}
-                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                    className="w-full p-2 sm:p-2.5 lg:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   />
                 </div>
               </div>
@@ -1434,7 +1427,7 @@ export default function ExpenseTracker() {
                   <input
                     type="text"
                     {...register('vendorName')}
-                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                    className="w-full p-2 sm:p-2.5 lg:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                     placeholder="Vendor or supplier name"
                   />
                 </div>
@@ -1446,7 +1439,7 @@ export default function ExpenseTracker() {
                   <input
                     type="text"
                     {...register('invoiceNumber')}
-                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                    className="w-full p-2 sm:p-2.5 lg:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                     placeholder="Invoice or receipt number"
                   />
                 </div>
@@ -1459,7 +1452,7 @@ export default function ExpenseTracker() {
                 <input
                   type="text"
                   {...register('tags')}
-                  className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                  className="w-full p-2 sm:p-2.5 lg:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   placeholder="Separate tags with commas (e.g., urgent, monthly, equipment)"
                 />
               </div>
@@ -1474,26 +1467,26 @@ export default function ExpenseTracker() {
                   This is a recurring expense
                 </label>
               </div>
+            </form>
+              </div>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 sm:pt-6 border-t border-gray-200">
+            {/* Footer */}
+            <div className="px-4 py-3 border-t border-gray-200 bg-white flex gap-3 sticky bottom-0">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowAddModal(false);
-                    reset();
-                  }}
-                  className="px-4 sm:px-6 py-2.5 sm:py-3 border border-gray-300 text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-50 transition-colors text-sm sm:text-base"
+                onClick={() => { setShowAddModal(false); reset(); }}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 sm:px-6 py-2.5 sm:py-3 bg-indigo-600 text-white rounded-lg sm:rounded-xl hover:bg-indigo-700 transition-colors text-sm sm:text-base"
+                form="expenseForm"
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
                 >
                   Add Expense
                 </button>
               </div>
-            </form>
           </div>
         </div>
       )}
@@ -1501,26 +1494,26 @@ export default function ExpenseTracker() {
       {/* View Expense Modal */}
       {showViewModal && selectedExpense && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-4 sm:p-6 border-b border-gray-200">
+          <div className="bg-white rounded-lg sm:rounded-xl lg:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">{selectedExpense.title}</h2>
-                  <p className="text-sm sm:text-base text-gray-600">Expense Details</p>
+                  <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900">{selectedExpense.title}</h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-gray-600">Expense Details</p>
                 </div>
-                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedExpense.status)}`}>
+                <span className={`inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${getStatusColor(selectedExpense.status)}`}>
                   {getStatusIcon(selectedExpense.status)}
                   {selectedExpense.status.charAt(0).toUpperCase() + selectedExpense.status.slice(1)}
                 </span>
               </div>
             </div>
 
-            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Amount</label>
-                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(selectedExpense.amount)}</p>
-                  <p className="text-sm text-gray-500 capitalize">{selectedExpense.paymentMethod.replace('_', ' ')}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{formatCurrency(selectedExpense.amount)}</p>
+                  <p className="text-xs sm:text-sm text-gray-500 capitalize">{selectedExpense.paymentMethod.replace('_', ' ')}</p>
                 </div>
                 
                 <div>
@@ -1532,7 +1525,7 @@ export default function ExpenseTracker() {
                       return category ? (
                         <>
                           <div 
-                            className="p-2 rounded-lg" 
+                            className="p-1.5 sm:p-2 rounded-lg" 
                             style={{ backgroundColor: `${category.color}20` }}
                           >
                             <IconComponent 
@@ -1557,7 +1550,7 @@ export default function ExpenseTracker() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Expense Date</label>
                   <p className="text-gray-900">{selectedExpense.expenseDate.toLocaleDateString()}</p>
@@ -1608,7 +1601,7 @@ export default function ExpenseTracker() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 lg:gap-6 text-sm">
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Created</label>
                   <p className="text-gray-900">{selectedExpense.createdAt.toLocaleDateString()}</p>
@@ -1621,15 +1614,15 @@ export default function ExpenseTracker() {
               </div>
             </div>
 
-            <div className="p-4 sm:p-6 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="p-3 sm:p-4 lg:p-6 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                 {selectedExpense.status === 'approved' && (
                   <button
                     onClick={() => {
                       handleMarkAsPaid(selectedExpense);
                       setShowViewModal(false);
                     }}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base"
+                    className="flex items-center justify-center gap-2 px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base"
                   >
                     <DollarSign className="h-4 w-4" />
                     Mark as Paid
@@ -1639,7 +1632,7 @@ export default function ExpenseTracker() {
               
               <button
                 onClick={() => setShowViewModal(false)}
-                className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
+                className="px-4 sm:px-6 py-2 sm:py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
               >
                 Close
               </button>
@@ -1650,14 +1643,26 @@ export default function ExpenseTracker() {
 
       {/* Add Custom Category Modal */}
       {showAddCategoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-4 sm:p-6 border-b border-gray-200">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Add Custom Category</h2>
-              <p className="text-sm sm:text-base text-gray-600">Create a new expense category for your restaurant</p>
+        <div className="fixed inset-0 z-50 overflow-y-auto px-2 sm:px-4 py-4 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[95vh]">
+            {/* Drag handle & Header */}
+            <div className="py-2 flex flex-col items-center border-b border-gray-200 relative">
+              <span className="w-12 h-1.5 bg-gray-300 rounded-full"></span>
+              <h2 className="mt-2 text-base sm:text-lg font-semibold text-gray-900">Add Custom Category</h2>
+              <button
+                type="button"
+                onClick={() => { setShowAddCategoryModal(false); resetCategory(); }}
+                className="absolute right-4 top-2 p-2 text-gray-400 hover:text-gray-600"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <p className="text-xs text-gray-500">Create a new expense category for your restaurant</p>
             </div>
 
-            <form onSubmit={handleSubmitCategory(handleCreateCustomCategory)} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4">
+              <form id="categoryForm" onSubmit={handleSubmitCategory(handleCreateCustomCategory)} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Category Name *
@@ -1665,7 +1670,7 @@ export default function ExpenseTracker() {
                 <input
                   type="text"
                   {...registerCategory('name', { required: 'Category name is required' })}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   placeholder="e.g., Office Supplies"
                 />
                 {categoryErrors.name && (
@@ -1680,12 +1685,12 @@ export default function ExpenseTracker() {
                 <textarea
                   {...registerCategory('description')}
                   rows={3}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   placeholder="Brief description of this category"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Color
@@ -1693,7 +1698,7 @@ export default function ExpenseTracker() {
                   <input
                     type="color"
                     {...registerCategory('color')}
-                    className="w-full h-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full h-10 sm:h-12 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
 
@@ -1703,7 +1708,7 @@ export default function ExpenseTracker() {
                   </label>
                   <select
                     {...registerCategory('icon')}
-                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   >
                     <option value="MoreHorizontal">Default</option>
                     <option value="Users">People</option>
@@ -1732,7 +1737,7 @@ export default function ExpenseTracker() {
                     required: 'Monthly limit is required',
                     min: { value: 0, message: 'Amount must be positive' }
                   })}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   placeholder="e.g., 10000"
                 />
                 {categoryErrors.monthlyLimit && (
@@ -1749,31 +1754,31 @@ export default function ExpenseTracker() {
                   min="1"
                   max="100"
                   {...registerCategory('alertThreshold')}
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   placeholder="e.g., 80"
                 />
                 <p className="mt-1 text-xs text-gray-500">Get notified when spending reaches this percentage of the budget</p>
+                </div>
+              </form>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
+            {/* Footer */}
+            <div className="px-4 py-3 border-t border-gray-200 bg-white flex gap-3 sticky bottom-0">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowAddCategoryModal(false);
-                    resetCategory();
-                  }}
-                  className="px-6 py-2.5 sm:py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-sm sm:text-base"
+                onClick={() => { setShowAddCategoryModal(false); resetCategory(); }}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 sm:py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors text-sm sm:text-base"
+                form="categoryForm"
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
                 >
                   Create Category
                 </button>
               </div>
-            </form>
           </div>
         </div>
       )}
@@ -1781,12 +1786,12 @@ export default function ExpenseTracker() {
       {/* Analytics Modal */}
       {showStatsModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-6xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-4 sm:p-6 border-b border-gray-200">
+          <div className="bg-white rounded-lg sm:rounded-xl lg:rounded-2xl shadow-2xl w-full max-w-6xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Expense Analytics</h2>
-                  <p className="text-sm sm:text-base text-gray-600">Detailed insights into your restaurant's expenses</p>
+                  <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900">Expense Analytics</h2>
+                  <p className="text-xs sm:text-sm lg:text-base text-gray-600">Detailed insights into your restaurant's expenses</p>
                 </div>
                 <button
                   onClick={() => setShowStatsModal(false)}
@@ -1797,61 +1802,61 @@ export default function ExpenseTracker() {
               </div>
             </div>
 
-            <div className="p-4 sm:p-6">
+            <div className="p-3 sm:p-4 lg:p-6">
               {analyticsLoading ? (
-                <div className="text-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto text-indigo-600 mb-4" />
-                  <p className="text-gray-600">Loading analytics...</p>
+                <div className="text-center py-8 sm:py-12">
+                  <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin mx-auto text-indigo-600 mb-3 sm:mb-4" />
+                  <p className="text-sm sm:text-base text-gray-600">Loading analytics...</p>
                 </div>
               ) : analytics ? (
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {/* Summary Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-blue-200">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-blue-600 text-sm font-medium">Total Expenses</p>
-                          <p className="text-2xl font-bold text-blue-900">{formatCurrency(analytics.totalExpenses)}</p>
+                          <p className="text-blue-600 text-xs sm:text-sm font-medium">Total Expenses</p>
+                          <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-900">{formatCurrency(analytics.totalExpenses)}</p>
                         </div>
-                        <DollarSign className="h-8 w-8 text-blue-600" />
+                        <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                    <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-green-200">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-green-600 text-sm font-medium">This Month</p>
-                          <p className="text-2xl font-bold text-green-900">{formatCurrency(analytics.monthlyExpenses)}</p>
+                          <p className="text-green-600 text-xs sm:text-sm font-medium">This Month</p>
+                          <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-900">{formatCurrency(analytics.monthlyExpenses)}</p>
                         </div>
-                        <Calendar className="h-8 w-8 text-green-600" />
+                        <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                    <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-purple-200">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-purple-600 text-sm font-medium">This Year</p>
-                          <p className="text-2xl font-bold text-purple-900">{formatCurrency(analytics.yearlyExpenses)}</p>
+                          <p className="text-purple-600 text-xs sm:text-sm font-medium">This Year</p>
+                          <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-900">{formatCurrency(analytics.yearlyExpenses)}</p>
                         </div>
-                        <TrendingUp className="h-8 w-8 text-purple-600" />
+                        <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600" />
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
+                    <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-orange-200">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-orange-600 text-sm font-medium">Avg Monthly</p>
-                          <p className="text-2xl font-bold text-orange-900">{formatCurrency(analytics.averageMonthlyExpense)}</p>
+                          <p className="text-orange-600 text-xs sm:text-sm font-medium">Avg Monthly</p>
+                          <p className="text-lg sm:text-xl lg:text-2xl font-bold text-orange-900">{formatCurrency(analytics.averageMonthlyExpense)}</p>
                         </div>
-                        <BarChart3 className="h-8 w-8 text-orange-600" />
+                        <BarChart3 className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600" />
                       </div>
                     </div>
                   </div>
 
                   {/* Category Breakdown */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses by Category</h3>
-                    <div className="space-y-4">
+                  <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 lg:p-6">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Expenses by Category</h3>
+                    <div className="space-y-3 sm:space-y-4">
                       {analytics.categoryBreakdown.slice(0, 8).map((category: any, index: number) => {
                         const categoryInfo = getCategoryById(category.categoryId);
                         const IconComponent = categoryInfo ? ICON_MAP[categoryInfo.icon] : Receipt;
@@ -1859,10 +1864,10 @@ export default function ExpenseTracker() {
                         return (
                           <div key={category.categoryId} className="space-y-2">
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                                 {categoryInfo && (
                                   <div 
-                                    className="p-2 rounded-lg" 
+                                    className="p-1.5 sm:p-2 rounded-lg flex-shrink-0" 
                                     style={{ backgroundColor: `${categoryInfo.color}20` }}
                                   >
                                     <IconComponent 
@@ -1871,14 +1876,14 @@ export default function ExpenseTracker() {
                                     />
                                   </div>
                                 )}
-                                <div>
-                                  <p className="font-medium text-gray-900">{categoryInfo?.name || category.categoryName}</p>
-                                  <p className="text-sm text-gray-500">{category.count} expenses</p>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{categoryInfo?.name || category.categoryName}</p>
+                                  <p className="text-xs sm:text-sm text-gray-500">{category.count} expenses</p>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <p className="font-semibold text-gray-900">{formatCurrency(category.amount)}</p>
-                                <p className="text-sm text-gray-500">{category.percentage.toFixed(1)}%</p>
+                              <div className="text-right flex-shrink-0">
+                                <p className="font-semibold text-gray-900 text-sm sm:text-base">{formatCurrency(category.amount)}</p>
+                                <p className="text-xs sm:text-sm text-gray-500">{category.percentage.toFixed(1)}%</p>
                               </div>
                             </div>
                             {/* Progress Bar */}
@@ -1898,8 +1903,8 @@ export default function ExpenseTracker() {
                     
                     {/* Show All Categories Button */}
                     {analytics.categoryBreakdown.length > 8 && (
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <p className="text-sm text-gray-500 text-center">
+                      <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
+                        <p className="text-xs sm:text-sm text-gray-500 text-center">
                           Showing top 8 of {analytics.categoryBreakdown.length} categories
                         </p>
                       </div>
@@ -1907,17 +1912,17 @@ export default function ExpenseTracker() {
                   </div>
 
                   {/* Monthly Trends */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Trends (Last 12 Months)</h3>
-                    <div className="space-y-3">
+                  <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 lg:p-6">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Monthly Trends (Last 6 Months)</h3>
+                    <div className="space-y-2 sm:space-y-3">
                       {analytics.monthlyTrends.slice(-6).map((trend: any, index: number) => (
                         <div key={index} className="flex items-center justify-between py-2">
                           <div>
-                            <p className="font-medium text-gray-900">{trend.month}</p>
-                            <p className="text-sm text-gray-500">{trend.count} expenses</p>
+                            <p className="font-medium text-gray-900 text-sm sm:text-base">{trend.month}</p>
+                            <p className="text-xs sm:text-sm text-gray-500">{trend.count} expenses</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold text-gray-900">{formatCurrency(trend.amount)}</p>
+                            <p className="font-semibold text-gray-900 text-sm sm:text-base">{formatCurrency(trend.amount)}</p>
                           </div>
                         </div>
                       ))}
@@ -1926,17 +1931,17 @@ export default function ExpenseTracker() {
 
                   {/* Top Vendors */}
                   {analytics.topVendors.length > 0 && (
-                    <div className="bg-white rounded-xl border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Vendors</h3>
-                      <div className="space-y-3">
+                    <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 lg:p-6">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Top Vendors</h3>
+                      <div className="space-y-2 sm:space-y-3">
                         {analytics.topVendors.slice(0, 5).map((vendor: any, index: number) => (
                           <div key={index} className="flex items-center justify-between py-2">
                             <div>
-                              <p className="font-medium text-gray-900">{vendor.vendorName}</p>
-                              <p className="text-sm text-gray-500">{vendor.count} transactions</p>
+                              <p className="font-medium text-gray-900 text-sm sm:text-base">{vendor.vendorName}</p>
+                              <p className="text-xs sm:text-sm text-gray-500">{vendor.count} transactions</p>
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold text-gray-900">{formatCurrency(vendor.amount)}</p>
+                              <p className="font-semibold text-gray-900 text-sm sm:text-base">{formatCurrency(vendor.amount)}</p>
                             </div>
                           </div>
                         ))}
@@ -1945,18 +1950,18 @@ export default function ExpenseTracker() {
                   )}
 
                   {/* Payment Methods */}
-                  <div className="bg-white rounded-xl border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Methods</h3>
-                    <div className="space-y-3">
+                  <div className="bg-white rounded-lg sm:rounded-xl border border-gray-200 p-3 sm:p-4 lg:p-6">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Payment Methods</h3>
+                    <div className="space-y-2 sm:space-y-3">
                       {analytics.paymentMethodBreakdown.map((method: any, index: number) => (
                         <div key={index} className="flex items-center justify-between py-2">
                           <div>
-                            <p className="font-medium text-gray-900 capitalize">{method.method.replace('_', ' ')}</p>
-                            <p className="text-sm text-gray-500">{method.count} transactions</p>
+                            <p className="font-medium text-gray-900 capitalize text-sm sm:text-base">{method.method.replace('_', ' ')}</p>
+                            <p className="text-xs sm:text-sm text-gray-500">{method.count} transactions</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold text-gray-900">{formatCurrency(method.amount)}</p>
-                            <p className="text-sm text-gray-500">{method.percentage.toFixed(1)}%</p>
+                            <p className="font-semibold text-gray-900 text-sm sm:text-base">{formatCurrency(method.amount)}</p>
+                            <p className="text-xs sm:text-sm text-gray-500">{method.percentage.toFixed(1)}%</p>
                           </div>
                         </div>
                       ))}
@@ -1964,26 +1969,27 @@ export default function ExpenseTracker() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <BarChart3 className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600">No analytics data available</p>
+                <div className="text-center py-8 sm:py-12">
+                  <BarChart3 className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-gray-400 mb-3 sm:mb-4" />
+                  <p className="text-sm sm:text-base text-gray-600">No analytics data available</p>
                 </div>
               )}
             </div>
 
-            <div className="p-4 sm:p-6 border-t border-gray-200 bg-gray-50">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="p-3 sm:p-4 lg:p-6 border-t border-gray-200 bg-gray-50">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                   <button
                     onClick={() => {
                       setShowStatsModal(false);
                       setShowExportModal(true);
                     }}
                     disabled={!analytics}
-                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-sm sm:text-base"
+                    className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-xs sm:text-sm lg:text-base"
                   >
                     <Download className="h-4 w-4" />
-                    Export Report
+                    <span className="hidden sm:inline">Export Report</span>
+                    <span className="sm:hidden">Export</span>
                   </button>
 
                   <button
@@ -2004,16 +2010,17 @@ export default function ExpenseTracker() {
                       }
                     }}
                     disabled={!analytics}
-                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm sm:text-base"
+                    className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-xs sm:text-sm lg:text-base"
                   >
                     <Download className="h-4 w-4" />
-                    Export Analytics CSV
+                    <span className="hidden sm:inline">Export Analytics CSV</span>
+                    <span className="sm:hidden">CSV</span>
                   </button>
                 </div>
 
                 <button
                   onClick={() => setShowStatsModal(false)}
-                  className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base"
+                  className="px-4 sm:px-6 py-2 sm:py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-xs sm:text-sm lg:text-base"
                 >
                   Close
                 </button>

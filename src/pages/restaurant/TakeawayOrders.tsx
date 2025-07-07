@@ -126,10 +126,10 @@ export default function TakeawayOrders() {
       preparingOrders: orders.filter(o => o.status === 'preparing').length,
       readyOrders: orders.filter(o => o.status === 'ready').length,
       completedToday: orders.filter(o => 
-        o.status === 'completed' && new Date(o.createdAt) >= today
+        o.status === OrderStatus.COMPLETED && new Date(o.createdAt) >= today
       ).length,
       totalRevenue: orders
-        .filter(o => o.status === 'completed')
+        .filter(o => o.status === OrderStatus.COMPLETED)
         .reduce((sum, o) => sum + o.total, 0),
     };
   };
@@ -234,7 +234,7 @@ export default function TakeawayOrders() {
       const result = await OrderService.updateOrderStatus(
         selectedOrder.id, 
         restaurant.id, 
-        'completed',
+        OrderStatus.COMPLETED,
         updateData
       );
 

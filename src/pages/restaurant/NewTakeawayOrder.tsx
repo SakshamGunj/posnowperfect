@@ -27,6 +27,7 @@ import { MenuItem, Category, Order, SelectedVariant } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 import VariantSelectionModal from '@/components/restaurant/VariantSelectionModal';
 import PaymentModalWithCoupons from '@/components/restaurant/PaymentModalWithCoupons';
+import { OrderStatus } from '@/types';
 
 interface CustomerForm {
   name: string;
@@ -236,7 +237,7 @@ export default function NewTakeawayOrder() {
         await OrderService.updateOrderStatus(
           result.data.id,
           restaurant.id,
-          'placed',
+          OrderStatus.PLACED,
           updateData
         );
 
@@ -335,7 +336,7 @@ export default function NewTakeawayOrder() {
       const result = await OrderService.updateOrderStatus(
         currentOrder.id, 
         restaurant.id, 
-        'completed',
+        OrderStatus.COMPLETED,
         updateData
       );
 

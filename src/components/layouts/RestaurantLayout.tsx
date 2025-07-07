@@ -3,23 +3,34 @@ import { Outlet } from 'react-router-dom';
 import RestaurantNavbar from './ImprovedRestaurantNavbar';
 import ConnectionStatus from '@/components/common/ConnectionStatus';
 import VoiceButton from '@/components/voice/VoiceButton';
+import DesktopSidebar from './DesktopSidebar';
 
 export default function RestaurantLayout() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <RestaurantNavbar />
-      {/* Add top padding to account for fixed navbar */}
-      <main className="pt-16">
-        <Outlet />
-      </main>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 relative">
+      <DesktopSidebar />
       
-      {/* Connection Status - Shows only when there are issues */}
-      <div className="fixed bottom-4 left-4 z-40">
-        <ConnectionStatus />
+      <div className="layout-with-sidebar">
+        {/* The top navbar is now only for mobile/tablet */}
+        <div className="lg:hidden">
+          <RestaurantNavbar />
+        </div>
+        
+        {/* Main content area with improved spacing and safe area handling */}
+        <main className="pt-20 lg:pt-10 pb-10">
+          <div className="px-4 sm:px-6 lg:px-8">
+            <Outlet />
+          </div>
+        </main>
       </div>
-      
-      {/* Voice Button for voice commands */}
-      <VoiceButton />
+
+      {/* Voice Button and Connection Status - now positioned relative to the new layout */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <div className="flex flex-col items-center gap-4">
+          <ConnectionStatus />
+          <VoiceButton />
+        </div>
+      </div>
     </div>
   );
 } 

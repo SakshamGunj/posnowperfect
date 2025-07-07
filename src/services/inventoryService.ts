@@ -16,11 +16,143 @@ import {
 import { db, handleFirebaseError } from '@/lib/firebase';
 import { InventoryItem, InventoryTransaction, InventoryAlert, ApiResponse } from '@/types';
 import { generateId } from '@/lib/utils';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+const AdjustmentReasonLabels: { [key: string]: string } = {
+  MANUAL_COUNT: 'Manual Count',
+  PURCHASE_ORDER: 'Purchase Order',
+  SALE: 'Sale',
+  DAMAGE: 'Damage',
+  THEFT: 'Theft',
+  RETURN: 'Return',
+  OTHER: 'Other',
+};
+
+const formatTimestamp = (timestamp: any) => {
+  if (!timestamp) return 'N/A';
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export class InventoryService {
   private static readonly INVENTORY_COLLECTION = 'inventory';
   private static readonly TRANSACTIONS_COLLECTION = 'inventoryTransactions';
   private static readonly ALERTS_COLLECTION = 'inventoryAlerts';
+
+  private restaurantId: string;
+
+  constructor(restaurantId: string) {
+    this.restaurantId = restaurantId;
+  }
+
+  static async generateInventoryReportPDF(
+    restaurantId: string,
+    dateRange: { start: Date; end: Date },
+    restaurantName: string
+  ): Promise<Blob> {
+    const doc = new jsPDF();
+    let yPosition = 20;
+
+    // 1. Fetch Data
+    const itemsQuery = query(
+      collection(db, `restaurants/${restaurantId}/inventory`)
+    );
+    const itemsSnap = await getDocs(itemsQuery);
+    const inventoryItems = itemsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+
+    const adjustmentsQuery = query(
+      collection(db, `restaurants/${restaurantId}/inventoryTransactions`), // Corrected collection name
+      where('createdAt', '>=', dateRange.start), // Corrected field name
+      where('createdAt', '<=', dateRange.end),   // Corrected field name
+      orderBy('createdAt', 'desc')             // Corrected field name
+    );
+    const adjustmentsSnap = await getDocs(adjustmentsQuery);
+    const adjustments = adjustmentsSnap.docs.map(doc => doc.data() as any);
+
+    // 2. Group adjustments by item
+    const adjustmentsByItem: { [key: string]: any[] } = {};
+    adjustments.forEach(adj => {
+      if (!adjustmentsByItem[adj.inventoryItemId]) { // Corrected field name
+        adjustmentsByItem[adj.inventoryItemId] = [];
+      }
+      adjustmentsByItem[adj.inventoryItemId].push(adj); // Corrected field name
+    });
+
+    // 3. Build PDF
+    // Header
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${restaurantName} - Inventory Report`, 105, yPosition, { align: 'center' });
+    yPosition += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`Period: ${dateRange.start.toLocaleDateString()} - ${dateRange.end.toLocaleDateString()}`, 105, yPosition, { align: 'center' });
+    yPosition += 15;
+
+    // Loop through each inventory item
+    inventoryItems.forEach(item => {
+      const itemAdjustments = adjustmentsByItem[item.id] || [];
+      if (itemAdjustments.length === 0) return; // Skip items with no adjustments in the period
+
+      if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      // Item Header
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(40);
+      const itemName = (item.name || item.displayName || item.standaloneItemName || item.menuItemId || 'Unnamed Item') as string;
+      doc.text(`${itemName} (${item.unit || ''})`, 20, yPosition);
+      yPosition += 6;
+      doc.setFontSize(10);
+      doc.text(`Current Stock: ${item.stock}`, 20, yPosition);
+      yPosition += 10;
+
+      // Table of adjustments for the item
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['Date/Time', 'Reason', 'Change', 'New Stock', 'User']],
+        body: itemAdjustments.map(adj => [
+          formatTimestamp(adj.createdAt), // Corrected field name
+          adj.reason || adj.type,
+          adj.quantityChanged > 0 ? `+${adj.quantityChanged}` : adj.quantityChanged, // Corrected field name
+          adj.newQuantity, // Corrected field name
+          adj.staffId || 'N/A', // Corrected field name
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [74, 85, 104], textColor: 255 },
+        styles: { fontSize: 9 },
+        columnStyles: {
+          2: { halign: 'right', fontStyle: 'bold' },
+          3: { halign: 'right' },
+        },
+        didDrawPage: (data: any) => {
+          yPosition = data.cursor.y + 10;
+        },
+        margin: {left: 20, right: 20}
+      });
+       yPosition = (doc as any).lastAutoTable.finalY + 15;
+    });
+
+    if (Object.keys(adjustmentsByItem).length === 0) {
+       doc.setFontSize(12);
+       doc.setTextColor(150);
+       doc.text('No inventory adjustments recorded for the selected period.', 105, yPosition + 20, {align: 'center'});
+    }
+
+
+    return doc.output('blob');
+  }
 
   // Create inventory item
   static async createInventoryItem(inventoryData: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>, staffId?: string): Promise<ApiResponse<InventoryItem>> {
@@ -714,19 +846,45 @@ export class InventoryService {
   }
 
   // Get transaction history for inventory item
-  static async getTransactionHistory(inventoryItemId: string, restaurantId: string): Promise<ApiResponse<InventoryTransaction[]>> {
+  static async getTransactionHistory(
+    inventoryItemId: string,
+    restaurantId: string,
+    filters: {
+      dateRange?: { from: Date; to: Date };
+      type?: 'all' | 'order_deduction' | 'adjustment';
+    } = {}
+  ): Promise<ApiResponse<InventoryTransaction[]>> {
     try {
-      const q = query(
-        collection(db, 'restaurants', restaurantId, this.TRANSACTIONS_COLLECTION),
+      const collectionRef = collection(db, 'restaurants', restaurantId, this.TRANSACTIONS_COLLECTION);
+      
+      let q = query(
+        collectionRef,
         where('inventoryItemId', '==', inventoryItemId),
-        orderBy('createdAt', 'desc'),
-        limit(50)
+        orderBy('createdAt', 'desc')
       );
 
+      // Apply date filter
+      if (filters.dateRange && filters.dateRange.from && filters.dateRange.to) {
+        const endOfDay = new Date(filters.dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        q = query(q, where('createdAt', '>=', Timestamp.fromDate(filters.dateRange.from)), where('createdAt', '<=', Timestamp.fromDate(endOfDay)));
+      }
+      
+      q = query(q, limit(250)); // Increased limit
+
       const querySnapshot = await getDocs(q);
-      const transactions = querySnapshot.docs.map(doc =>
+      let transactions = querySnapshot.docs.map(doc =>
         this.convertFirestoreTransaction(doc.data(), doc.id)
       );
+
+      // Apply type filter client-side as Firestore doesn't support range + IN on different fields
+      if (filters.type && filters.type !== 'all') {
+        if (filters.type === 'order_deduction') {
+          transactions = transactions.filter(t => t.type === 'order_deduction');
+        } else if (filters.type === 'adjustment') {
+          transactions = transactions.filter(t => ['restock', 'waste', 'correction'].includes(t.type));
+        }
+      }
 
       return {
         success: true,

@@ -27,6 +27,9 @@ import {
   ApiResponse 
 } from '@/types';
 import { generateId } from '@/lib/utils';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
+import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
 
 // Local type to avoid conflicts with imported ExpenseStats
 type LocalExpenseStats = {
@@ -858,5 +861,111 @@ export class ExpenseService {
         error: handleFirebaseError(error),
       };
     }
+  }
+
+  static async generateExpenseReportPDF(
+    restaurantId: string,
+    dateRange: { start: Date; end: Date },
+    restaurantName: string
+  ): Promise<Blob> {
+    const doc = new jsPDF();
+    let yPosition = 20;
+
+    // 1. Fetch Data
+    const expensesResult = await this.getExpensesForPeriod(restaurantId, dateRange.start, dateRange.end);
+    if (!expensesResult.success || !expensesResult.data) {
+      // Handle error case, maybe return a PDF with an error message
+      doc.text('Could not generate report: Failed to fetch expense data.', 20, 20);
+      return doc.output('blob');
+    }
+    const expenses = expensesResult.data;
+
+    // 2. Calculate Analytics
+    const totalAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const expenseCount = expenses.length;
+    const categoryBreakdown: { [key: string]: { amount: number; count: number } } = {};
+    expenses.forEach(exp => {
+      const category = exp.categoryName || 'Uncategorized';
+      if (!categoryBreakdown[category]) {
+        categoryBreakdown[category] = { amount: 0, count: 0 };
+      }
+      categoryBreakdown[category].amount += exp.amount;
+      categoryBreakdown[category].count++;
+    });
+    
+    // 3. Build PDF
+    // Header
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${restaurantName} - Expense Report`, 105, yPosition, { align: 'center' });
+    yPosition += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`Period: ${formatDate(dateRange.start)} - ${formatDate(dateRange.end)}`, 105, yPosition, { align: 'center' });
+    yPosition += 15;
+
+    // Summary Section
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Executive Summary', 20, yPosition);
+    yPosition += 8;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total Expenses: ${formatCurrency(totalAmount)}`, 20, yPosition);
+    yPosition += 6;
+    doc.text(`Total Transactions: ${expenseCount}`, 20, yPosition);
+    yPosition += 12;
+
+    // Category Breakdown Table
+    if (Object.keys(categoryBreakdown).length > 0) {
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Category Breakdown', 20, yPosition);
+      yPosition += 8;
+
+      // @ts-ignore - autoTable is loaded via CDN
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['Category', 'Total Amount', 'Transactions']],
+        body: Object.entries(categoryBreakdown).map(([name, data]) => [
+          name,
+          formatCurrency(data.amount),
+          data.count,
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [200, 50, 50] },
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+    }
+
+    // Detailed Expense List Table
+    if (expenses.length > 0) {
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Detailed Expense List', 20, yPosition);
+      yPosition += 8;
+
+      // @ts-ignore - autoTable is loaded via CDN  
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['Date', 'Title', 'Category', 'Amount', 'Payment Method']],
+        body: expenses.map(exp => [
+          formatDate(exp.expenseDate),
+          exp.title,
+          exp.categoryName,
+          formatCurrency(exp.amount),
+          exp.paymentMethod,
+        ]),
+        theme: 'grid',
+      });
+    }
+
+    // Add footer
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${formatDate(new Date())} ${formatTime(new Date())}`, 20, doc.internal.pageSize.getHeight() - 10);
+
+    return doc.output('blob');
   }
 } 

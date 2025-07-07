@@ -39,6 +39,8 @@ import { RevenueService } from '@/services/revenueService';
 import { generateUPIPaymentString, generateQRCodeDataURL } from '@/utils/upiUtils';
 import ReportGenerationModal from '@/components/restaurant/ReportGenerationModal';
 
+const ALL_STATUSES = Object.values(OrderStatus);
+
 interface FilterForm {
   dateRange: 'all' | 'today' | 'yesterday' | 'week' | 'last_week' | 'month' | 'this_month' | 'last_month' | 'quarter' | 'custom';
   startDate?: string;
@@ -99,7 +101,7 @@ function RevenueGrowthChart({ orders }: { orders: Order[] }) {
         return orderDate >= date && orderDate < nextDay;
       });
       
-      const completedDayOrders = dayOrders.filter(order => order.status === 'completed');
+      const completedDayOrders = dayOrders.filter(order => order.status === OrderStatus.COMPLETED);
       const dailyRevenue = completedDayOrders.reduce((sum, order) => sum + order.total, 0);
       
       pastWeekData.push({
@@ -817,66 +819,66 @@ function OrderDetailsModal({ order, isOpen, onClose, onStatusUpdate, tables }: O
     );
   };
 
-  const statusOptions: OrderStatus[] = ['draft', 'placed', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
+  const statusOptions = Object.values(OrderStatus) as OrderStatus[];
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+      <div className="flex items-center justify-center min-h-screen px-2 sm:px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={onClose}></div>
         
-        <div className="inline-block w-full max-w-2xl my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div className="inline-block w-full max-w-2xl my-4 sm:my-8 overflow-hidden text-left align-middle transition-all transform bg-white shadow-xl rounded-xl sm:rounded-2xl">
+          <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Order Details</h3>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Order Details</h3>
                 <p className="text-sm text-gray-600">#{order.orderNumber}</p>
               </div>
               
               <button
                 onClick={onClose}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 touch-manipulation"
               >
-                ×
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
           </div>
 
-          <div className="px-6 py-4 max-h-96 overflow-y-auto">
-            {/* Order Info */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="px-3 sm:px-6 py-3 sm:py-4 max-h-96 overflow-y-auto">
+            {/* Order Info - Mobile Optimized */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
               <div>
-                <label className="text-sm text-gray-600">Table</label>
-                <p className="font-medium">{table?.number || 'N/A'}</p>
+                <label className="text-xs sm:text-sm text-gray-600">Table</label>
+                <p className="font-medium text-sm sm:text-base">{table?.number || 'N/A'}</p>
               </div>
               
               <div>
-                <label className="text-sm text-gray-600">Status</label>
+                <label className="text-xs sm:text-sm text-gray-600">Status</label>
                 <div className="mt-1">
                   {getStatusBadge(order.status)}
                 </div>
               </div>
               
               <div>
-                <label className="text-sm text-gray-600">Order Time</label>
-                <p className="font-medium">{formatDate(order.createdAt)} {formatTime(order.createdAt)}</p>
+                <label className="text-xs sm:text-sm text-gray-600">Order Time</label>
+                <p className="font-medium text-sm sm:text-base">{formatDate(order.createdAt)} {formatTime(order.createdAt)}</p>
               </div>
               
               <div>
-                <label className="text-sm text-gray-600">Payment Status</label>
-                <p className="font-medium capitalize">{order.paymentStatus}</p>
+                <label className="text-xs sm:text-sm text-gray-600">Payment Status</label>
+                <p className="font-medium capitalize text-sm sm:text-base">{order.paymentStatus}</p>
               </div>
             </div>
 
-            {/* Order Items */}
-            <div className="mb-6">
-              <h4 className="font-medium text-gray-900 mb-3">Order Items</h4>
-              <div className="space-y-3">
+            {/* Order Items - Mobile Optimized */}
+            <div className="mb-4 sm:mb-6">
+              <h4 className="font-medium text-gray-900 mb-2 sm:mb-3 text-sm sm:text-base">Order Items</h4>
+              <div className="space-y-2 sm:space-y-3">
                 {order.items.map((item) => {
                   return (
-                    <div key={item.id} className="flex justify-between items-start p-3 bg-gray-50 rounded-lg">
-                      <div className="flex-1">
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-sm text-gray-600">Qty: {item.quantity} × {formatCurrency(item.price)}</p>
+                    <div key={item.id} className="flex justify-between items-start p-2 sm:p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1 pr-2">
+                        <p className="font-medium text-sm sm:text-base">{item.name}</p>
+                        <p className="text-xs sm:text-sm text-gray-600">Qty: {item.quantity} × {formatCurrency(item.price)}</p>
                         {item.customizations && item.customizations.length > 0 && (
                           <p className="text-xs text-gray-500 mt-1">
                             Customizations: {item.customizations.join(', ')}
@@ -886,17 +888,17 @@ function OrderDetailsModal({ order, isOpen, onClose, onStatusUpdate, tables }: O
                           <p className="text-xs text-gray-500 mt-1">Note: {item.notes}</p>
                         )}
                       </div>
-                      <p className="font-medium">{formatCurrency(item.total)}</p>
+                      <p className="font-medium text-sm sm:text-base flex-shrink-0">{formatCurrency(item.total)}</p>
                     </div>
                   );
                 })}
               </div>
             </div>
 
-            {/* Order Total */}
-            <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-900 mb-3">Order Summary</h4>
-              <div className="space-y-2">
+            {/* Order Total - Mobile Optimized */}
+            <div className="border-t pt-3 sm:pt-4">
+              <h4 className="font-medium text-gray-900 mb-2 sm:mb-3 text-sm sm:text-base">Order Summary</h4>
+              <div className="space-y-1 sm:space-y-2 text-sm sm:text-base">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
                   <span>{formatCurrency(order.subtotal)}</span>
@@ -921,19 +923,19 @@ function OrderDetailsModal({ order, isOpen, onClose, onStatusUpdate, tables }: O
                   <span>{formatCurrency(order.tax)}</span>
                 </div>
                 
-                <div className="flex justify-between font-semibold text-lg border-t pt-2">
+                <div className="flex justify-between font-semibold text-base sm:text-lg border-t pt-2">
                   <span>Total</span>
                   <span>{formatCurrency(order.total)}</span>
                 </div>
 
-                {/* Credit Information */}
+                {/* Credit Information - Mobile Optimized */}
                 {(order as any).isCredit && (
-                  <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                    <h5 className="font-medium text-orange-800 mb-2 flex items-center">
-                      <CreditCard className="w-4 h-4 mr-2" />
+                  <div className="mt-3 sm:mt-4 p-2 sm:p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <h5 className="font-medium text-orange-800 mb-2 flex items-center text-sm sm:text-base">
+                      <CreditCard className="w-3 sm:w-4 h-3 sm:h-4 mr-1 sm:mr-2" />
                       Credit Payment Details
                     </h5>
-                    <div className="space-y-1 text-sm">
+                    <div className="space-y-1 text-xs sm:text-sm">
                       <div className="flex justify-between">
                         <span className="text-orange-700">Amount Received:</span>
                         <span className="font-medium text-green-600">{formatCurrency((order as any).amountReceived || 0)}</span>
@@ -954,10 +956,10 @@ function OrderDetailsModal({ order, isOpen, onClose, onStatusUpdate, tables }: O
                   </div>
                 )}
 
-                {/* Savings Information */}
+                {/* Savings Information - Mobile Optimized */}
                 {(order as any).totalSavings > 0 && (
-                  <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center justify-between">
+                  <div className="mt-2 sm:mt-3 p-2 sm:p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center justify-between text-sm sm:text-base">
                       <span className="font-medium text-green-800">💰 Total Customer Savings</span>
                       <span className="font-bold text-green-600">{formatCurrency((order as any).totalSavings)}</span>
                     </div>
@@ -967,21 +969,21 @@ function OrderDetailsModal({ order, isOpen, onClose, onStatusUpdate, tables }: O
             </div>
 
             {order.notes && (
-              <div className="mt-4">
-                <label className="text-sm text-gray-600">Order Notes</label>
-                <p className="mt-1 p-3 bg-yellow-50 rounded-lg text-sm">{order.notes}</p>
+              <div className="mt-3 sm:mt-4">
+                <label className="text-xs sm:text-sm text-gray-600">Order Notes</label>
+                <p className="mt-1 p-2 sm:p-3 bg-yellow-50 rounded-lg text-xs sm:text-sm">{order.notes}</p>
               </div>
             )}
           </div>
 
-          {/* Status Update */}
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-700">Update Status:</label>
+          {/* Status Update - Mobile Optimized */}
+          <div className="px-3 sm:px-6 py-3 sm:py-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+              <label className="text-xs sm:text-sm font-medium text-gray-700">Update Status:</label>
               <select
                 value={order.status}
                 onChange={(e) => onStatusUpdate(order.id, e.target.value as OrderStatus)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full sm:w-auto px-2 sm:px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 {statusOptions.map(status => (
                   <option key={status} value={status}>
@@ -1426,6 +1428,7 @@ async function generateOrderBillContent(order: Order, restaurant: any, table: Ta
   `;
 }
 
+// Main Order Dashboard Component
 export default function OrderDashboard() {
   const { restaurant } = useRestaurant();
   const { user } = useRestaurantAuth();
@@ -1441,7 +1444,6 @@ export default function OrderDashboard() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [ordersPerPage] = useState(10);
-  const [viewMode, setViewMode] = useState<'list' | 'analytics' | 'reports'>('list');
   
   // New state for managing expanded order groups
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -1481,6 +1483,8 @@ export default function OrderDashboard() {
   const status = watch('status');
   const orderType = watch('orderType');
   const menuItemId = watch('menuItemId');
+
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (restaurant) {
@@ -1532,8 +1536,8 @@ export default function OrderDashboard() {
     });
 
     // Only calculate revenue from completed orders
-    const completedOrders = orderList.filter(order => order.status === 'completed');
-    const completedTodayOrders = todayOrders.filter(order => order.status === 'completed');
+    const completedOrders = orderList.filter(order => order.status === OrderStatus.COMPLETED);
+    const completedTodayOrders = todayOrders.filter(order => order.status === OrderStatus.COMPLETED);
 
     const totalRevenue = completedOrders.reduce((sum, order) => sum + order.total, 0);
     const todayRevenue = completedTodayOrders.reduce((sum, order) => sum + order.total, 0);
@@ -1767,9 +1771,9 @@ export default function OrderDashboard() {
         
         if (previousOrder.tableId === order.tableId) {
           // Found a previous order from the same table
-          const currentOrderPaid = order.status === 'completed' && 
+          const currentOrderPaid = order.status === OrderStatus.COMPLETED && 
             (order.paymentStatus === 'paid' || order.paymentMethod);
-          const previousOrderPaid = previousOrder.status === 'completed' && 
+          const previousOrderPaid = previousOrder.status === OrderStatus.COMPLETED && 
             (previousOrder.paymentStatus === 'paid' || previousOrder.paymentMethod);
           
           // If both orders are paid, check if they were paid together (completed at similar time)
@@ -1966,7 +1970,7 @@ export default function OrderDashboard() {
         updateData.creditCustomerPhone = paymentData.creditCustomerPhone;
       }
 
-      const result = await OrderService.updateOrderStatus(orderId, restaurant.id, 'completed', updateData);
+      const result = await OrderService.updateOrderStatus(orderId, restaurant.id, OrderStatus.COMPLETED, updateData);
       
       if (result.success) {
         // Update local state
@@ -2356,7 +2360,7 @@ Thank you for dining with us!
       };
       
       // Calculate custom analytics from filtered orders (only completed orders)
-      const completedFilteredOrders = filteredOrders.filter(order => order.status === 'completed');
+      const completedFilteredOrders = filteredOrders.filter(order => order.status === OrderStatus.COMPLETED);
       
       // Calculate actual revenue accounting for credits
       const filteredRevenue = completedFilteredOrders.reduce((sum, order) => {
@@ -2413,7 +2417,7 @@ Thank you for dining with us!
           };
           
           // Only count revenue from completed orders in the group
-          const completedGroupOrders = group.orders.filter(order => order.status === 'completed');
+          const completedGroupOrders = group.orders.filter(order => order.status === OrderStatus.COMPLETED);
           if (completedGroupOrders.length > 0) {
             existing.orderCount += 1;
             existing.revenue += completedGroupOrders.reduce((sum, order) => sum + order.total, 0);
@@ -2735,7 +2739,7 @@ Thank you for dining with us!
           }, 0);
           const totalSavingsForGroup = group.orders.reduce((sum, order) => sum + ((order as any).totalSavings || 0), 0);
           const totalDiscountForGroup = group.orders.reduce((sum, order) => sum + ((order as any).discount || 0), 0);
-
+          
           return {
             orderNumber: `${group.primaryOrder.orderNumber} (+${group.orders.length - 1} more)`,
             tableNumber: table?.number || 'N/A',
@@ -2891,953 +2895,351 @@ Thank you for dining with us!
     }
   };
 
+  const openModal = (order: Order) => {
+    setSelectedOrder(order);
+    setShowOrderDetails(true);
+  };
+
+  const openEditPaymentModal = (order: Order) => {
+    setOrderToEditPayment(order);
+    setShowEditPaymentModal(true);
+  };
+
   return (
-    <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-            <div className="flex items-center space-x-4">
+    <div className="min-h-screen pb-20 bg-gray-50">
+      {/* Header - Mobile Optimized */}
+      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-20">
+        <div className="max-w-full mx-auto px-2 sm:px-4 lg:px-6 xl:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-3">
               <div 
-                className="w-12 h-12 rounded-2xl flex items-center justify-center text-white"
-                style={{ background: 'var(--gradient-primary)' }}
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white bg-indigo-600"
               >
-                <BarChart3 className="w-6 h-6" />
+                <ShoppingCart className="w-5 h-5" />
               </div>
-              
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Order Area</h1>
-                <p className="text-gray-600">Manage and analyze all orders in your area</p>
+                <h1 className="text-lg font-bold text-gray-900">Order Dashboard</h1>
+                <p className="text-xs text-gray-600 hidden sm:block">Manage all orders efficiently</p>
               </div>
             </div>
             
-            <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-3 sm:space-y-0">
-              <div className="flex bg-gray-100 rounded-lg p-1 w-full sm:w-auto">
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`flex-1 sm:flex-initial px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'list' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <FileText className="w-4 h-4 mr-2 inline" />
-                  Orders
-                </button>
-                <button
-                  onClick={() => setViewMode('analytics')}
-                  className={`flex-1 sm:flex-initial px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'analytics' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <BarChart3 className="w-4 h-4 mr-2 inline" />
-                  Analytics
-                </button>
-                <button
-                  onClick={() => setViewMode('reports')}
-                  className={`flex-1 sm:flex-initial px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'reports' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Download className="w-4 h-4 mr-2 inline" />
-                  Reports
-                </button>
-              </div>
-              
+            <div className="flex items-center space-x-2">
               <button
                 onClick={() => loadData()}
-                className="btn btn-secondary w-full sm:w-auto"
+                className="btn btn-sm btn-secondary"
                 disabled={isLoading}
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline ml-2">Refresh</span>
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Orders</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalOrders}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-                <ShoppingCart className="w-6 h-6 text-blue-600" />
+      <main className="max-w-full mx-auto px-2 sm:px-4 lg:px-6 xl:px-8 py-4">
+        {/* Compact Stats Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-4 mb-4">
+          <div className="bg-white p-3 rounded-lg border">
+            <div className="text-center">
+              <p className="text-xs sm:text-sm font-medium text-gray-500">Revenue</p>
+              <p className="text-base sm:text-xl font-bold text-gray-800">{formatCurrency(stats.actualRevenue)}</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-3 rounded-lg border">
+            <div className="text-center">
+              <p className="text-xs sm:text-sm font-medium text-gray-500">Avg Order</p>
+              <p className="text-base sm:text-xl font-bold text-gray-800">{formatCurrency(stats.avgOrderValue)}</p>
               </div>
             </div>
           </div>
 
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Actual Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.actualRevenue)}</p>
-                <p className="text-xs text-gray-500">
-                  Total: {formatCurrency(stats.totalRevenue)} | Credits: {formatCurrency(stats.pendingCredits)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Avg Order Value</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.avgOrderValue)}</p>
-              </div>
-              <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Today's Orders</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.todayOrders}</p>
-              </div>
-              <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center">
-                <Clock className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Today's Actual Revenue</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.todayActualRevenue)}</p>
-                <p className="text-xs text-gray-500">
-                  Total: {formatCurrency(stats.todayRevenue)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-yellow-50 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-yellow-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {viewMode === 'list' && (
-          <>
-            {/* Filters */}
-            <div className="card p-6 mb-6">
-              <form onSubmit={handleSubmit(() => {})}>
-                <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                  {/* Search */}
-                  <div className="md:col-span-2">
+        {/* Filters - Mobile Optimized */}
+            <div className="bg-white p-3 sm:p-4 rounded-lg border mb-4">
+              <form onSubmit={handleSubmit(() => {})} className="space-y-3">
+                {/* Search Input */}
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
                         type="text"
                         placeholder="Search orders, items..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-indigo-500"
                       />
-                    </div>
                   </div>
 
-                  {/* Date Range */}
-                  <div>
-                    <select
-                      {...register('dateRange')}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="all">All Orders</option>
+                {/* Filter selects in a responsive grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                  <select {...register('dateRange')} className="filter-select w-full min-w-0">
+                    <option value="all">All Time</option>
                       <option value="today">Today</option>
                       <option value="yesterday">Yesterday</option>
                       <option value="week">This Week</option>
                       <option value="month">This Month</option>
-                      <option value="custom">Custom Range</option>
+                    <option value="custom">Custom</option>
                     </select>
-                  </div>
-
-                  {/* Table Filter */}
-                  <div>
-                    <select
-                      {...register('tableId')}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">All Tables</option>
+                  <select {...register('tableId')} className="filter-select w-full min-w-0">
+                    <option value="all">All Tables</option>
                       {tables.map(table => (
-                        <option key={table.id} value={table.id}>
-                          Table {table.number}
-                        </option>
+                      <option key={table.id} value={table.id}>Table {table.number}</option>
                       ))}
                     </select>
-                  </div>
-
-                  {/* Status Filter */}
-                  <div>
-                    <select
-                      {...register('status')}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
+                  <select {...register('status')} className="filter-select w-full min-w-0">
                       <option value="all">All Status</option>
-                      <option value="placed">Placed</option>
-                      <option value="confirmed">Confirmed</option>
-                      <option value="preparing">Preparing</option>
-                      <option value="ready">Ready</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
+                    {ALL_STATUSES.map(s => (
+                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()}</option>
+                    ))}
                     </select>
-                  </div>
-
-                  {/* Order Type Filter */}
-                  <div>
-                    <select
-                      {...register('orderType')}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
+                  <select {...register('orderType')} className="filter-select w-full min-w-0">
                       <option value="all">All Types</option>
-                      <option value="dine_in">Dine In</option>
+                    <option value="dine_in">Dine-In</option>
                       <option value="takeaway">Takeaway</option>
                       <option value="delivery">Delivery</option>
                     </select>
-                  </div>
-
-                  {/* Menu Item Filter */}
-                  <div>
-                    <select
-                      {...register('menuItemId')}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
+                  <div className="col-span-2 sm:col-span-1 md:col-span-1">
+                    <select {...register('menuItemId')} className="filter-select w-full min-w-0">
                       <option value="all">All Items</option>
                       {menuItems.map(item => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
+                        <option key={item.id} value={item.id}>{item.name}</option>
                       ))}
                     </select>
                   </div>
                 </div>
-
-                {/* Custom Date Range */}
-                {dateRange === 'custom' && (
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                      <input
-                        type="date"
-                        {...register('startDate')}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-                      <input
-                        type="date"
-                        {...register('endDate')}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                )}
               </form>
             </div>
 
-            {/* Orders List */}
-            <div className="card">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Orders ({filteredOrders.length})
-                  </h2>
-                  
+        {/* Orders List Header */}
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-lg font-semibold text-gray-800">Orders ({filteredOrders.length})</h2>
                   <button 
+            className="btn btn-sm btn-primary"
                     onClick={handleExportFilteredData}
-                    className="btn btn-secondary w-full sm:w-auto"
-                    disabled={isLoading || filteredOrders.length === 0}
+            disabled={isExporting}
                   >
-                    <Download className="w-4 h-4 mr-2" />
+            <Download className="w-4 h-4 mr-2"/>
                     Export ({filteredOrders.length})
                   </button>
-                </div>
               </div>
 
-              {isLoading ? (
+        {/* Orders List / Grid */}
+        <div className="space-y-3">
+        {isLoading && (
                 <div className="text-center py-12">
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
                   <p className="text-gray-600">Loading orders...</p>
                 </div>
-              ) : filteredOrders.length === 0 ? (
+         )}
+         {!isLoading && filteredOrders.length === 0 ? (
                 <div className="text-center py-12">
                   <ShoppingCart className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
                   <p className="text-gray-600">No orders match your current filters.</p>
                 </div>
               ) : (
-                <>
-                  <div className="divide-y divide-gray-200">
-                                         {paginatedGroups.map((group) => {
-                       const table = tables.find(t => t.id === group.primaryOrder.tableId);
-                       const isExpanded = expandedGroups.has(group.groupKey);
-                       
-                       return (
-                         <div key={group.groupKey} className="border-b border-gray-200">
-                           {/* Main Group Row */}
-                           <div 
-                             className={`p-4 sm:p-6 hover:bg-gray-50 cursor-pointer ${isExpanded ? 'bg-blue-50' : ''}`}
-                             onClick={() => group.isGroup && toggleGroupExpansion(group.groupKey)}
-                           >
-                             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-                               <div className="flex-1">
-                                 <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0 mb-2">
+          !isLoading && paginatedGroups.map((group) => {
+            const order = group.primaryOrder;
+            const groupKey = group.groupKey;
+            const table = tables.find(t => t.id === order.tableId);
+            const totalItems = group.orders.reduce((sum, o) => sum + o.items.reduce((iSum, i) => iSum + i.quantity, 0), 0);
+            return(
+              <div key={groupKey} className="bg-white p-3 rounded-lg border shadow-sm" onClick={() => toggleGroupExpansion(groupKey)}>
+                {/* Top Section: Order ID and Total */}
+                <div className="flex justify-between items-start">
                                    <div className="flex items-center space-x-2">
-                                     {group.isGroup && (
-                                       <button className="p-1 text-gray-400 hover:text-gray-600">
-                                         {isExpanded ? 
-                                           <ChevronUp className="w-4 h-4" /> : 
-                                           <ChevronDown className="w-4 h-4" />
-                                         }
-                                       </button>
-                                     )}
-                                     <h3 className="font-semibold text-gray-900">
-                                       #{group.primaryOrder.orderNumber}
-                                       {group.isGroup && ` (+${group.orders.length - 1} more)`}
-                                     </h3>
+                    <span className="font-bold text-gray-800 truncate">#{order.orderNumber}</span>
+                    {group.orders.length > 1 && <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">{group.orders.length} orders</span>}
                                    </div>
-                                   <div className="flex items-center space-x-2 flex-wrap">
-                                     {getStatusBadge(group.primaryOrder.status)}
-                                     <span className="text-sm text-gray-600">
-                                       Table {table?.number || 'N/A'}
-                                     </span>
-                                     <span className="text-sm text-gray-600">
-                                       {formatDate(group.primaryOrder.createdAt)} {formatTime(group.primaryOrder.createdAt)}
-                                     </span>
-                                   </div>
-                                 </div>
-                                 
-                                 <div className="text-sm text-gray-600 mb-2">
-                                   {group.isGroup ? (
-                                     <div className="space-y-1">
-                                       <div className="flex items-center space-x-1">
-                                         <div className="flex items-center space-x-1">
-                                           <div className="w-4 h-4 bg-blue-100 rounded-full flex items-center justify-center">
-                                             <span className="text-xs font-bold text-blue-600">{group.orders.length}</span>
-                                           </div>
-                                           <span className="font-medium text-blue-700">separate orders</span>
-                                         </div>
-                                         <span>•</span>
-                                         <span>{group.totalItems} items total</span>
-                                         <span className="text-xs text-blue-500 font-medium">(expand to see each order)</span>
-                                       </div>
-                                       <div className="text-xs text-gray-500">
-                                         {group.orders.map((order, index) => (
-                                           <span key={order.id}>
-                                             Order #{order.orderNumber}: {order.items.reduce((sum, item) => sum + item.quantity, 0)} item{order.items.reduce((sum, item) => sum + item.quantity, 0) !== 1 ? 's' : ''}
-                                             {index < group.orders.length - 1 ? ' • ' : ''}
-                                           </span>
-                                         ))}
-                                       </div>
-                                     </div>
-                                   ) : (
-                                     <>
-                                       {group.totalItems} item{group.totalItems !== 1 ? 's' : ''} • 
-                                       {`${group.primaryOrder.items.slice(0, 3).map(item => item.name).join(', ')}${group.primaryOrder.items.length > 3 ? ` + ${group.primaryOrder.items.length - 3} more` : ''}`}
-                                     </>
-                                   )}
-                                 </div>
-                                 
-                                 {/* Credit and Discount Information - Check ALL orders in group */}
-                                 {(() => {
-                                   // Calculate totals across all orders in the group
-                                   const totalCreditAmount = group.orders.reduce((sum, order) => sum + ((order as any).creditAmount || 0), 0);
-                                   const totalDiscount = group.orders.reduce((sum, order) => sum + ((order as any).discount || 0), 0);
-                                   const totalSavings = group.orders.reduce((sum, order) => sum + ((order as any).totalSavings || 0), 0);
-                                   const creditCustomers = group.orders
-                                     .filter(order => ((order as any).creditAmount || 0) > 0 && (order as any).creditCustomerName)
-                                     .map(order => (order as any).creditCustomerName);
-                                   
-                                   if (totalCreditAmount > 0 || totalDiscount > 0 || totalSavings > 0) {
-                                     return (
-                                       <div className="flex flex-wrap gap-2 mb-2">
-                                         {totalCreditAmount > 0 && (
-                                           <div className="flex items-center px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs">
-                                             <CreditCard className="w-3 h-3 mr-1" />
-                                             Credit: {formatCurrency(totalCreditAmount)}
-                                             {creditCustomers.length > 0 && (
-                                               <span className="ml-1">({creditCustomers.slice(0, 2).join(', ')}{creditCustomers.length > 2 ? ` +${creditCustomers.length - 2}` : ''})</span>
-                                             )}
-                                           </div>
-                                         )}
-                                         {totalDiscount > 0 && (
-                                           <div className="flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
-                                             <span className="text-green-600 mr-1">💸</span>
-                                             Discount: {formatCurrency(totalDiscount)}
-                                           </div>
-                                         )}
-                                         {totalSavings > 0 && (
-                                           <div className="flex items-center px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
-                                             <span className="text-blue-600 mr-1">💰</span>
-                                             Total Savings: {formatCurrency(totalSavings)}
-                                           </div>
-                                         )}
-                                       </div>
-                                     );
-                                   }
-                                   return null;
-                                 })()}
-                                 
-                                 <div className="flex items-center space-x-4 text-sm">
-                                   <span className="flex items-center text-gray-600">
-                                     <Users className="w-4 h-4 mr-1" />
-                                     {group.primaryOrder.type.replace('_', ' ')}
-                                   </span>
-                                   <span className="flex items-center text-gray-600">
-                                     <DollarSign className="w-4 h-4 mr-1" />
-                                     {group.primaryOrder.paymentStatus}
-                                   </span>
-                                 </div>
-                               </div>
-                               
-                               <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-4 space-y-4 lg:space-y-0">
-                                 <div className="order-2 lg:order-1 text-left lg:text-right">
-                                   <div className="space-y-1">
-                                     <p className="font-semibold text-gray-900">{formatCurrency(group.totalAmount)}</p>
-                                     <p className="text-sm text-gray-600">{group.totalItems} items</p>
-                                     
-                                     {/* Revenue breakdown when credits/discounts present - Check ALL orders */}
-                                     {(() => {
-                                       const totalCreditAmount = group.orders.reduce((sum, order) => sum + ((order as any).creditAmount || 0), 0);
-                                       const totalAmountReceived = group.orders.reduce((sum, order) => sum + ((order as any).amountReceived || order.total), 0);
-                                       const totalDiscount = group.orders.reduce((sum, order) => sum + ((order as any).discount || 0), 0);
-                                       const hasCredit = totalCreditAmount > 0;
-                                       
-                                       if (hasCredit || totalDiscount > 0) {
-                                         return (
-                                           <div className="text-xs text-gray-500 space-y-0.5">
-                                             {hasCredit ? (
-                                               <>
-                                                 <div>Bill: {formatCurrency(group.totalAmount)}</div>
-                                                 <div className="text-orange-600 font-medium">Credit: -{formatCurrency(totalCreditAmount)}</div>
-                                                 <div className="text-green-600 font-medium">
-                                                   Received: {formatCurrency(totalAmountReceived - totalCreditAmount)}
-                                                 </div>
-                                               </>
-                                             ) : totalDiscount > 0 ? (
-                                               <>
-                                                 <div>Original: {formatCurrency(group.totalAmount + totalDiscount)}</div>
-                                                 <div className="text-green-600 font-medium">Discount: -{formatCurrency(totalDiscount)}</div>
-                                                 <div className="font-medium">Final: {formatCurrency(group.totalAmount)}</div>
-                                               </>
-                                             ) : null}
-                                           </div>
-                                         );
-                                       }
-                                       return null;
-                                     })()}
-                                     
-                                     {/* Payment method indicator */}
-                                     {group.primaryOrder.paymentMethod && (
-                                       <div className="text-xs text-blue-600 font-medium">
-                                         {group.primaryOrder.paymentMethod === 'split' ? 'Split Payment' : group.primaryOrder.paymentMethod.toUpperCase()}
-                                       </div>
-                                     )}
-                                   </div>
-                                 </div>
-                                 
-                                 <div className="order-1 lg:order-2 flex flex-wrap gap-2 justify-start lg:justify-end" onClick={(e) => e.stopPropagation()}>
-                                   <button
-                                     onClick={() => {
-                                       setSelectedOrder(group.primaryOrder);
-                                       setShowOrderDetails(true);
-                                     }}
-                                     className="btn btn-secondary flex-shrink-0"
-                                   >
-                                     <Eye className="w-4 h-4 mr-2" />
-                                     View
-                                   </button>
-                                     
-                                   {group.primaryOrder.status === 'completed' && (
-                                     <>
-                                       <button
-                                         onClick={() => handlePrintBill(group.primaryOrder)}
-                                         className="btn btn-primary flex-shrink-0"
-                                         title={`Print bill for Order #${group.primaryOrder.orderNumber}`}
-                                       >
-                                         <Printer className="w-4 h-4 mr-2" />
-                                         <span className="hidden sm:inline">Print Bill</span>
-                                         <span className="sm:hidden">Print</span>
-                                       </button>
-                                       
-                                       <button
-                                         onClick={() => {
-                                           setOrderToEditPayment(group.primaryOrder);
-                                           setShowEditPaymentModal(true);
-                                         }}
-                                         className="btn bg-orange-600 text-white hover:bg-orange-700 flex-shrink-0"
-                                         title={`Edit payment method for Order #${group.primaryOrder.orderNumber}`}
-                                       >
-                                         <Edit className="w-4 h-4 mr-2" />
-                                         <span className="hidden sm:inline">Edit Payment</span>
-                                         <span className="sm:hidden">Edit</span>
-                                       </button>
-                                     </>
-                                   )}
-                                 </div>
-                               </div>
-                             </div>
-                           </div>
-
-                           {/* Expanded Individual Orders */}
-                           {group.isGroup && isExpanded && (
-                             <div className="bg-gray-50 border-t border-gray-200">
-                               <div className="px-4 sm:px-8 py-2 bg-blue-50 border-b border-blue-200">
-                                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-1 sm:space-y-0">
-                                   <p className="text-sm font-medium text-blue-800">
-                                     Order Breakdown - {group.orders.length} Separate Orders:
-                                   </p>
-                                   <p className="text-xs text-blue-600">
-                                     Combined Total: {group.totalItems} items • ₹{group.totalAmount.toFixed(2)}
-                                   </p>
-                                 </div>
-                               </div>
-                               {group.orders.map((order, index) => (
-                                 <div key={order.id} className="px-4 sm:px-8 py-4 border-b border-gray-100 last:border-b-0">
-                                   <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-2 lg:space-y-0">
-                                     <div className="flex-1">
-                                       <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-1 sm:space-y-0 mb-2">
-                                         <h4 className="font-medium text-gray-800">#{order.orderNumber}</h4>
+                  <div className="text-right">
+                    {/* Show final total if different from original or if there's any discount */}
+                    {((order as any).finalTotal && (order as any).finalTotal !== order.total) || 
+                     ((order as any).discountApplied) || 
+                     ((order as any).totalDiscountAmount && (order as any).totalDiscountAmount > 0) || 
+                     (order.discount && order.discount > 0) ? (
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500 line-through">{formatCurrency(order.total)}</span>
+                        <span className="font-bold text-indigo-600 text-sm sm:text-base">
+                          {formatCurrency((order as any).finalTotal || (order.total - ((order as any).totalDiscountAmount || order.discount || 0)))}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="font-bold text-indigo-600 text-sm sm:text-base">{formatCurrency(group.totalAmount)}</span>
+                    )}
+                  </div>
+                                  </div>
+                                  
+                {/* Middle Section: Status and Date */}
+                <div className="flex justify-between items-center text-xs text-gray-500 mt-2">
                                          <div className="flex items-center space-x-2">
-                                           {getStatusBadge(order.status)}
-                                           <span className="text-sm text-gray-500">
-                                             {formatTime(order.createdAt)}
-                                           </span>
+                                         {getStatusBadge(order.status)}
+                    <div className="hidden sm:flex items-center space-x-2">
+                      <span>Table {table?.number || 'N/A'}</span>
+                      <span className="mx-1.5">&bull;</span>
+                      <span>{totalItems} items</span>
                                          </div>
                                        </div>
-                                       
-                                       <div className="text-sm text-gray-600 mb-1">
-                                         <span className="font-medium">{order.items.reduce((sum, item) => sum + item.quantity, 0)} items:</span> {order.items.map(item => `${item.quantity}x ${item.name}`).join(', ')}
+                  <span className="font-medium text-right">{formatDate(order.createdAt)} {formatTime(order.createdAt)}</span>
                                        </div>
+                
+                {/* Credit and Discount Information */}
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  {/* Credit Information */}
+                  {((order as any).isCredit || 
+                    (order as any).creditAmount > 0 || 
+                    (order as any).creditCustomerName || 
+                    (order.paymentMethod && (order.paymentMethod.includes('credit') || order.paymentMethod.includes('partial_credit')))) && (
+                    <div className="flex items-center space-x-1 bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                      <CreditCard className="w-3 h-3" />
+                      <span className="font-medium">
+                        Credit: {formatCurrency((order as any).creditAmount || 
+                          (order.paymentMethod === 'credit' ? 
+                            ((order as any).finalTotal || 
+                             (order.total - ((order as any).totalDiscountAmount || order.discount || 0))) : 0))}
+                      </span>
+                      {(order as any).creditCustomerName && (
+                        <span className="hidden sm:inline">
+                          - {(order as any).creditCustomerName}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Discount Information */}
+                  {((order as any).discountApplied || 
+                    ((order as any).totalDiscountAmount && (order as any).totalDiscountAmount > 0) || 
+                    (order.discount && order.discount > 0)) && (
+                    <div className="flex items-center space-x-1 bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                      <span className="font-medium">💰</span>
+                      <span className="font-medium">
+                        Discount: {formatCurrency((order as any).totalDiscountAmount || order.discount || 0)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Payment Method */}
+                  {order.paymentMethod && order.status === 'completed' && (
+                    <div className="flex items-center space-x-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      <span className="font-medium">
+                        {order.paymentMethod.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </div>
                                        
-                                       {order.notes && (
-                                         <div className="text-xs text-gray-500 italic">
-                                           Note: {order.notes}
-                                         </div>
-                                       )}
-                                     </div>
-                                     
-                                     <div className="text-left lg:text-right">
-                                       <p className="font-semibold text-gray-800">{formatCurrency(order.total)}</p>
-                                       {/* Credit indicator for individual order */}
-                                       {((order as any).creditAmount || 0) > 0 && (
-                                         <div className="flex items-center lg:justify-end mt-1">
-                                           <CreditCard className="w-3 h-3 text-orange-500 mr-1" />
-                                           <span className="text-xs text-orange-600 font-medium">
-                                             ₹{((order as any).creditAmount || 0).toFixed(2)} Credit
-                                             {(order as any).creditCustomerName ? ` (${(order as any).creditCustomerName})` : ''}
-                                           </span>
-                                         </div>
-                                       )}
-                                       {/* Savings indicator for individual order */}
-                                       {(order as any).totalSavings > 0 && (
-                                         <div className="flex items-center lg:justify-end mt-1">
-                                           <span className="text-xs text-green-600 font-medium">
-                                             💰 Saved ₹{((order as any).totalSavings).toFixed(2)}
-                                           </span>
-                                         </div>
-                                       )}
-                                     </div>
-                                   </div>
-                                 </div>
-                               ))}
+                {/* Collapsible Details Section */}
+                {expandedGroups.has(groupKey) && (
+                  <div className="mt-3 pt-3 border-t text-xs text-gray-600 space-y-3">
+                     {group.orders.map(o => (
+                       <div key={o.id} className="pb-2 border-b last:border-none">
+                         <div className="flex justify-between items-start mb-1">
+                           <p className="font-semibold text-gray-800">#{o.orderNumber}</p>
+                           <div className="text-right">
+                             {/* Show final total if different from original or if there's any discount */}
+                             {((o as any).finalTotal && (o as any).finalTotal !== o.total) || 
+                              ((o as any).discountApplied) || 
+                              ((o as any).totalDiscountAmount && (o as any).totalDiscountAmount > 0) || 
+                              (o.discount && o.discount > 0) ? (
+                               <div className="flex flex-col">
+                                 <span className="text-xs text-gray-500 line-through">{formatCurrency(o.total)}</span>
+                                 <span className="font-bold text-gray-800">
+                                   {formatCurrency((o as any).finalTotal || (o.total - ((o as any).totalDiscountAmount || o.discount || 0)))}
+                                 </span>
+                               </div>
+                             ) : (
+                               <span className="font-bold text-gray-800">{formatCurrency(o.total)}</span>
+                             )}
+                           </div>
+                         </div>
+                         <p>
+                           <span className="font-semibold">Items:</span> {o.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                         </p>
+                         <div className="flex items-center space-x-2 mt-1">
+                           <span className={`px-2 py-0.5 rounded-full bg-blue-100 text-blue-700`}>{o.type}</span>
+                           <span className={`px-2 py-0.5 rounded-full ${o.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{o.paymentStatus}</span>
+                         </div>
+                         
+                         {/* Credit and Discount for Individual Order */}
+                         <div className="mt-2 flex flex-wrap items-center gap-1">
+                           {/* Credit Information */}
+                           {((o as any).isCredit || 
+                             (o as any).creditAmount > 0 || 
+                             (o as any).creditCustomerName || 
+                             (o.paymentMethod && (o.paymentMethod.includes('credit') || o.paymentMethod.includes('partial_credit')))) && (
+                             <div className="flex items-center space-x-1 bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded text-xs">
+                               <CreditCard className="w-2.5 h-2.5" />
+                               <span className="font-medium">
+                                 Credit: {formatCurrency((o as any).creditAmount || 
+                                   (o.paymentMethod === 'credit' ? 
+                                     ((o as any).finalTotal || 
+                                      (o.total - ((o as any).totalDiscountAmount || o.discount || 0))) : 0))}
+                               </span>
+                             </div>
+                           )}
+                           
+                           {/* Discount Information */}
+                           {((o as any).discountApplied || 
+                             ((o as any).totalDiscountAmount && (o as any).totalDiscountAmount > 0) || 
+                             (o.discount && o.discount > 0)) && (
+                             <div className="flex items-center space-x-1 bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-xs">
+                               <span className="font-medium">💰</span>
+                               <span className="font-medium">
+                                 -{formatCurrency((o as any).totalDiscountAmount || o.discount || 0)}
+                               </span>
+                             </div>
+                           )}
+                           
+                           {/* Payment Method */}
+                           {o.paymentMethod && o.status === 'completed' && (
+                             <div className="flex items-center space-x-1 bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-xs">
+                               <span className="font-medium">
+                                 {o.paymentMethod.replace('_', ' ').toUpperCase()}
+                               </span>
                              </div>
                            )}
                          </div>
-                       );
-                     })}
+                                     </div>
+                     ))}
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-end space-x-2 pt-2">
+                      <button className="btn btn-xs btn-ghost" onClick={(e) => {e.stopPropagation(); openModal(order)}}><Eye className="w-3 h-3 mr-1"/>View</button>
+                      <button className="btn btn-xs btn-ghost" onClick={(e) => {e.stopPropagation(); handlePrintBill(order)}}><Printer className="w-3 h-3 mr-1"/>Print</button>
+                      <button className="btn btn-xs btn-ghost" onClick={(e) => {e.stopPropagation(); openEditPaymentModal(order)}}><Edit className="w-3 h-3 mr-1"/>Edit</button>
+                                     </div>
+                                         </div>
+                                       )}
+                                     </div>
+            )
+          })
+         )}
                   </div>
 
-                  {/* Pagination */}
+        {/* Pagination */}
                   {totalPages > 1 && (
-                    <div className="px-6 py-4 border-t border-gray-200">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-                        <div className="text-sm text-gray-600 text-center sm:text-left">
-                          Showing {startIndex + 1} to {Math.min(startIndex + ordersPerPage, totalGroups)} of {totalGroups} order groups
-                        </div>
-                        
-                        <div className="flex items-center justify-center space-x-2">
+          <div className="mt-6 flex justify-between items-center text-sm">
                           <button
-                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
-                            className="p-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="btn btn-sm btn-ghost"
                           >
-                            <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4 h-4 mr-1"/>
+              Previous
                           </button>
-                          
-                          <span className="px-4 py-2 text-sm font-medium">
-                            Page {currentPage} of {totalPages}
-                          </span>
-                          
+            <span>Page {currentPage} of {totalPages}</span>
                           <button
-                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                             disabled={currentPage === totalPages}
-                            className="p-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              className="btn btn-sm btn-ghost"
                           >
-                            <ChevronRight className="w-5 h-5" />
+              Next
+              <ChevronRight className="w-4 h-4 ml-1"/>
                           </button>
-                        </div>
-                      </div>
                     </div>
                   )}
-                </>
-              )}
-            </div>
-          </>
-        )}
-
-        {viewMode === 'analytics' && (
-          <div className="space-y-8">
-            {/* Analytics Date Filter Controls */}
-            <div className="card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Analytics Filters</h3>
-                  <p className="text-sm text-gray-600">Select date range to analyze your data</p>
-                </div>
-                <div className="text-sm text-gray-500">
-                  Showing {filteredOrders.length} orders
-                </div>
-              </div>
-              
-              <form onSubmit={handleSubmit(() => {})}>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {/* Date Range Selector */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Date Range
-                    </label>
-                    <select
-                      {...register('dateRange')}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="today">Today</option>
-                      <option value="yesterday">Yesterday</option>
-                      <option value="week">Last 7 Days</option>
-                      <option value="last_week">Last Week</option>
-                      <option value="month">Last 30 Days</option>
-                      <option value="this_month">This Month</option>
-                      <option value="last_month">Last Month</option>
-                      <option value="quarter">Last 3 Months</option>
-                      <option value="custom">Custom Range</option>
-                    </select>
-                  </div>
-
-                  {/* Custom Date Range - Start Date */}
-                  {dateRange === 'custom' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Start Date
-                        </label>
-                        <input
-                          type="date"
-                          {...register('startDate')}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          End Date
-                        </label>
-                        <input
-                          type="date"
-                          {...register('endDate')}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {/* Quick Stats for Selected Range */}
-                  <div className="flex items-end">
-                    <div className="bg-blue-50 rounded-lg p-4 w-full">
-                      <div className="text-center">
-                        <p className="text-sm font-medium text-blue-700">Selected Period</p>
-                        <p className="text-lg font-bold text-blue-900">{formatCurrency(stats.totalRevenue)}</p>
-                        <p className="text-xs text-blue-600">{stats.totalOrders} orders</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
-
-            {/* Revenue Growth Chart - Full Width */}
-            <div className="card p-6">
-              <RevenueGrowthChart orders={filteredOrders} />
-            </div>
-
-            {/* Performance Metrics Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {/* AOV Trends */}
-              <div className="card p-6">
-                <AOVTrendsChart orders={filteredOrders} />
-              </div>
-
-              {/* Peak Hours */}
-              <div className="card p-6">
-                <PeakHoursChart orders={filteredOrders} />
-              </div>
-
-              {/* Day of Week Performance */}
-              <div className="card p-6">
-                <DayOfWeekChart orders={filteredOrders} />
-              </div>
-            </div>
-
-            {/* Table and Category Analytics */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Table Turnover Rate */}
-              <div className="card p-6">
-                <TableTurnoverChart orders={filteredOrders} tables={tables} />
-              </div>
-
-              {/* Category Performance */}
-              <div className="card p-6">
-                <CategoryPerformanceChart orders={filteredOrders} menuItems={menuItems} />
-              </div>
-            </div>
-
-            {/* Menu Item Performance */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Popular Menu Items */}
-              <div className="card p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-6">Popular Menu Items</h3>
-                
-                {stats.popularItems.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600">No data available</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {stats.popularItems.map((item, index) => (
-                      <div key={item.menuItemId} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-medium text-blue-600">
-                            {index + 1}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{item.name}</p>
-                            <p className="text-sm text-gray-600">{item.quantity} sold</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-gray-900">{formatCurrency(item.revenue)}</p>
-                          <p className="text-sm text-gray-600">revenue</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Table Performance Summary */}
-              <div className="card p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-6">Table Performance Summary</h3>
-                
-                {stats.tableStats.length === 0 ? (
-                  <div className="text-center py-8">
-                    <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600">No data available</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {stats.tableStats.slice(0, 5).map((table) => (
-                      <div key={table.tableId} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                            <MapPin className="w-4 h-4 text-green-600" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">Table {table.tableNumber}</p>
-                            <p className="text-sm text-gray-600">{table.orderCount} orders</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-gray-900">{formatCurrency(table.revenue)}</p>
-                          <p className="text-sm text-gray-600">revenue</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Analytics Summary Card */}
-            <div className="card p-6 bg-gradient-to-r from-blue-50 to-purple-50">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Analytics Insights</h3>
-                <TrendingUp className="w-6 h-6 text-blue-600" />
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Most Active Hour</p>
-                  <p className="text-xl font-bold text-blue-600">
-                    {filteredOrders.length > 0 ? (() => {
-                      const hourMap = new Map<number, number>();
-                      filteredOrders.forEach(order => {
-                        const hour = new Date(order.createdAt).getHours();
-                        hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
-                      });
-                      const mostActiveHour = Array.from(hourMap.entries())
-                        .reduce((max, [hour, count]) => count > max.count ? { hour, count } : max, { hour: 0, count: 0 });
-                      return `${mostActiveHour.hour}:00`;
-                    })() : 'N/A'}
-                  </p>
-                </div>
-                
-                <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Best Category</p>
-                  <p className="text-xl font-bold text-green-600">
-                    {(() => {
-                      const categoryMap = new Map<string, number>();
-                      filteredOrders.forEach(order => {
-                        order.items.forEach(item => {
-                          const menuItem = menuItems.find(m => m.id === item.menuItemId);
-                          const category = menuItem?.category || 'Unknown';
-                          categoryMap.set(category, (categoryMap.get(category) || 0) + item.total);
-                        });
-                      });
-                      const bestCategory = Array.from(categoryMap.entries())
-                        .reduce((max, [cat, revenue]) => revenue > max.revenue ? { cat, revenue } : max, { cat: 'N/A', revenue: 0 });
-                      return bestCategory.cat;
-                    })()}
-                  </p>
-                </div>
-                
-                <div className="text-center p-4 bg-white rounded-lg shadow-sm">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Efficiency Score</p>
-                  <p className="text-xl font-bold text-purple-600">
-                    {(() => {
-                      const totalTables = tables.length;
-                      const activeTables = stats.tableStats.filter(t => t.orderCount > 0).length;
-                      const efficiency = totalTables > 0 ? (activeTables / totalTables) * 100 : 0;
-                      return `${efficiency.toFixed(0)}%`;
-                    })()}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {viewMode === 'reports' && (
-          <div className="space-y-6">
-            {!salesAnalytics ? (
-              <div className="card p-6">
-                <div className="text-center mb-8">
-                  <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <BarChart3 className="w-10 h-10 text-white" />
-                  </div>
-                  <h2 className="text-3xl font-bold text-gray-900 mb-4">Business Analytics Center</h2>
-                  <p className="text-lg text-gray-600 mb-8">Generate comprehensive reports with detailed insights for your restaurant</p>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="text-center p-4">
-                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <TrendingUp className="w-6 h-6 text-green-600" />
-                      </div>
-                      <h3 className="font-semibold text-gray-900">Sales Analytics</h3>
-                      <p className="text-sm text-gray-600">Revenue, orders, and growth metrics</p>
-                    </div>
-                    <div className="text-center p-4">
-                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Users className="w-6 h-6 text-blue-600" />
-                      </div>
-                      <h3 className="font-semibold text-gray-900">Customer Insights</h3>
-                      <p className="text-sm text-gray-600">Customer behavior and preferences</p>
-                    </div>
-                    <div className="text-center p-4">
-                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Package className="w-6 h-6 text-purple-600" />
-                      </div>
-                      <h3 className="font-semibold text-gray-900">Operational Data</h3>
-                      <p className="text-sm text-gray-600">Menu, tables, and staff performance</p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setShowReportModal(true)}
-                    className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-                  >
-                    <FileText className="w-6 h-6 mr-3" />
-                    Generate Comprehensive Report
-                  </button>
-                  
-                  <p className="text-sm text-gray-500 mt-4">
-                    Select time periods, customize sections, and download detailed PDF reports
-                  </p>
-                </div>
-
-                {/* Quick Analytics Preview */}
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Analytics (Today)</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-blue-700 font-medium">Today's Revenue</p>
-                          <p className="text-xl font-bold text-blue-900">{formatCurrency(stats.todayRevenue)}</p>
-                        </div>
-                        <DollarSign className="w-8 h-8 text-blue-600" />
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-green-700 font-medium">Today's Orders</p>
-                          <p className="text-xl font-bold text-green-900">{stats.todayOrders}</p>
-                        </div>
-                        <ShoppingCart className="w-8 h-8 text-green-600" />
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg p-4 border border-purple-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-purple-700 font-medium">Avg Order Value</p>
-                          <p className="text-xl font-bold text-purple-900">{formatCurrency(stats.avgOrderValue)}</p>
-                        </div>
-                        <TrendingUp className="w-8 h-8 text-purple-600" />
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg p-4 border border-orange-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-orange-700 font-medium">Total Orders</p>
-                          <p className="text-xl font-bold text-orange-900">{stats.totalOrders}</p>
-                        </div>
-                        <Package className="w-8 h-8 text-orange-600" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        )}
       </main>
 
-      {/* Order Details Modal */}
+      {/* Modals */}
       <OrderDetailsModal
         order={selectedOrder}
         isOpen={showOrderDetails}
@@ -3846,13 +3248,11 @@ Thank you for dining with us!
         tables={tables}
       />
 
-      {/* Comprehensive Report Generation Modal */}
       <ReportGenerationModal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
       />
 
-      {/* Edit Payment Modal */}
       <EditPaymentModal
         order={orderToEditPayment}
         isOpen={showEditPaymentModal}

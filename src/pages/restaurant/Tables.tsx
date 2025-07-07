@@ -27,6 +27,9 @@ import { Table, TableStatus } from '@/types';
 import { VoiceCommand } from '@/services/voiceService';
 import { VoiceLoadingOverlay } from '@/components/voice/VoiceLoadingOverlay';
 import { VoiceKOTDialog } from '@/components/voice/VoiceKOTDialog';
+import { OrderService } from '@/services/orderService';
+import { formatCurrency } from '@/lib/utils';
+import { Order, OrderStatus } from '@/types';
 
 interface CreateTableForm {
   number: string;
@@ -365,9 +368,9 @@ export default function Tables() {
       loadTables();
       
       // Auto-check table statuses on load (after a delay to allow tables to load)
-      setTimeout(() => {
-        TableStatusService.autoFixWithNotification(restaurant.id);
-      }, 3000);
+      // setTimeout(() => {
+      //   TableStatusService.autoFixWithNotification(restaurant.id);
+      // }, 3000);
     }
   }, [restaurant]);
 
@@ -382,9 +385,9 @@ export default function Tables() {
   useEffect(() => {
     if (restaurant && tables.length > 0 && !isInitialLoad.current) {
       // Auto-check table statuses after real-time subscription loads tables
-      setTimeout(() => {
-        TableStatusService.autoFixWithNotification(restaurant.id);
-      }, 3000);
+      // setTimeout(() => {
+      //   TableStatusService.autoFixWithNotification(restaurant.id);
+      // }, 3000);
     }
   }, [restaurant, tables.length]);
 
@@ -513,7 +516,7 @@ export default function Tables() {
             
             // Cancel all active orders
             const cancelPromises = activeOrders.map(async (order) => {
-              return OrderService.updateOrderStatus(order.id, restaurant.id, 'cancelled', {
+              return OrderService.updateOrderStatus(order.id, restaurant.id, OrderStatus.CANCELLED, {
                 notes: `Table manually marked as available - orders cancelled automatically at ${new Date().toLocaleString()}`
               });
             });
@@ -1602,23 +1605,14 @@ export default function Tables() {
   if (!restaurant) return null;
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--color-background)' }}>
+    <div className="min-h-screen pb-20 lg:pb-8" style={{ background: 'var(--color-background)' }}>
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 py-4 sm:py-6 lg:py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Table Management</h1>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mt-2">
-                <span>{stats.total} total tables</span>
-                <span className="text-green-600">{stats.available} available</span>
-                <span className="text-red-600">{stats.occupied} occupied</span>
-                {lastSync && (
-                  <span className="text-gray-500">
-                    Last sync: {lastSync.toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
+              <p className="text-sm text-gray-600 mt-2">Manage your restaurant tables and areas</p>
             </div>
             
             {/* Desktop Action Buttons */}
@@ -1631,19 +1625,6 @@ export default function Tables() {
               >
                 <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
               </button>
-              
-              <button
-                onClick={async () => {
-                  if (restaurant) {
-                    await TableStatusService.autoFixWithNotification(restaurant.id);
-                    // Real-time subscription will automatically update tables
-                  }
-                }}
-                className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                title="Fix table statuses (occupied tables without orders)"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
 
               {/* Takeaway Orders Button */}
               <button
@@ -1653,31 +1634,6 @@ export default function Tables() {
               >
                 <User className="w-4 h-4 mr-2" />
                 Takeaway Orders
-              </button>
-              
-              <button
-                onClick={() => navigate('settings')}
-                className="btn btn-secondary"
-                title="Manage table areas and settings"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
-              </button>
-              
-              <button
-                onClick={() => setShowCreateAreaModal(true)}
-                className="btn btn-secondary"
-              >
-                <MapPin className="w-4 h-4 mr-2" />
-                Add Area
-              </button>
-              
-              <button
-                onClick={() => setShowCreateTableModal(true)}
-                className="btn btn-theme-primary"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Table
               </button>
             </div>
 
@@ -1692,19 +1648,6 @@ export default function Tables() {
                 >
                   <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
                 </button>
-                
-                <button
-                  onClick={async () => {
-                    if (restaurant) {
-                      await TableStatusService.autoFixWithNotification(restaurant.id);
-                      // Real-time subscription will automatically update tables
-                    }
-                  }}
-                  className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                  title="Fix table statuses (occupied tables without orders)"
-                >
-                  <Settings className="w-5 h-5" />
-                </button>
 
                 {/* Takeaway Orders Button - Mobile */}
                 <button
@@ -1712,97 +1655,46 @@ export default function Tables() {
                   className="btn btn-secondary text-sm px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
                   title="Manage takeaway orders"
                 >
-                  <User className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Takeaway</span>
-                </button>
-                
-                <button
-                  onClick={() => navigate('settings')}
-                  className="btn btn-secondary text-sm px-3 py-2"
-                  title="Manage table areas and settings"
-                >
-                  <Settings className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Settings</span>
-                </button>
-                
-                <button
-                  onClick={() => setShowCreateAreaModal(true)}
-                  className="btn btn-secondary text-sm px-3 py-2"
-                >
-                  <MapPin className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Add Area</span>
-                </button>
-                
-                <button
-                  onClick={() => setShowCreateTableModal(true)}
-                  className="btn btn-theme-primary text-sm px-3 py-2"
-                >
-                  <Plus className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Add Table</span>
+                  <User className="w-4 h-4 mr-2" />
+                  <span>Takeaway Orders</span>
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-8">
-          <div className="card p-3 sm:p-4 text-center">
-            <div className="text-xl sm:text-2xl font-bold text-gray-900">{stats.total}</div>
-            <div className="text-xs sm:text-sm text-gray-600">Total Tables</div>
+        {/* Filters - Compact Horizontal Layout - Always Side by Side */}
+        <div className="flex gap-3 mb-6">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Filter by Area</label>
+            <select
+              value={selectedArea}
+              onChange={(e) => setSelectedArea(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <option value="all">All Areas ({tables.length})</option>
+              {areas.map(area => (
+                <option key={area} value={area}>
+                  {area} ({tables.filter(t => t.area === area).length})
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="card p-3 sm:p-4 text-center">
-            <div className="text-xl sm:text-2xl font-bold text-green-600">{stats.available}</div>
-            <div className="text-xs sm:text-sm text-gray-600">Available</div>
-          </div>
-          <div className="card p-3 sm:p-4 text-center">
-            <div className="text-xl sm:text-2xl font-bold text-red-600">{stats.occupied}</div>
-            <div className="text-xs sm:text-sm text-gray-600">Occupied</div>
-          </div>
-          <div className="card p-3 sm:p-4 text-center">
-            <div className="text-xl sm:text-2xl font-bold text-yellow-600">{stats.reserved}</div>
-            <div className="text-xs sm:text-sm text-gray-600">Reserved</div>
-          </div>
-          <div className="card p-3 sm:p-4 text-center col-span-2 sm:col-span-1">
-            <div className="text-xl sm:text-2xl font-bold text-blue-600">{stats.cleaning}</div>
-            <div className="text-xs sm:text-sm text-gray-600">Cleaning</div>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="card p-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Area</label>
-              <select
-                value={selectedArea}
-                onChange={(e) => setSelectedArea(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Areas ({tables.length})</option>
-                {areas.map(area => (
-                  <option key={area} value={area}>
-                    {area} ({tables.filter(t => t.area === area).length})
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Status</label>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as TableStatus | 'all')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Status</option>
-                <option value="available">Available</option>
-                <option value="occupied">Occupied</option>
-                <option value="reserved">Reserved</option>
-                <option value="cleaning">Cleaning</option>
-                <option value="out_of_service">Out of Service</option>
-              </select>
-            </div>
+          
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Filter by Status</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value as TableStatus | 'all')}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <option value="all">All Status</option>
+              <option value="available">Available</option>
+              <option value="occupied">Occupied</option>
+              <option value="reserved">Reserved</option>
+              <option value="cleaning">Cleaning</option>
+              <option value="out_of_service">Out of Service</option>
+            </select>
           </div>
         </div>
 
@@ -1837,20 +1729,20 @@ export default function Tables() {
             </div>
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-6 lg:space-y-8 overflow-visible">
             {/* Group tables by area */}
             {areas.map(area => {
               const areaTables = filteredTables.filter(table => table.area === area);
               if (areaTables.length === 0) return null;
               
               return (
-                <div key={area}>
+                <div key={area} className="overflow-visible">
                   <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                     <MapPin className="w-5 h-5 mr-2" />
                     {area} ({areaTables.length})
                   </h2>
                   
-                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4 auto-rows-fr">
                     {areaTables.map(table => (
                       <TableCard
                         key={table.id}
@@ -2173,12 +2065,12 @@ function TableCard({ table, onUpdateStatus, onEdit, onDelete }: TableCardProps) 
     <div 
       className={`card border-2 ${getStatusColor(table.status)} relative ${
         canTakeOrder ? 'cursor-pointer hover:shadow-lg transition-all duration-200 hover:-translate-y-1' : ''
-      }`}
+      } h-full`}
       onClick={canTakeOrder ? handleTableClick : undefined}
     >
-      <div className="p-3 sm:p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Table {table.number}</h3>
+      <div className="p-3 h-full flex flex-col">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-semibold text-gray-900 text-base">Table {table.number}</h3>
           <div className="relative">
             <button
               onClick={(e) => {
@@ -2276,35 +2168,33 @@ function TableCard({ table, onUpdateStatus, onEdit, onDelete }: TableCardProps) 
           </div>
         </div>
         
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs sm:text-sm">
-            <span className="text-gray-600">Status:</span>
-            <div className="flex items-center space-x-1">
+        <div className="flex-1 flex flex-col justify-between">
+          {/* Status Section */}
+          <div className="flex items-center justify-center py-3">
+            <div className="flex items-center space-x-2">
               {getStatusIcon(table.status)}
-              <span className="capitalize text-gray-700 text-xs sm:text-sm">{table.status.replace('_', ' ')}</span>
+              <span className="capitalize text-gray-700 text-sm font-medium">{table.status.replace('_', ' ')}</span>
             </div>
           </div>
           
-          <div className="flex items-center justify-between text-xs sm:text-sm">
-            <span className="text-gray-600">Capacity:</span>
-            <div className="flex items-center space-x-1">
-              <Users className="w-3 h-3 text-gray-500" />
-              <span className="text-gray-700">{table.capacity}</span>
-            </div>
+          {/* Action Section - Always visible */}
+          <div className="mt-auto">
+            {canTakeOrder ? (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-2 text-center border border-blue-200">
+                <p className="text-sm font-semibold" style={{ color: 'var(--color-primary)' }}>
+                  👆 Take Order
+                </p>
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
+                <p className="text-xs text-gray-500 font-medium">
+                  {table.status === 'reserved' ? '🕒 Reserved' : 
+                   table.status === 'cleaning' ? '🧹 Cleaning' : 
+                   '⚠️ Unavailable'}
+                </p>
+              </div>
+            )}
           </div>
-          
-          <div className="flex items-center justify-between text-xs sm:text-sm">
-            <span className="text-gray-600">Area:</span>
-            <span className="text-gray-700 truncate ml-2">{table.area}</span>
-          </div>
-          
-          {canTakeOrder && (
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <p className="text-xs text-center font-medium" style={{ color: 'var(--color-primary)' }}>
-                👆 Click to take order
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>
