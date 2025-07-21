@@ -2427,18 +2427,18 @@ export default function TakeOrder() {
 
                   {/* Combined Orders Layout - Desktop with Sidebar */}
                   {/*
-                    Refactored: Use a flex container with a fixed height and overflow-y-auto for the main content area.
-                    This ensures both the order details and the action sidebar are always visible and scrollable if needed.
+                    Further improved: The main flex container now uses 100vh minus only the header height (not the banner),
+                    and the right sidebar uses 'sticky' positioning with 'top' set to the header height (e.g., 80px).
+                    This ensures the sidebar is always fully visible and scrolls independently if needed.
                   */}
                   <div
-                    className="flex gap-6 max-w-7xl mx-auto"
+                    className="flex gap-6 max-w-7xl mx-auto min-h-0"
                     style={{
-                      height: 'calc(100vh - 220px)', // Adjust for header/banner height
-                      minHeight: 400,
+                      height: 'calc(100vh - 80px)', // Only subtract header height
                     }}
                   >
                     {/* Left Side - Order Details */}
-                    <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-lg flex flex-col overflow-hidden">
+                    <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-lg flex flex-col min-h-0 overflow-hidden">
                       {/* Combined Order Header */}
                       <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex-shrink-0">
                         <div className="flex items-center justify-between">
@@ -2462,7 +2462,7 @@ export default function TakeOrder() {
                       </div>
 
                       {/* Combined Order Items - Scrollable */}
-                      <div className="flex-1 overflow-y-auto px-6 py-4">
+                      <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
                         {allOrders.length > 1 && (
                           <div className="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
                             <strong>Combined View:</strong> Showing all items from {allOrders.length} orders placed for Table {table.number}
@@ -2521,9 +2521,16 @@ export default function TakeOrder() {
                       </div>
                     </div>
 
-                    {/* Right Side - Action Buttons & Summary - Scrolls with content if needed */}
-                    <div className="w-80 bg-white rounded-xl border border-gray-200 shadow-lg flex flex-col max-h-full overflow-y-auto">
-                      <div className="p-6 flex flex-col h-full">
+                    {/* Right Side - Action Buttons & Summary - Sticky and scrollable if needed */}
+                    <div
+                      className="w-80 bg-white rounded-xl border border-gray-200 shadow-lg flex flex-col min-h-0 max-h-full"
+                      style={{
+                        position: 'sticky',
+                        top: 80, // header height in px
+                        alignSelf: 'flex-start',
+                      }}
+                    >
+                      <div className="p-6 flex flex-col h-full overflow-y-auto min-h-0">
                         <h3 className="text-lg font-semibold text-gray-900 mb-6">Order Actions</h3>
                         {/* Action Buttons */}
                         <div className="space-y-4">
