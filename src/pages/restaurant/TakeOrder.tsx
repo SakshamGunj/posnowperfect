@@ -2415,9 +2415,7 @@ export default function TakeOrder() {
                         <Check className="w-8 h-8 text-green-600" />
                       </div>
                       <div className="ml-4">
-                        <h3 className="text-lg font-semibold text-green-900">
-                          Orders Placed!
-                        </h3>
+                        <h3 className="text-lg font-semibold text-green-900">Orders Placed!</h3>
                         <p className="text-green-700 mt-1">
                           {allOrders.length} active order{allOrders.length > 1 ? 's' : ''} for Table {table.number}
                         </p>
@@ -2425,29 +2423,22 @@ export default function TakeOrder() {
                     </div>
                   </div>
 
-                  {/* Combined Orders Layout - Desktop with Sidebar */}
-                  {/*
-                    Further improved: The main flex container now uses 100vh minus only the header height (not the banner),
-                    and the right sidebar uses 'sticky' positioning with 'top' set to the header height (e.g., 80px).
-                    This ensures the sidebar is always fully visible and scrolls independently if needed.
-                  */}
+                  {/* Main Flex Layout: Order Details (left) + Sticky Sidebar (right) */}
                   <div
                     className="flex gap-6 max-w-7xl mx-auto min-h-0"
-                    style={{
-                      height: 'calc(100vh - 80px)', // Only subtract header height
-                    }}
+                    style={{ height: 'calc(100vh - 80px)' }}
                   >
-                    {/* Left Side - Order Details */}
-                    <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-lg flex flex-col min-h-0 overflow-hidden">
-                      {/* Combined Order Header */}
-                      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex-shrink-0">
+                    {/* Left: Order Details */}
+                    <section className="flex-1 flex flex-col min-h-0 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+                      {/* Header */}
+                      <header className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex-shrink-0">
                         <div className="flex items-center justify-between">
                           <div>
                             <h4 className="text-lg font-semibold text-gray-900">
                               {allOrders.length === 1 ? `Order #${allOrders[0].orderNumber}` : `Combined Orders (${allOrders.length})`}
                             </h4>
                             <p className="text-sm text-gray-600">
-                              {allOrders.length > 1 ? `${allOrders.map(o => `#${o.orderNumber}`).join(', ')}` : `Table ${table.number}`}
+                              {allOrders.length > 1 ? allOrders.map(o => `#${o.orderNumber}`).join(', ') : `Table ${table.number}`}
                             </p>
                           </div>
                           <div className="text-right">
@@ -2459,9 +2450,9 @@ export default function TakeOrder() {
                             </span>
                           </div>
                         </div>
-                      </div>
+                      </header>
 
-                      {/* Combined Order Items - Scrollable */}
+                      {/* Scrollable Order Items */}
                       <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
                         {allOrders.length > 1 && (
                           <div className="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
@@ -2470,7 +2461,7 @@ export default function TakeOrder() {
                         )}
                         <div className="space-y-4">
                           {allOrders.map((order, orderIndex) => (
-                            <div key={order.id} className={`${allOrders.length > 1 ? 'border-l-4 border-blue-500 pl-4 bg-gray-50 rounded-r-lg py-3' : ''}`}> 
+                            <div key={order.id} className={allOrders.length > 1 ? 'border-l-4 border-blue-500 pl-4 bg-gray-50 rounded-r-lg py-3' : ''}>
                               {allOrders.length > 1 && (
                                 <div className="flex justify-between items-center mb-3">
                                   <h5 className="font-medium text-gray-900">Order #{order.orderNumber}</h5>
@@ -2482,17 +2473,11 @@ export default function TakeOrder() {
                                   <div key={`${order.id}-${itemIndex}`} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
                                     <div className="flex-1">
                                       <p className="font-medium text-gray-900">{item.name}</p>
-                                      {item.notes && (
-                                        <p className="text-sm text-gray-600 mt-1">{item.notes}</p>
-                                      )}
+                                      {item.notes && <p className="text-sm text-gray-600 mt-1">{item.notes}</p>}
                                     </div>
                                     <div className="text-right ml-4">
-                                      <p className="text-sm font-medium text-gray-900">
-                                        {item.quantity} × {formatCurrency(item.price)}
-                                      </p>
-                                      <p className="text-sm font-bold text-gray-900">
-                                        {formatCurrency(item.total)}
-                                      </p>
+                                      <p className="text-sm font-medium text-gray-900">{item.quantity} × {formatCurrency(item.price)}</p>
+                                      <p className="text-sm font-bold text-gray-900">{formatCurrency(item.total)}</p>
                                     </div>
                                   </div>
                                 ))}
@@ -2508,8 +2493,8 @@ export default function TakeOrder() {
                         </div>
                       </div>
 
-                      {/* Combined Total Section - Always visible at bottom */}
-                      <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex-shrink-0">
+                      {/* Total Section (always visible at bottom) */}
+                      <footer className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex-shrink-0">
                         <div className="flex justify-between items-center">
                           <span className="text-xl font-bold text-gray-900">
                             {allOrders.length > 1 ? 'Combined Total:' : 'Order Total:'}
@@ -2518,62 +2503,35 @@ export default function TakeOrder() {
                             {formatCurrency(allOrders.reduce((total, order) => total + order.total, 0))}
                           </span>
                         </div>
-                      </div>
-                    </div>
+                      </footer>
+                    </section>
 
-                    {/* Right Side - Action Buttons & Summary - Sticky and scrollable if needed */}
-                    <div
+                    {/* Right: Sticky Sidebar for Actions & Summary */}
+                    <aside
                       className="w-80 bg-white rounded-xl border border-gray-200 shadow-lg flex flex-col min-h-0 max-h-full"
-                      style={{
-                        position: 'sticky',
-                        top: 80, // header height in px
-                        alignSelf: 'flex-start',
-                      }}
+                      style={{ position: 'sticky', top: 80, alignSelf: 'flex-start' }}
                     >
                       <div className="p-6 flex flex-col h-full overflow-y-auto min-h-0">
                         <h3 className="text-lg font-semibold text-gray-900 mb-6">Order Actions</h3>
-                        {/* Action Buttons */}
+                        {/* Action Buttons (handlers unchanged) */}
                         <div className="space-y-4">
-                          {/* Primary Actions */}
                           <div className="space-y-3">
-                            <button
-                              onClick={handleAddMoreOrder}
-                              className="w-full px-4 py-4 text-base font-semibold text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all duration-200 flex items-center justify-center"
-                            >
-                              <Plus className="w-5 h-5 mr-3" />
-                              Add More Items
+                            <button onClick={handleAddMoreOrder} className="w-full px-4 py-4 text-base font-semibold text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all duration-200 flex items-center justify-center">
+                              <Plus className="w-5 h-5 mr-3" /> Add More Items
                             </button>
-                            <button
-                              onClick={() => setShowPaymentModal(true)}
-                              className="w-full px-4 py-4 text-base font-semibold text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm transition-all duration-200 flex items-center justify-center"
-                            >
-                              <CreditCard className="w-5 h-5 mr-3" />
-                              Process Payment
+                            <button onClick={() => setShowPaymentModal(true)} className="w-full px-4 py-4 text-base font-semibold text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-sm transition-all duration-200 flex items-center justify-center">
+                              <CreditCard className="w-5 h-5 mr-3" /> Process Payment
                             </button>
                           </div>
-                          {/* Secondary Actions */}
                           <div className="pt-4 border-t border-gray-200 space-y-2">
-                            <button
-                              onClick={handlePrintKOT}
-                              className="w-full px-4 py-3 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-300 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all duration-200 flex items-center justify-center"
-                            >
-                              <Printer className="w-4 h-4 mr-2" />
-                              Print KOT
+                            <button onClick={handlePrintKOT} className="w-full px-4 py-3 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-300 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all duration-200 flex items-center justify-center">
+                              <Printer className="w-4 h-4 mr-2" /> Print KOT
                             </button>
-                            <button
-                              onClick={() => setShowTableManagement(true)}
-                              className="w-full px-4 py-3 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-sm transition-all duration-200 flex items-center justify-center"
-                            >
-                              <ArrowRightLeft className="w-4 h-4 mr-2" />
-                              Table Management
+                            <button onClick={() => setShowTableManagement(true)} className="w-full px-4 py-3 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-sm transition-all duration-200 flex items-center justify-center">
+                              <ArrowRightLeft className="w-4 h-4 mr-2" /> Table Management
                             </button>
-                            <button
-                              onClick={handleCancelAllOrders}
-                              disabled={isPlacingOrder}
-                              className="w-full px-4 py-3 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all duration-200 flex items-center justify-center"
-                            >
-                              <X className="w-4 h-4 mr-2" />
-                              {isPlacingOrder ? 'Cancelling All Orders...' : 'Cancel All Orders'}
+                            <button onClick={handleCancelAllOrders} disabled={isPlacingOrder} className="w-full px-4 py-3 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all duration-200 flex items-center justify-center">
+                              <X className="w-4 h-4 mr-2" /> {isPlacingOrder ? 'Cancelling All Orders...' : 'Cancel All Orders'}
                             </button>
                           </div>
                         </div>
@@ -2581,19 +2539,15 @@ export default function TakeOrder() {
                         <div className="mt-6 pt-6 border-t border-gray-200">
                           <div className="text-center">
                             <p className="text-sm text-gray-600 mb-2">Table {table.number}</p>
-                            <p className="text-xs text-gray-500">
-                              {allOrders.length} active order{allOrders.length > 1 ? 's' : ''}
-                            </p>
+                            <p className="text-xs text-gray-500">{allOrders.length} active order{allOrders.length > 1 ? 's' : ''}</p>
                             <div className="mt-3 p-3 bg-green-50 rounded-lg">
                               <p className="text-sm font-medium text-green-800">Total Amount</p>
-                              <p className="text-lg font-bold text-green-600">
-                                {formatCurrency(allOrders.reduce((total, order) => total + order.total, 0))}
-                              </p>
+                              <p className="text-lg font-bold text-green-600">{formatCurrency(allOrders.reduce((total, order) => total + order.total, 0))}</p>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </aside>
                   </div>
                 </div>
               </div>
